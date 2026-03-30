@@ -16,15 +16,17 @@ def _get_pool() -> pooling.MySQLConnectionPool:
     global _pool
     if _pool is None:
         _pool = pooling.MySQLConnectionPool(
-            pool_name="rateapp",
-            pool_size=5,
-            pool_reset_session=True,
-            host=config.MYSQL_HOST,
-            user=config.MYSQL_USER,
-            password=config.MYSQL_PASSWORD,
-            database=config.MYSQL_DATABASE,
-            use_pure=True,
-            autocommit=False,
+    		pool_name="rateapp",
+    		pool_size=5,
+    		pool_reset_session=True,
+    		host=config.MYSQL_HOST,
+    		port=config.MYSQL_PORT,
+    		user=config.MYSQL_USER,
+    		password=config.MYSQL_PASSWORD,
+    		database=config.MYSQL_DATABASE,
+    		use_pure=True,
+    		autocommit=False,
+    		ssl_disabled=False,
         )
     return _pool
 
