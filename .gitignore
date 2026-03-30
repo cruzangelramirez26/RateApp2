@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Build
+frontend/dist/
+backend/static/
+
+# Environment
+.env
+.spotify_cache
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# State files
+cuatri_virtual_state.json
+a_plus_cutoff.json
