@@ -99,7 +99,7 @@ body {
 /* ── Global utility classes ───────────────────────── */
 .page {
   flex: 1;
-  padding: 70px 16px 100px;
+  padding: 16px 16px 100px;
   max-width: 720px;
   margin: 0 auto;
   width: 100%;
@@ -451,5 +451,75 @@ body {
     gap: 6px;
     padding: 12px 16px;
     font-size: 0.82rem;
+  }
+}
+
+/* ── TrackCard responsive ─────────────────────────── */
+.track-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.track-card-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.track-card-art {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.track-card-art-placeholder {
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.track-card-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-card-artist {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-card-ratings {
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 54px;
+}
+
+@media (min-width: 640px) {
+  .track-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .track-card-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .track-card-ratings {
+    padding-left: 0;
+    justify-content: flex-end;
   }
 }

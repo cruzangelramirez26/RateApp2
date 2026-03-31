@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { ListMusic, Clock, BarChart3 } from 'lucide-react';
+import { ListMusic, Clock, Library, BarChart3 } from 'lucide-react';
 
 export default function NavBar() {
   return (
@@ -7,6 +7,10 @@ export default function NavBar() {
       <NavLink to="/" className={({ isActive }) => isActive ? 'active' : ''} end>
         <ListMusic />
         <span>Calificar</span>
+      </NavLink>
+      <NavLink to="/library" className={({ isActive }) => isActive ? 'active' : ''}>
+        <Library />
+        <span>Biblioteca</span>
       </NavLink>
       <NavLink to="/recent" className={({ isActive }) => isActive ? 'active' : ''}>
         <Clock />

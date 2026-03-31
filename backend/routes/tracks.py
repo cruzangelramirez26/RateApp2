@@ -271,17 +271,19 @@ def aplus_status():
 def aplus_scan():
     """
     Scan Spotify liked songs for new tracks added after the cutoff.
-    Returns candidates without applying them.
+    Auto-activates with today as cutoff if not set yet.
     """
     cutoff = _load_cutoff()
 
-    # First activation: set cutoff to now
+    # Auto-activate: set cutoff to now and scan immediately
     if cutoff is None:
         now_str = utils.now_utc_str()
         _save_cutoff(now_str)
+        cutoff = pd.to_datetime(now_str, utc=True)
+        # First time: return empty since cutoff is now
         return {
             "activated": True,
-            "message": "Sistema A+ activado. A partir de ahora los nuevos likes se detectarán.",
+            "message": "Sistema A+ activado. Cutoff fijado a hoy. Los próximos likes nuevos se detectarán.",
             "candidates": [],
         }
 

@@ -5,11 +5,12 @@ import { ToastProvider } from './hooks/useToast';
 import NavBar from './components/NavBar';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
+import LibraryPage from './pages/LibraryPage';
 import RecentPage from './pages/RecentPage';
 import StatsPage from './pages/StatsPage';
 
 export default function App() {
-  const [auth, setAuth] = useState(null); // null = loading, false = need login, object = logged in
+  const [auth, setAuth] = useState(null);
 
   useEffect(() => {
     api.authStatus()
@@ -17,7 +18,6 @@ export default function App() {
       .catch(() => setAuth(false));
   }, []);
 
-  // Loading state
   if (auth === null) {
     return (
       <div style={{
@@ -37,18 +37,17 @@ export default function App() {
     );
   }
 
-  // Need Spotify auth
   if (!auth) {
     return <LoginPage />;
   }
 
-  // Authenticated
   return (
     <ToastProvider>
       <BrowserRouter>
         <NavBar />
         <Routes>
           <Route path="/" element={<PendingPage />} />
+          <Route path="/library" element={<LibraryPage />} />
           <Route path="/recent" element={<RecentPage />} />
           <Route path="/dashboard" element={<StatsPage />} />
         </Routes>

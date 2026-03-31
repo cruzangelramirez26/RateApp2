@@ -251,7 +251,6 @@ export default function StatsPage() {
 
         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.6 }}>
           Detecta canciones nuevas en tus "Me gusta" de Spotify y las marca como A+ automáticamente.
-          {!aplusStatus?.active && ' La primera vez solo activa el sistema.'}
         </p>
 
         {aplusCandidates.length > 0 && (
@@ -300,7 +299,7 @@ export default function StatsPage() {
             })}
             disabled={!!actionLoading}
           >
-            {aplusStatus?.active ? 'Escanear nuevos likes' : 'Activar sistema A+'}
+            {aplusStatus?.active ? 'Escanear nuevos likes' : 'Escanear nuevos likes'}
           </button>
 
           {aplusCandidates.length > 0 && (
