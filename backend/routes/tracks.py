@@ -318,16 +318,15 @@ def library_search(q: str = ""):
             return []
 
         ids = [t['id'] for t in tracks_spotify]
-        conn = database._get_conn()
-        cur = conn.cursor(dictionary=True)
-        placeholders = ', '.join(['%s'] * len(ids))
-        cur.execute(
-            f"SELECT track_id, rating, manual_order FROM tracks WHERE track_id IN ({placeholders})",
-            ids
-        )
-        db_rows = {r['track_id']: r for r in cur.fetchall()}
-        cur.close()
-        conn.close()
+        with database.get_conn() as conn:
+            cur = conn.cursor(dictionary=True)
+            placeholders = ', '.join(['%s'] * len(ids))
+            cur.execute(
+                f"SELECT track_id, rating, manual_order FROM tracks WHERE track_id IN ({placeholders})",
+                ids
+            )
+            db_rows = {r['track_id']: r for r in cur.fetchall()}
+            cur.close()
 
         return [
             {
@@ -347,19 +346,18 @@ def library_search(q: str = ""):
     else:
         q_lower = q.strip().lower()
         like = f"%{q_lower}%"
-        conn = database._get_conn()
-        cur = conn.cursor(dictionary=True)
-        cur.execute("""
-            SELECT track_id as id, name, artist, album, rating,
-                   added_at, manual_order
-            FROM tracks
-            WHERE LOWER(name) LIKE %s OR LOWER(artist) LIKE %s
-            ORDER BY added_at DESC
-            LIMIT 200
-        """, (like, like))
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
+        with database.get_conn() as conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("""
+                SELECT track_id as id, name, artist, album, rating,
+                    added_at, manual_order
+                FROM tracks
+                WHERE LOWER(name) LIKE %s OR LOWER(artist) LIKE %s
+                ORDER BY added_at DESC
+                LIMIT 200
+            """, (like, like))
+            rows = cur.fetchall()
+            cur.close()
         return [
             {
                 "id": r["id"], "name": r["name"] or "",
