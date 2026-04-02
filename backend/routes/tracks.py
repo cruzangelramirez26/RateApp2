@@ -389,7 +389,7 @@ def aplus_activate():
     return {"active": True, "cutoff": cutoff}
 
 
-@router.get("/aplus/scan")
+@router.post("/aplus/scan")
 def aplus_scan():
     cutoff = database.get_setting('aplus_cutoff')
     if not cutoff:
