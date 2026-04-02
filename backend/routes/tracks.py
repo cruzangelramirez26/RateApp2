@@ -257,109 +257,6 @@ def _save_cutoff(dt_str: str):
         json.dump({"cutoff": dt_str}, f, indent=2)
 
 
-@router.get("/aplus/status")
-def aplus_status():
-    """Check if A+ detection is active and return cutoff date."""
-    cutoff = _load_cutoff()
-    return {
-        "active": cutoff is not None,
-        "cutoff": str(cutoff) if cutoff else None,
-    }
-
-
-@router.post("/aplus/scan")
-def aplus_scan():
-    """
-    Scan Spotify liked songs for new tracks added after the cutoff.
-    Auto-activates with today as cutoff if not set yet.
-    """
-    cutoff = _load_cutoff()
-
-    # Auto-activate: set cutoff to now and scan immediately
-    if cutoff is None:
-        now_str = utils.now_utc_str()
-        _save_cutoff(now_str)
-        cutoff = pd.to_datetime(now_str, utc=True)
-        # First time: return empty since cutoff is now
-        return {
-            "activated": True,
-            "message": "Sistema A+ activado. Cutoff fijado a hoy. Los próximos likes nuevos se detectarán.",
-            "candidates": [],
-        }
-
-    sp = spotify.get_client()
-    liked = spotify.get_liked_tracks_since(sp, cutoff)
-
-    if not liked:
-        return {"activated": False, "message": "No hay A+ nuevos.", "candidates": []}
-
-    # Filter out tracks already in DB
-    df = database.load_all()
-    existing_ids = set(df["track_id"]) if not df.empty else set()
-
-    candidates = []
-    for t in liked:
-        if t["id"] and t["id"] not in existing_ids:
-            candidates.append(t)
-
-    return {
-        "activated": False,
-        "message": f"Se detectaron {len(candidates)} candidatos A+." if candidates else "No hay A+ nuevos.",
-        "candidates": candidates,
-    }
-
-
-@router.post("/aplus/apply")
-def aplus_apply():
-    """
-    Apply A+ to all candidates: save to DB, add to cuatri + anual, reorder.
-    """
-    cutoff = _load_cutoff()
-    if cutoff is None:
-        raise HTTPException(400, "A+ detection not activated yet. Call /aplus/scan first.")
-
-    sp = spotify.get_client()
-    liked = spotify.get_liked_tracks_since(sp, cutoff)
-
-    df = database.load_all()
-    existing_ids = set(df["track_id"]) if not df.empty else set()
-
-    candidates = [t for t in liked if t.get("id") and t["id"] not in existing_ids]
-
-    if not candidates:
-        return {"applied": 0, "message": "No hay A+ nuevos para aplicar."}
-
-    cuatri = utils.get_cuatrimestre(utils.now_utc())
-    cuatri_id = config.DISTRIBUTION_PLAYLISTS.get(cuatri)
-    anual_id = config.DISTRIBUTION_PLAYLISTS["anual"]
-    now_str = utils.now_utc_str()
-
-    applied = 0
-    for c in candidates:
-        database.upsert_track(c["id"], c["name"], c["artist"], c.get("album", ""), now_str, "A+")
-
-        if cuatri_id:
-            try:
-                spotify.add_to_playlist(sp, cuatri_id, [c["id"]])
-            except Exception:
-                pass
-        try:
-            spotify.add_to_playlist(sp, anual_id, [c["id"]])
-        except Exception:
-            pass
-
-        applied += 1
-
-    # Update cutoff to now
-    _save_cutoff(now_str)
-
-    # Auto-reorder
-    if cuatri_id:
-        _order_playlist(sp, cuatri_id, min_rating_order=1)
-    _order_playlist(sp, anual_id, min_rating_order=config.RATING_ORDER["B+"])
-
-    return {"applied": applied, "message": f"Se aplicaron {applied} canciones como A+."}
-
 PLAYLIST_IDS = {
     "3333":    "1kGf7O4l7tWfhWBEMuwyNx",
     "perla":   "41CXGh7OcFkplIo6BF44OJ",
@@ -384,7 +281,7 @@ def _resolve_playlist_key(q: str):
     return None
 
 
-@router.get("/tracks/library")
+@router.get("/library")
 def library_search(q: str = ""):
     if not q.strip():
         return []
@@ -478,7 +375,7 @@ def library_search(q: str = ""):
 
 # ── A+ Instantáneos (cutoff persistente en DB) ───────────────
 
-@router.get("/tracks/aplus/status")
+@router.get("/aplus/status")
 def aplus_status():
     cutoff = database.get_setting('aplus_cutoff')
     if not cutoff:
@@ -487,14 +384,14 @@ def aplus_status():
     return {"active": True, "cutoff": cutoff}
 
 
-@router.post("/tracks/aplus/activate")
+@router.post("/aplus/activate")
 def aplus_activate():
     cutoff = datetime.now(timezone.utc).isoformat()
     database.set_setting('aplus_cutoff', cutoff)
     return {"active": True, "cutoff": cutoff}
 
 
-@router.get("/tracks/aplus/scan")
+@router.get("/aplus/scan")
 def aplus_scan():
     cutoff = database.get_setting('aplus_cutoff')
     if not cutoff:
@@ -525,7 +422,7 @@ def aplus_scan():
     return {"candidates": candidates, "cutoff": cutoff}
 
 
-@router.post("/tracks/aplus/apply")
+@router.post("/aplus/apply")
 def aplus_apply(body: dict):
     track_ids = body.get("track_ids", [])
     if not track_ids:
