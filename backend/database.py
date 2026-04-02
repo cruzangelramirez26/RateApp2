@@ -179,3 +179,42 @@ def get_stats() -> dict:
         rows = cur.fetchall()
         cur.close()
         return {r: c for r, c in rows}
+
+def ensure_settings_table():
+    """Crea tabla settings si no existe (persiste cutoff A+ entre reinicios)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key_name VARCHAR(64) PRIMARY KEY,
+            value_text TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) CHARACTER SET utf8mb4
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_setting(key: str):
+    try:
+        conn = get_conn()
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT value_text FROM settings WHERE key_name = %s", (key,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return row['value_text'] if row else None
+    except Exception:
+        return None
+
+def set_setting(key: str, value: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO settings (key_name, value_text) VALUES (%s, %s) "
+        "ON DUPLICATE KEY UPDATE value_text = %s, updated_at = CURRENT_TIMESTAMP",
+        (key, value, value)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()

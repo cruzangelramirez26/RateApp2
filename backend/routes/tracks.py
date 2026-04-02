@@ -359,3 +359,190 @@ def aplus_apply():
     _order_playlist(sp, anual_id, min_rating_order=config.RATING_ORDER["B+"])
 
     return {"applied": applied, "message": f"Se aplicaron {applied} canciones como A+."}
+
+PLAYLIST_IDS = {
+    "3333":    "1kGf7O4l7tWfhWBEMuwyNx",
+    "perla":   "41CXGh7OcFkplIo6BF44OJ",
+    "galeria": "4BrxCvMSNdQSOEQbRXh7WN",
+    "latte":   "3DltKEaaDVOchGxfIQlPu9",
+    "miel":    "5pFFpx2dYnfUdOKW4WBN3y",
+}
+
+PLAYLIST_ALIASES = {
+    "3333":    ["3333", "<3333>"],
+    "perla":   ["perla"],
+    "galeria": ["galeria", "galería", "anual", "galería anual", "galeria anual", "26", "'26"],
+    "latte":   ["latte"],
+    "miel":    ["miel"],
+}
+
+def _resolve_playlist_key(q: str):
+    q_lower = q.strip().lower()
+    for key, aliases in PLAYLIST_ALIASES.items():
+        if any(a in q_lower or q_lower in a for a in aliases):
+            return key
+    return None
+
+
+@router.get("/tracks/library")
+def library_search(q: str = ""):
+    if not q.strip():
+        return []
+
+    playlist_key = _resolve_playlist_key(q)
+
+    if playlist_key:
+        playlist_id = PLAYLIST_IDS[playlist_key]
+        sp = spotify.get_client()
+        tracks_spotify = []
+        results = sp.playlist_tracks(playlist_id, limit=100)
+        while results:
+            for item in results['items']:
+                if not item or not item.get('track'):
+                    continue
+                t = item['track']
+                if not t.get('id'):
+                    continue
+                tracks_spotify.append({
+                    "id": t['id'],
+                    "name": t['name'],
+                    "artist": t['artists'][0]['name'] if t.get('artists') else "",
+                    "album": t['album']['name'] if t.get('album') else "",
+                    "image": t['album']['images'][0]['url'] if t.get('album') and t['album'].get('images') else None,
+                    "added_at": item.get('added_at'),
+                    "spotify_position": len(tracks_spotify),
+                })
+            if results.get('next'):
+                results = sp.next(results)
+            else:
+                break
+
+        if not tracks_spotify:
+            return []
+
+        ids = [t['id'] for t in tracks_spotify]
+        conn = database._get_conn()
+        cur = conn.cursor(dictionary=True)
+        placeholders = ', '.join(['%s'] * len(ids))
+        cur.execute(
+            f"SELECT track_id, rating, manual_order FROM tracks WHERE track_id IN ({placeholders})",
+            ids
+        )
+        db_rows = {r['track_id']: r for r in cur.fetchall()}
+        cur.close()
+        conn.close()
+
+        return [
+            {
+                "id": t['id'],
+                "name": t['name'],
+                "artist": t['artist'],
+                "album": t['album'],
+                "image": t.get('image'),
+                "rating": db_rows.get(t['id'], {}).get('rating'),
+                "added_at": t['added_at'],
+                "manual_order": db_rows.get(t['id'], {}).get('manual_order', t['spotify_position']),
+                "spotify_position": t['spotify_position'],
+            }
+            for t in tracks_spotify
+        ]
+
+    else:
+        q_lower = q.strip().lower()
+        like = f"%{q_lower}%"
+        conn = database._get_conn()
+        cur = conn.cursor(dictionary=True)
+        cur.execute("""
+            SELECT track_id as id, name, artist, album, rating,
+                   added_at, manual_order
+            FROM tracks
+            WHERE LOWER(name) LIKE %s OR LOWER(artist) LIKE %s
+            ORDER BY added_at DESC
+            LIMIT 200
+        """, (like, like))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [
+            {
+                "id": r["id"], "name": r["name"] or "",
+                "artist": r["artist"] or "", "album": r.get("album") or "",
+                "image": None, "rating": r.get("rating"),
+                "added_at": str(r["added_at"]) if r.get("added_at") else None,
+                "manual_order": r.get("manual_order", 0),
+                "spotify_position": r.get("manual_order", 0),
+            }
+            for r in rows
+        ]
+
+
+# ── A+ Instantáneos (cutoff persistente en DB) ───────────────
+
+@router.get("/tracks/aplus/status")
+def aplus_status():
+    cutoff = database.get_setting('aplus_cutoff')
+    if not cutoff:
+        cutoff = datetime.now(timezone.utc).isoformat()
+        database.set_setting('aplus_cutoff', cutoff)
+    return {"active": True, "cutoff": cutoff}
+
+
+@router.post("/tracks/aplus/activate")
+def aplus_activate():
+    cutoff = datetime.now(timezone.utc).isoformat()
+    database.set_setting('aplus_cutoff', cutoff)
+    return {"active": True, "cutoff": cutoff}
+
+
+@router.get("/tracks/aplus/scan")
+def aplus_scan():
+    cutoff = database.get_setting('aplus_cutoff')
+    if not cutoff:
+        cutoff = datetime.now(timezone.utc).isoformat()
+        database.set_setting('aplus_cutoff', cutoff)
+        return {"candidates": [], "cutoff": cutoff}
+
+    sp = spotify.get_client()
+    cutoff_dt = datetime.fromisoformat(cutoff.replace('Z', '+00:00'))
+    candidates = []
+    results = sp.current_user_saved_tracks(limit=50)
+    while results:
+        for item in results['items']:
+            added_dt = datetime.fromisoformat(item['added_at'].replace('Z', '+00:00'))
+            if added_dt > cutoff_dt:
+                t = item['track']
+                candidates.append({
+                    "id": t['id'], "name": t['name'],
+                    "artist": t['artists'][0]['name'],
+                    "album": t['album']['name'],
+                    "image": t['album']['images'][0]['url'] if t['album']['images'] else None,
+                    "added_at": item['added_at'],
+                })
+        if results.get('next'):
+            results = sp.next(results)
+        else:
+            break
+    return {"candidates": candidates, "cutoff": cutoff}
+
+
+@router.post("/tracks/aplus/apply")
+def aplus_apply(body: dict):
+    track_ids = body.get("track_ids", [])
+    if not track_ids:
+        return {"applied": 0}
+    sp = spotify.get_client()
+    applied = 0
+    for tid in track_ids:
+        try:
+            t = sp.track(tid)
+            database.save_track({
+                "track_id": tid, "name": t['name'],
+                "artist": t['artists'][0]['name'],
+                "album": t['album']['name'], "rating": "A+",
+            })
+            applied += 1
+        except Exception:
+            pass
+    new_cutoff = datetime.now(timezone.utc).isoformat()
+    database.set_setting('aplus_cutoff', new_cutoff)
+    return {"applied": applied, "new_cutoff": new_cutoff}

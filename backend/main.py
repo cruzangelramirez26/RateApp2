@@ -12,6 +12,11 @@ import database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.ensure_table()
+    database.ensure_settings_table()  # crea tabla settings si no existe
+    # Auto-init cutoff A+ si no existe — sobrevive reinicios de Render
+    if not database.get_setting('aplus_cutoff'):
+        from datetime import datetime, timezone
+        database.set_setting('aplus_cutoff', datetime.now(timezone.utc).isoformat())
     yield
 
 

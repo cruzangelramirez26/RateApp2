@@ -34,6 +34,9 @@ export const api = {
     body: JSON.stringify(data),
   }),
   getPlaylistTracks: (id) => request(`/tracks/playlist/${id}`),
+  
+  getLibrary: (q) => request(`/tracks/library?q=${encodeURIComponent(q)}`),
+  
 
   // Playlists
   getMyPlaylists: () => request('/playlists/mine'),
@@ -51,4 +54,5 @@ export const api = {
   aplusStatus: () => request('/tracks/aplus/status'),
   aplusScan: () => request('/tracks/aplus/scan', { method: 'POST' }),
   aplusApply: () => request('/tracks/aplus/apply', { method: 'POST' }),
+
 };
