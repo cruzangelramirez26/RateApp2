@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-05-01 (sesión 3)
+
+**Feature: Liked Songs sync + re-calificación histórica + UI mejoras**
+
+### Liked Songs (Me Gusta nativo de Spotify)
+- `backend/spotify.py` — scope `user-library-modify` agregado; `save_tracks()`, `unsave_tracks()`, `are_tracks_saved()`, `get_all_liked_tracks()`
+- `backend/routes/tracks.py` — `rate_track` ahora sincroniza Me Gusta nativo: da like al subir a TOP_SET, quita like al bajar. Modo `soft=true` para guardar solo en DB sin tocar Spotify.
+- `backend/database.py` — `upsert_track` ya no pisa `added_at` al actualizar (solo INSERT). `get_stats_extended()` con top artistas y desglose por cuatrimestre.
+
+### Lógica histórico vs actual
+- `rate_track` detecta si una canción es del cuatrimestre actual (`added_at` en rango + año) o histórica. Canciones históricas subiendo a TOP_SET entran al cuatrimestre actual con `cuatrimestre_override`. Playlists históricas nunca se tocan.
+
+### Galería Anual
+- `backend/routes/playlists.py` — `POST /playlists/rebuild/anual`: reconstruye Galería con todos los TOP_SET del año actual desde DB. (Bug fix: segunda versión sin filtro de año fue corregida inmediatamente.)
+
+### UI
+- `RecentPage` — portadas enriquecidas via batch `sp.tracks()`
+- `LibraryPage` — default abre "Me Gusta" nativo; filtro inline; sort "Recientes" usa `rated_at` (fecha DB); modo soft al calificar desde Me Gusta
+- `StatsPage` — TOP SET highlight con %, desglose por período, top artistas
+- `ToolsPage` — botón "Reconstruir Galería"
+- `api.js` — `getLikedAll()`, `rateTrackSoft()`, `rebuildAnual()`
+- `/tracks/playlist/{id}` — agrega campo `rated_at` (fecha DB)
+- `/tracks/liked-all` — nuevo endpoint: todos los Me Gusta enriquecidos con ratings de DB
+
+Commits: `1785c30`, `fda69f8`, `c495261`, `6a0f02e`, `c53aac6` → desplegados en Render.
+
+---
+
 ## 2026-05-01
 
 **Bug corregido: A+ Instantáneo**
