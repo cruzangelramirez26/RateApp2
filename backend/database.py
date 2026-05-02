@@ -16,17 +16,15 @@ def _get_pool() -> pooling.MySQLConnectionPool:
     global _pool
     if _pool is None:
         _pool = pooling.MySQLConnectionPool(
-    		pool_name="rateapp",
-    		pool_size=5,
-    		pool_reset_session=True,
-    		host=config.MYSQL_HOST,
-    		port=config.MYSQL_PORT,
-    		user=config.MYSQL_USER,
-    		password=config.MYSQL_PASSWORD,
-    		database=config.MYSQL_DATABASE,
-    		use_pure=True,
-    		autocommit=False,
-    		ssl_disabled=False,
+            pool_name="rateapp",
+            pool_size=5,
+            pool_reset_session=True,
+            host=config.MYSQL_HOST,
+            user=config.MYSQL_USER,
+            password=config.MYSQL_PASSWORD,
+            database=config.MYSQL_DATABASE,
+            use_pure=True,
+            autocommit=False,
         )
     return _pool
 
@@ -59,6 +57,43 @@ def ensure_table():
                 manual_order INT        NOT NULL DEFAULT 0
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         """)
+        conn.commit()
+        cur.close()
+
+
+def ensure_config_table():
+    """Create the config table if it doesn't exist."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS config (
+                `key`   VARCHAR(64) PRIMARY KEY,
+                `value` TEXT        NULL
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+        """)
+        conn.commit()
+        cur.close()
+
+
+def get_config(key: str) -> Optional[str]:
+    """Return a config value by key, or None if not set."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT `value` FROM config WHERE `key` = %s", (key,))
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else None
+
+
+def set_config(key: str, value: str):
+    """Insert or update a config value."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO config (`key`, `value`) VALUES (%s, %s) "
+            "ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+            (key, value),
+        )
         conn.commit()
         cur.close()
 
@@ -179,39 +214,3 @@ def get_stats() -> dict:
         rows = cur.fetchall()
         cur.close()
         return {r: c for r, c in rows}
-
-def ensure_settings_table():
-    """Crea tabla settings si no existe (persiste cutoff A+ entre reinicios)."""
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS settings (
-                key_name VARCHAR(64) PRIMARY KEY,
-                value_text TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) CHARACTER SET utf8mb4
-        """)
-        conn.commit()
-        cur.close()
-
-def get_setting(key: str):
-    try:
-        with get_conn() as conn:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT value_text FROM settings WHERE key_name = %s", (key,))
-            row = cur.fetchone()
-            cur.close()
-            return row['value_text'] if row else None
-    except Exception:
-        return None
-
-def set_setting(key: str, value: str):
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO settings (key_name, value_text) VALUES (%s, %s) "
-            "ON DUPLICATE KEY UPDATE value_text = %s, updated_at = CURRENT_TIMESTAMP",
-            (key, value, value)
-        )
-        conn.commit()
-        cur.close()

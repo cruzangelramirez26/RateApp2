@@ -23,6 +23,7 @@ export default function StatsPage() {
   const [virtualStatus, setVirtualStatus] = useState(null);
   const [aplusStatus, setAplusStatus] = useState(null);
   const [aplusCandidates, setAplusCandidates] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
   const toast = useToast();
@@ -259,7 +260,7 @@ export default function StatsPage() {
             borderRadius: 'var(--radius-sm)',
             padding: '10px',
             marginBottom: '12px',
-            maxHeight: '180px',
+            maxHeight: '220px',
             overflowY: 'auto',
           }}>
             <div style={{
@@ -268,18 +269,62 @@ export default function StatsPage() {
               fontWeight: 600,
               marginBottom: '6px',
               fontFamily: 'var(--font-mono)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
             }}>
-              {aplusCandidates.length} candidatos detectados:
+              <span>{aplusCandidates.length} candidatos detectados</span>
+              <button
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '0.7rem',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  padding: '0',
+                  fontFamily: 'var(--font-mono)',
+                }}
+                onClick={() => {
+                  if (selectedIds.size === aplusCandidates.length) {
+                    setSelectedIds(new Set());
+                  } else {
+                    setSelectedIds(new Set(aplusCandidates.map(c => c.id)));
+                  }
+                }}
+              >
+                {selectedIds.size === aplusCandidates.length ? 'Desmarcar todo' : 'Marcar todo'}
+              </button>
             </div>
             {aplusCandidates.map((c, i) => (
-              <div key={c.id || i} style={{
-                fontSize: '0.82rem',
-                color: 'var(--text-primary)',
-                padding: '3px 0',
-                borderBottom: i < aplusCandidates.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-              }}>
+              <label
+                key={c.id || i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.82rem',
+                  color: selectedIds.has(c.id) ? 'var(--text-primary)' : 'var(--text-muted)',
+                  padding: '5px 0',
+                  borderBottom: i < aplusCandidates.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(c.id)}
+                  onChange={() => {
+                    setSelectedIds(prev => {
+                      const next = new Set(prev);
+                      if (next.has(c.id)) next.delete(c.id);
+                      else next.add(c.id);
+                      return next;
+                    });
+                  }}
+                  style={{ accentColor: 'var(--rating-a-plus)', width: '14px', height: '14px' }}
+                />
                 {c.name} <span style={{ color: 'var(--text-muted)' }}>— {c.artist}</span>
-              </div>
+              </label>
             ))}
           </div>
         )}
@@ -292,6 +337,7 @@ export default function StatsPage() {
               const res = await api.aplusScan();
               if (res.candidates && res.candidates.length > 0) {
                 setAplusCandidates(res.candidates);
+                setSelectedIds(new Set(res.candidates.map(c => c.id)));
               }
               const st = await api.aplusStatus();
               setAplusStatus(st);
@@ -307,16 +353,17 @@ export default function StatsPage() {
               className="btn btn-sm"
               style={{ background: 'rgba(245, 197, 66, 0.12)', borderColor: 'var(--rating-a-plus)', color: 'var(--rating-a-plus)' }}
               onClick={() => doAction('aplus-apply', async () => {
-                const res = await api.aplusApply();
+                const res = await api.aplusApply(Array.from(selectedIds));
                 setAplusCandidates([]);
+                setSelectedIds(new Set());
                 const [s, st] = await Promise.all([api.getStats(), api.aplusStatus()]);
                 setStats(s);
                 setAplusStatus(st);
                 return res.message;
               })}
-              disabled={!!actionLoading}
+              disabled={!!actionLoading || selectedIds.size === 0}
             >
-              Aplicar {aplusCandidates.length} como A+
+              Aplicar {selectedIds.size} como A+
             </button>
           )}
         </div>

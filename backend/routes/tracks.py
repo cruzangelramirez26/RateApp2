@@ -8,7 +8,7 @@ import database
 import spotify
 import config
 import utils
-from models import RateRequest, TrackOut, StatsOut
+from models import RateRequest, TrackOut, StatsOut, AplusApplyRequest
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
 
@@ -235,209 +235,122 @@ def _order_playlist(sp, playlist_id: str, min_rating_order: Optional[int] = None
 
 # ─── A+ Instant Detection ────────────────────────────────────────
 
-import json
-import os
-
-CUTOFF_FILE = "a_plus_cutoff.json"
-
-
 def _load_cutoff():
-    if not os.path.exists(CUTOFF_FILE):
+    val = database.get_config("aplus_cutoff")
+    if not val:
         return None
-    try:
-        with open(CUTOFF_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return pd.to_datetime(data.get("cutoff"), utc=True)
-    except Exception:
-        return None
+    return pd.to_datetime(val, utc=True)
 
 
 def _save_cutoff(dt_str: str):
-    with open(CUTOFF_FILE, "w", encoding="utf-8") as f:
-        json.dump({"cutoff": dt_str}, f, indent=2)
+    database.set_config("aplus_cutoff", dt_str)
 
-
-PLAYLIST_IDS = {
-    "3333":    "1kGf7O4l7tWfhWBEMuwyNx",
-    "perla":   "41CXGh7OcFkplIo6BF44OJ",
-    "galeria": "4BrxCvMSNdQSOEQbRXh7WN",
-    "latte":   "3DltKEaaDVOchGxfIQlPu9",
-    "miel":    "5pFFpx2dYnfUdOKW4WBN3y",
-}
-
-PLAYLIST_ALIASES = {
-    "3333":    ["3333", "<3333>"],
-    "perla":   ["perla"],
-    "galeria": ["galeria", "galería", "anual", "galería anual", "galeria anual", "26", "'26"],
-    "latte":   ["latte"],
-    "miel":    ["miel"],
-}
-
-def _resolve_playlist_key(q: str):
-    q_lower = q.strip().lower()
-    for key, aliases in PLAYLIST_ALIASES.items():
-        if any(a in q_lower or q_lower in a for a in aliases):
-            return key
-    return None
-
-
-@router.get("/library")
-def library_search(q: str = ""):
-    if not q.strip():
-        return []
-
-    playlist_key = _resolve_playlist_key(q)
-
-    if playlist_key:
-        playlist_id = PLAYLIST_IDS[playlist_key]
-        sp = spotify.get_client()
-        tracks_spotify = []
-        results = sp.playlist_tracks(playlist_id, limit=100)
-        while results:
-            for item in results['items']:
-                if not item or not item.get('track'):
-                    continue
-                t = item['track']
-                if not t.get('id'):
-                    continue
-                tracks_spotify.append({
-                    "id": t['id'],
-                    "name": t['name'],
-                    "artist": t['artists'][0]['name'] if t.get('artists') else "",
-                    "album": t['album']['name'] if t.get('album') else "",
-                    "image": t['album']['images'][0]['url'] if t.get('album') and t['album'].get('images') else None,
-                    "added_at": item.get('added_at'),
-                    "spotify_position": len(tracks_spotify),
-                })
-            if results.get('next'):
-                results = sp.next(results)
-            else:
-                break
-
-        if not tracks_spotify:
-            return []
-
-        ids = [t['id'] for t in tracks_spotify]
-        with database.get_conn() as conn:
-            cur = conn.cursor(dictionary=True)
-            placeholders = ', '.join(['%s'] * len(ids))
-            cur.execute(
-                f"SELECT track_id, rating, manual_order FROM tracks WHERE track_id IN ({placeholders})",
-                ids
-            )
-            db_rows = {r['track_id']: r for r in cur.fetchall()}
-            cur.close()
-
-        return [
-            {
-                "id": t['id'],
-                "name": t['name'],
-                "artist": t['artist'],
-                "album": t['album'],
-                "image": t.get('image'),
-                "rating": db_rows.get(t['id'], {}).get('rating'),
-                "added_at": t['added_at'],
-                "manual_order": db_rows.get(t['id'], {}).get('manual_order', t['spotify_position']),
-                "spotify_position": t['spotify_position'],
-            }
-            for t in tracks_spotify
-        ]
-
-    else:
-        q_lower = q.strip().lower()
-        like = f"%{q_lower}%"
-        with database.get_conn() as conn:
-            cur = conn.cursor(dictionary=True)
-            cur.execute("""
-                SELECT track_id as id, name, artist, album, rating,
-                    added_at, manual_order
-                FROM tracks
-                WHERE LOWER(name) LIKE %s OR LOWER(artist) LIKE %s
-                ORDER BY added_at DESC
-                LIMIT 200
-            """, (like, like))
-            rows = cur.fetchall()
-            cur.close()
-        return [
-            {
-                "id": r["id"], "name": r["name"] or "",
-                "artist": r["artist"] or "", "album": r.get("album") or "",
-                "image": None, "rating": r.get("rating"),
-                "added_at": str(r["added_at"]) if r.get("added_at") else None,
-                "manual_order": r.get("manual_order", 0),
-                "spotify_position": r.get("manual_order", 0),
-            }
-            for r in rows
-        ]
-
-
-# ── A+ Instantáneos (cutoff persistente en DB) ───────────────
 
 @router.get("/aplus/status")
 def aplus_status():
-    cutoff = database.get_setting('aplus_cutoff')
-    if not cutoff:
-        cutoff = datetime.now(timezone.utc).isoformat()
-        database.set_setting('aplus_cutoff', cutoff)
-    return {"active": True, "cutoff": cutoff}
-
-
-@router.post("/aplus/activate")
-def aplus_activate():
-    cutoff = datetime.now(timezone.utc).isoformat()
-    database.set_setting('aplus_cutoff', cutoff)
-    return {"active": True, "cutoff": cutoff}
+    """Check if A+ detection is active and return cutoff date."""
+    cutoff = _load_cutoff()
+    return {
+        "active": cutoff is not None,
+        "cutoff": str(cutoff) if cutoff else None,
+    }
 
 
 @router.post("/aplus/scan")
 def aplus_scan():
-    cutoff = database.get_setting('aplus_cutoff')
-    if not cutoff:
-        cutoff = datetime.now(timezone.utc).isoformat()
-        database.set_setting('aplus_cutoff', cutoff)
-        return {"candidates": [], "cutoff": cutoff}
+    """
+    Scan Spotify liked songs for new tracks added after the cutoff.
+    Auto-activates with today as cutoff if not set yet.
+    """
+    cutoff = _load_cutoff()
+
+    # Auto-activate: set cutoff to now and scan immediately
+    if cutoff is None:
+        now_str = utils.now_utc_str()
+        _save_cutoff(now_str)
+        cutoff = pd.to_datetime(now_str, utc=True)
+        # First time: return empty since cutoff is now
+        return {
+            "activated": True,
+            "message": "Sistema A+ activado. Cutoff fijado a hoy. Los próximos likes nuevos se detectarán.",
+            "candidates": [],
+        }
 
     sp = spotify.get_client()
-    cutoff_dt = datetime.fromisoformat(cutoff.replace('Z', '+00:00'))
+    liked = spotify.get_liked_tracks_since(sp, cutoff)
+
+    if not liked:
+        return {"activated": False, "message": "No hay A+ nuevos.", "candidates": []}
+
+    # Filter out tracks already in DB
+    df = database.load_all()
+    existing_ids = set(df["track_id"]) if not df.empty else set()
+
     candidates = []
-    results = sp.current_user_saved_tracks(limit=50)
-    while results:
-        for item in results['items']:
-            added_dt = datetime.fromisoformat(item['added_at'].replace('Z', '+00:00'))
-            if added_dt > cutoff_dt:
-                t = item['track']
-                candidates.append({
-                    "id": t['id'], "name": t['name'],
-                    "artist": t['artists'][0]['name'],
-                    "album": t['album']['name'],
-                    "image": t['album']['images'][0]['url'] if t['album']['images'] else None,
-                    "added_at": item['added_at'],
-                })
-        if results.get('next'):
-            results = sp.next(results)
-        else:
-            break
-    return {"candidates": candidates, "cutoff": cutoff}
+    for t in liked:
+        if t["id"] and t["id"] not in existing_ids:
+            candidates.append(t)
+
+    return {
+        "activated": False,
+        "message": f"Se detectaron {len(candidates)} candidatos A+." if candidates else "No hay A+ nuevos.",
+        "candidates": candidates,
+    }
 
 
 @router.post("/aplus/apply")
-def aplus_apply(body: dict):
-    track_ids = body.get("track_ids", [])
-    if not track_ids:
-        return {"applied": 0}
+def aplus_apply(req: AplusApplyRequest):
+    """
+    Apply A+ to the selected candidates: save to DB, add to cuatri + anual, reorder.
+    Only applies tracks whose IDs are in req.track_ids.
+    The cutoff is never updated here — it stays fixed forever.
+    """
+    if not req.track_ids:
+        return {"applied": 0, "message": "No se seleccionaron canciones."}
+
+    cutoff = _load_cutoff()
+    if cutoff is None:
+        raise HTTPException(400, "A+ detection not activated yet. Call /aplus/scan first.")
+
     sp = spotify.get_client()
+    liked = spotify.get_liked_tracks_since(sp, cutoff)
+
+    df = database.load_all()
+    existing_ids = set(df["track_id"]) if not df.empty else set()
+
+    selected_set = set(req.track_ids)
+    candidates = [
+        t for t in liked
+        if t.get("id") and t["id"] not in existing_ids and t["id"] in selected_set
+    ]
+
+    if not candidates:
+        return {"applied": 0, "message": "No hay A+ nuevos para aplicar."}
+
+    cuatri = utils.get_cuatrimestre(utils.now_utc())
+    cuatri_id = config.DISTRIBUTION_PLAYLISTS.get(cuatri)
+    anual_id = config.DISTRIBUTION_PLAYLISTS["anual"]
+    now_str = utils.now_utc_str()
+
     applied = 0
-    for tid in track_ids:
+    for c in candidates:
+        database.upsert_track(c["id"], c["name"], c["artist"], c.get("album", ""), now_str, "A+")
+
+        if cuatri_id:
+            try:
+                spotify.add_to_playlist(sp, cuatri_id, [c["id"]])
+            except Exception:
+                pass
         try:
-            t = sp.track(tid)
-            database.save_track({
-                "track_id": tid, "name": t['name'],
-                "artist": t['artists'][0]['name'],
-                "album": t['album']['name'], "rating": "A+",
-            })
-            applied += 1
+            spotify.add_to_playlist(sp, anual_id, [c["id"]])
         except Exception:
             pass
-    new_cutoff = datetime.now(timezone.utc).isoformat()
-    database.set_setting('aplus_cutoff', new_cutoff)
-    return {"applied": applied, "new_cutoff": new_cutoff}
+
+        applied += 1
+
+    # Auto-reorder (cutoff is NOT updated)
+    if cuatri_id:
+        _order_playlist(sp, cuatri_id, min_rating_order=1)
+    _order_playlist(sp, anual_id, min_rating_order=config.RATING_ORDER["B+"])
+
+    return {"applied": applied, "message": f"Se aplicaron {applied} canciones como A+."}

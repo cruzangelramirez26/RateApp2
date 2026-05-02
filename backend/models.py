@@ -61,3 +61,7 @@ class VirtualSimResult(BaseModel):
 class OrderRequest(BaseModel):
     playlist_id: str
     min_rating_order: Optional[int] = None
+
+
+class AplusApplyRequest(BaseModel):
+    track_ids: list[str]

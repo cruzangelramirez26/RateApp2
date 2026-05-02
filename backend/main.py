@@ -12,11 +12,7 @@ import database
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.ensure_table()
-    database.ensure_settings_table()  # crea tabla settings si no existe
-    # Auto-init cutoff A+ si no existe — sobrevive reinicios de Render
-    if not database.get_setting('aplus_cutoff'):
-        from datetime import datetime, timezone
-        database.set_setting('aplus_cutoff', datetime.now(timezone.utc).isoformat())
+    database.ensure_config_table()
     yield
 
 
@@ -29,7 +25,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[config.FRONTEND_URL, "http://127.0.0.1:5173", "http://127.0.0.1:3000"],
+    allow_origins=[config.FRONTEND_URL, "http://127.0.0.1:5173", "http://127.0.0.1:3000", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
