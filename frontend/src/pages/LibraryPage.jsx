@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react';
-import { Search, Music, List, Clock, ArrowUpDown } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Search, Music, ArrowUpDown } from 'lucide-react';
 import { api } from '../utils/api';
 import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
 
 const QUICK_PLAYLISTS = [
+  { label: 'Me Gusta', key: 'liked' },
   { label: 'Perla',   key: 'perla' },
   { label: 'Miel',    key: 'miel' },
   { label: 'Latte',   key: 'latte' },
@@ -16,17 +17,34 @@ const QUICK_PLAYLISTS = [
 export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [tracks, setTracks] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [activeChip, setActiveChip] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [activeChip, setActiveChip] = useState('liked');
   const [sortMode, setSortMode] = useState('spotify');
+  const [isLikedView, setIsLikedView] = useState(true);
   const toast = useToast();
+
+  const loadLiked = useCallback(async () => {
+    setLoading(true);
+    setActiveChip('liked');
+    setIsLikedView(true);
+    setSearch('');
+    try {
+      const data = await api.getLikedAll();
+      setTracks(data);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { loadLiked(); }, [loadLiked]);
 
   const doSearch = useCallback(async (q) => {
     if (!q.trim()) return;
     setLoading(true);
-    setSearched(true);
     setActiveChip('');
+    setIsLikedView(false);
     try {
       const data = await api.searchTracks(q.trim(), 200);
       setTracks(data);
@@ -38,9 +56,11 @@ export default function LibraryPage() {
   }, [toast]);
 
   const handleChip = useCallback(async (key) => {
+    if (key === 'liked') { loadLiked(); return; }
     setLoading(true);
-    setSearched(true);
     setActiveChip(key);
+    setIsLikedView(false);
+    setSearch('');
     try {
       const dist = await api.getDistribution();
       const playlistId = key === 'calificar' ? dist.calificar : dist[key];
@@ -52,7 +72,7 @@ export default function LibraryPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, loadLiked]);
 
   const handleSearch = () => doSearch(search);
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSearch(); };
@@ -61,10 +81,11 @@ export default function LibraryPage() {
     const tid = track.track_id || track.id;
     setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating } : t));
     try {
-      await api.rateTrack({
+      const rateArgs = {
         track_id: tid, name: track.name,
         artist: track.artist, album: track.album || '', rating,
-      });
+      };
+      await (isLikedView ? api.rateTrackSoft(rateArgs) : api.rateTrack(rateArgs));
       toast(`${track.name} → ${rating}`, 'success');
     } catch (err) {
       setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating: track.rating } : t));
@@ -72,15 +93,27 @@ export default function LibraryPage() {
     }
   };
 
+  const filtered = search
+    ? tracks.filter(t =>
+        `${t.name} ${t.artist} ${t.album || ''}`.toLowerCase().includes(search.toLowerCase())
+      )
+    : tracks;
+
   const sorted = sortMode === 'recent'
-    ? [...tracks].sort((a, b) => new Date(b.added_at || 0) - new Date(a.added_at || 0))
-    : [...tracks];
+    ? [...filtered].sort((a, b) => {
+        const da = new Date(a.rated_at || a.added_at || 0);
+        const db = new Date(b.rated_at || b.added_at || 0);
+        return db - da;
+      })
+    : filtered;
 
   return (
     <div className="page">
       <div className="page-header">
         <div className="page-title">Biblioteca</div>
-        <div className="page-subtitle">Busca por playlist o por nombre de canción</div>
+        <div className="page-subtitle">
+          {isLikedView ? 'Tus Me Gusta de Spotify' : 'Busca por playlist o canción'}
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
@@ -96,13 +129,15 @@ export default function LibraryPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Nombre o artista..."
+            placeholder={isLikedView ? 'Filtrar por nombre, artista o álbum...' : 'Nombre o artista...'}
             style={{ paddingLeft: '36px' }}
           />
         </div>
-        <button className="btn" onClick={handleSearch} disabled={loading || !search.trim()}>
-          Buscar
-        </button>
+        {!isLikedView && (
+          <button className="btn" onClick={handleSearch} disabled={loading || !search.trim()}>
+            Buscar
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
@@ -146,15 +181,10 @@ export default function LibraryPage() {
 
       {loading ? (
         <LoadingSkeleton count={8} />
-      ) : !searched ? (
-        <div className="empty-state">
-          <Music />
-          <div>Busca por playlist o canción</div>
-        </div>
       ) : sorted.length === 0 ? (
         <div className="empty-state">
           <Music />
-          <div>Sin resultados</div>
+          <div>{search ? 'Sin resultados' : 'No hay canciones'}</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

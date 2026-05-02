@@ -228,6 +228,43 @@ def get_stats() -> dict:
         return {r: c for r, c in rows}
 
 
+def get_stats_extended() -> dict:
+    """Return extended stats: top artists and cuatrimestre breakdown."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT artist, COUNT(*) AS cnt
+            FROM tracks
+            WHERE rating NOT IN ('D', '') AND rating IS NOT NULL
+            GROUP BY artist
+            ORDER BY cnt DESC
+            LIMIT 5
+        """)
+        top_artists = [{"artist": a, "count": c} for a, c in cur.fetchall()]
+
+        cur.execute("""
+            SELECT
+                YEAR(added_at) AS yr,
+                CASE
+                    WHEN MONTH(added_at) BETWEEN 1 AND 4 THEN 'perla'
+                    WHEN MONTH(added_at) BETWEEN 5 AND 8 THEN 'miel'
+                    ELSE 'latte'
+                END AS cuatri,
+                COUNT(*) AS cnt
+            FROM tracks
+            WHERE rating NOT IN ('D', '') AND rating IS NOT NULL
+              AND added_at IS NOT NULL
+              AND YEAR(added_at) >= YEAR(NOW()) - 2
+            GROUP BY yr, cuatri
+            ORDER BY yr DESC, FIELD(cuatri, 'latte', 'miel', 'perla')
+        """)
+        by_cuatri = [{"year": int(yr), "cuatri": c, "count": int(cnt)} for yr, c, cnt in cur.fetchall()]
+
+        cur.close()
+        return {"top_artists": top_artists, "by_cuatri": by_cuatri}
+
+
 _CUATRI_MONTHS = {
     "perla": (1, 4),
     "miel": (5, 8),

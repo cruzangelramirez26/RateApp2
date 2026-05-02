@@ -111,6 +111,37 @@ def get_user_playlists(sp: spotipy.Spotify) -> list[dict]:
     return playlists
 
 
+def get_all_liked_tracks(sp: spotipy.Spotify, limit: int = 500) -> list[dict]:
+    """Return up to `limit` most recent liked songs with full metadata."""
+    tracks = []
+    offset = 0
+    while len(tracks) < limit:
+        results = sp.current_user_saved_tracks(limit=50, offset=offset)
+        items = results.get("items", [])
+        if not items:
+            break
+        for it in items:
+            track = it.get("track")
+            if not track:
+                continue
+            images = (track.get("album") or {}).get("images") or []
+            tracks.append({
+                "id": track.get("id"),
+                "name": track.get("name", ""),
+                "artist": (track.get("artists") or [{}])[0].get("name", ""),
+                "album": (track.get("album") or {}).get("name", ""),
+                "added_at": it.get("added_at"),
+                "image": images[0].get("url") if images else None,
+                "spotify_url": (track.get("external_urls") or {}).get("spotify"),
+            })
+            if len(tracks) >= limit:
+                break
+        if results.get("next") is None:
+            break
+        offset += 50
+    return tracks
+
+
 def get_liked_tracks_since(sp: spotipy.Spotify, cutoff_dt) -> list[dict]:
     """Return liked songs added after cutoff_dt (newest first, stops early)."""
     tracks = []

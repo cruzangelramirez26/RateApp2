@@ -56,8 +56,25 @@ def get_pending_tracks():
 
 @router.get("/recent")
 def get_recent_tracks(limit: int = Query(50, ge=1, le=200)):
-    """Return recently rated tracks from the database."""
+    """Return recently rated tracks enriched with album art from Spotify."""
     rows = database.get_recent(limit)
+    if rows:
+        try:
+            sp = spotify.get_client()
+            ids = [r["track_id"] for r in rows if r.get("track_id")]
+            image_map = {}
+            for chunk in utils.chunk_list(ids, 50):
+                result = sp.tracks(chunk)
+                for t in (result.get("tracks") or []):
+                    if t:
+                        images = (t.get("album") or {}).get("images") or []
+                        image_map[t["id"]] = images[0].get("url") if images else None
+            for r in rows:
+                r["image"] = image_map.get(r.get("track_id"))
+                r["spotify_url"] = f"https://open.spotify.com/track/{r.get('track_id')}"
+        except Exception:
+            for r in rows:
+                r.setdefault("image", None)
     return rows
 
 
@@ -70,10 +87,22 @@ def search_tracks(q: str = Query(..., min_length=1), limit: int = Query(50, ge=1
 
 @router.get("/stats")
 def get_stats():
-    """Return rating distribution stats."""
+    """Return rating distribution stats plus extended metrics."""
     raw = database.get_stats()
     total = sum(raw.values())
-    return {"total": total, "by_rating": raw}
+    top_set_keys = {"B+", "A", "A+"}
+    top_set_count = sum(raw.get(k, 0) for k in top_set_keys)
+    non_d_total = sum(v for k, v in raw.items() if k not in ("D", ""))
+    top_set_pct = round(top_set_count / non_d_total * 100) if non_d_total else 0
+    extended = database.get_stats_extended()
+    return {
+        "total": total,
+        "by_rating": raw,
+        "top_set_count": top_set_count,
+        "top_set_pct": top_set_pct,
+        "top_artists": extended["top_artists"],
+        "by_cuatri": extended["by_cuatri"],
+    }
 
 
 _CUATRI_MONTH_RANGES = {"perla": (1, 4), "miel": (5, 8), "latte": (9, 12)}
@@ -97,7 +126,8 @@ def _belongs_to_current_cuatri(track_data: dict, cuatri: str) -> bool:
 
 
 @router.post("/rate")
-def rate_track(req: RateRequest):
+def rate_track(req: RateRequest, soft: bool = False):
+    """Rate a track. soft=True saves to DB only without touching Spotify playlists."""
     sp = spotify.get_client()
     tid = req.track_id
     new_rating = req.rating.strip().upper()
@@ -113,6 +143,9 @@ def rate_track(req: RateRequest):
 
     # Preserve original added_at on re-rate (upsert only sets it on INSERT)
     database.upsert_track(tid, req.name, req.artist, req.album, now_str, new_rating)
+
+    if soft:
+        return {"ok": True, "rating": new_rating}
 
     if new_rating == "D":
         for pl_id in [cuatri_id, mmg_id, anual_id]:
@@ -179,17 +212,39 @@ def rate_track(req: RateRequest):
     return {"ok": True, "rating": new_rating}
 
 
-@router.get("/playlist/{playlist_id}")
-def get_playlist_tracks_with_ratings(playlist_id: str):
-    """Return tracks from a Spotify playlist enriched with DB ratings."""
+@router.get("/liked-all")
+def get_liked_all(limit: int = Query(500, ge=1, le=1000)):
+    """Return all liked songs enriched with DB ratings."""
     sp = spotify.get_client()
-    items = spotify.get_playlist_tracks(sp, playlist_id)
-    
+    liked = spotify.get_all_liked_tracks(sp, limit=limit)
+
     df = database.load_all()
     ratings_map = {}
     if not df.empty:
         for _, r in df.iterrows():
-            ratings_map[r["track_id"]] = str(r.get("rating", "")).strip().upper()
+            ratings_map[r["track_id"]] = str(r.get("rating", "")).strip().upper() or None
+
+    for t in liked:
+        t["track_id"] = t["id"]
+        t["rating"] = ratings_map.get(t["id"])
+
+    return liked
+
+
+@router.get("/playlist/{playlist_id}")
+def get_playlist_tracks_with_ratings(playlist_id: str):
+    """Return tracks from a Spotify playlist enriched with DB ratings and rated_at."""
+    sp = spotify.get_client()
+    items = spotify.get_playlist_tracks(sp, playlist_id)
+
+    df = database.load_all()
+    ratings_map = {}
+    rated_at_map = {}
+    if not df.empty:
+        for _, r in df.iterrows():
+            tid = r["track_id"]
+            ratings_map[tid] = str(r.get("rating", "")).strip().upper()
+            rated_at_map[tid] = r.get("added_at")
 
     tracks = []
     for it in items:
@@ -198,12 +253,14 @@ def get_playlist_tracks_with_ratings(playlist_id: str):
         if not tid:
             continue
         artists = t.get("artists") or [{}]
+        rated_at = rated_at_map.get(tid)
         tracks.append({
             "id": tid,
             "name": t.get("name", ""),
             "artist": artists[0].get("name", ""),
             "album": (t.get("album") or {}).get("name", ""),
             "added_at": it.get("added_at"),
+            "rated_at": str(rated_at) if rated_at else None,
             "rating": ratings_map.get(tid),
             "image": ((t.get("album") or {}).get("images") or [{}])[0].get("url"),
             "spotify_url": (t.get("external_urls") or {}).get("spotify"),

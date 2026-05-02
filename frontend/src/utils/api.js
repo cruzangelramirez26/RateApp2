@@ -33,6 +33,11 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  rateTrackSoft: (data) => request('/tracks/rate?soft=true', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getLikedAll: (limit = 500) => request(`/tracks/liked-all?limit=${limit}`),
   getPlaylistTracks: (id) => request(`/tracks/playlist/${id}`),
 
   // Playlists
