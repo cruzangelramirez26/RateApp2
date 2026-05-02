@@ -39,4 +39,4 @@ Cambios:
 - `frontend/src/components/NavBar.jsx` — tab "Herramientas" antes de Dashboard
 - `frontend/src/App.jsx` — ruta `/tools`
 
-Commit: pendiente
+Commit: `c9ccf67` → desplegado en Render.
