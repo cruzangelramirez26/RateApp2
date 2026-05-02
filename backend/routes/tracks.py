@@ -403,6 +403,24 @@ def get_migrate_candidates():
     }
 
 
+@router.post("/test-like/{track_id}")
+def test_like(track_id: str):
+    """TEST ONLY — add a track to Liked Songs and confirm."""
+    sp = spotify.get_client()
+    spotify.save_tracks(sp, [track_id])
+    saved = spotify.are_tracks_saved(sp, [track_id])
+    return {"track_id": track_id, "is_liked": saved.get(track_id)}
+
+
+@router.post("/test-unlike/{track_id}")
+def test_unlike(track_id: str):
+    """TEST ONLY — remove a track from Liked Songs and confirm."""
+    sp = spotify.get_client()
+    spotify.unsave_tracks(sp, [track_id])
+    saved = spotify.are_tracks_saved(sp, [track_id])
+    return {"track_id": track_id, "is_liked": saved.get(track_id)}
+
+
 @router.post("/migrate")
 def migrate_tracks(req: MigrateRequest):
     """Migrate selected tracks to to_cuatrimestre: set override, add to Spotify playlist, reorder."""

@@ -9,7 +9,7 @@ import config
 
 SCOPE = (
     "playlist-read-private playlist-modify-public playlist-modify-private "
-    "user-library-read"
+    "user-library-read user-library-modify"
 )
 
 _auth_manager = None
@@ -149,3 +149,28 @@ def get_snapshot_id(sp: spotipy.Spotify, playlist_id: str) -> str | None:
         return meta.get("snapshot_id")
     except Exception:
         return None
+
+
+# ─── Liked songs (Me Gusta nativo) ───────────────────────────────
+
+def save_tracks(sp: spotipy.Spotify, track_ids: list[str]):
+    """Add tracks to the user's Liked Songs library."""
+    for i in range(0, len(track_ids), 50):
+        sp.current_user_saved_tracks_add(track_ids[i : i + 50])
+
+
+def unsave_tracks(sp: spotipy.Spotify, track_ids: list[str]):
+    """Remove tracks from the user's Liked Songs library."""
+    for i in range(0, len(track_ids), 50):
+        sp.current_user_saved_tracks_delete(track_ids[i : i + 50])
+
+
+def are_tracks_saved(sp: spotipy.Spotify, track_ids: list[str]) -> dict[str, bool]:
+    """Return {track_id: is_liked} for the given IDs."""
+    result = {}
+    for i in range(0, len(track_ids), 50):
+        chunk = track_ids[i : i + 50]
+        saved = sp.current_user_saved_tracks_contains(chunk)
+        for tid, is_saved in zip(chunk, saved):
+            result[tid] = is_saved
+    return result
