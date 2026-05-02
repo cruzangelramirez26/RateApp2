@@ -18,6 +18,7 @@ export default function ToolsPage() {
   const [migData, setMigData] = useState(null);
   const [migSort, setMigSort] = useState('rating');
   const [migSelectedIds, setMigSelectedIds] = useState(new Set());
+  const [migSearch, setMigSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
   const toast = useToast();
@@ -52,12 +53,30 @@ export default function ToolsPage() {
     });
   }, [migData, migSort]);
 
+  // Filtro client-side — no toca las selecciones
+  const filteredMigCandidates = useMemo(() => {
+    if (!migSearch.trim()) return sortedMigCandidates;
+    const q = migSearch.toLowerCase();
+    return sortedMigCandidates.filter(c =>
+      c.name?.toLowerCase().includes(q) ||
+      c.artist?.toLowerCase().includes(q) ||
+      c.album?.toLowerCase().includes(q)
+    );
+  }, [sortedMigCandidates, migSearch]);
+
+  // Marcar/desmarcar solo los visibles (no afecta los ocultos por búsqueda)
   const toggleMigAll = () => {
-    if (migSelectedIds.size === migData.candidates.length) {
-      setMigSelectedIds(new Set());
-    } else {
-      setMigSelectedIds(new Set(migData.candidates.map(c => c.track_id)));
-    }
+    const visibleIds = filteredMigCandidates.map(c => c.track_id);
+    const allVisible = visibleIds.every(id => migSelectedIds.has(id));
+    setMigSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allVisible) {
+        visibleIds.forEach(id => next.delete(id));
+      } else {
+        visibleIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
   };
 
   if (loading) {
@@ -317,6 +336,21 @@ export default function ToolsPage() {
               </div>
             </div>
 
+            {/* Búsqueda */}
+            <input
+              type="text"
+              placeholder="Buscar por canción, artista o álbum…"
+              value={migSearch}
+              onChange={e => setMigSearch(e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '7px 12px', marginBottom: '8px',
+                background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)',
+                fontSize: '0.83rem', outline: 'none',
+              }}
+            />
+
             {/* Control de selección */}
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -324,10 +358,11 @@ export default function ToolsPage() {
             }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                 {migSelectedIds.size} / {migData.candidates.length} seleccionadas
+                {migSearch.trim() && ` · mostrando ${filteredMigCandidates.length}`}
               </span>
               <button className="btn btn-sm" style={{ fontSize: '0.72rem', padding: '3px 12px' }}
                 onClick={toggleMigAll}>
-                {migSelectedIds.size === migData.candidates.length ? 'Desmarcar todo' : 'Marcar todo'}
+                {filteredMigCandidates.every(c => migSelectedIds.has(c.track_id)) ? 'Desmarcar visibles' : 'Marcar visibles'}
               </button>
             </div>
 
@@ -336,11 +371,11 @@ export default function ToolsPage() {
               background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)',
               padding: '6px 10px', marginBottom: '12px', maxHeight: '320px', overflowY: 'auto',
             }}>
-              {sortedMigCandidates.map((c, i) => (
+              {filteredMigCandidates.map((c, i) => (
                 <label key={c.track_id} style={{
                   display: 'flex', alignItems: 'center', gap: '8px',
                   padding: '6px 0',
-                  borderBottom: i < sortedMigCandidates.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                  borderBottom: i < filteredMigCandidates.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                   cursor: 'pointer', userSelect: 'none',
                   opacity: migSelectedIds.has(c.track_id) ? 1 : 0.45,
                   transition: 'opacity 0.15s',
@@ -399,13 +434,14 @@ export default function ToolsPage() {
                   );
                   setMigData(null);
                   setMigSelectedIds(new Set());
+                  setMigSearch('');
                   return res.message;
                 })}>
                 Mover {migSelectedIds.size > 0 ? migSelectedIds.size : ''} a {CUATRI_DISPLAY[migData.to_cuatri]}
               </button>
               <button
                 className="btn btn-sm"
-                onClick={() => { setMigData(null); setMigSelectedIds(new Set()); }}
+                onClick={() => { setMigData(null); setMigSelectedIds(new Set()); setMigSearch(''); }}
                 disabled={!!actionLoading}>
                 Cancelar
               </button>
