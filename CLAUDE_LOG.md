@@ -40,3 +40,19 @@ Cambios:
 - `frontend/src/App.jsx` — ruta `/tools`
 
 Commit: `c9ccf67` → desplegado en Render.
+
+**Refinamientos UI migración** (commits `9a6a60e`, `597e003`)
+
+- Sort por calificación ahora usa `added_at` desc como segundo criterio (replica orden real de playlist)
+- Checkboxes desmarcados por defecto; botón Marcar/Desmarcar visible como `btn`
+- Fila de candidato: checkbox + rating (color) + portada 34px + nombre/álbum + artista
+- Backend enriquece candidatos con thumbnail vía `sp.tracks()`
+- Filtro client-side por nombre/artista/álbum sin perder selecciones; "Marcar visibles" solo opera sobre los ítems mostrados
+
+**Bug fixes** (commits `22fcc07`, `c9aa51c`)
+
+- `LibraryPage` — chips Perla/Miel/Latte/Galería/3333 arreglados: llamaban a `api.getLibrary()` inexistente; corregido a `api.getDistribution()` + `api.getPlaylistTracks()`. Sort Spotify/Recientes restaurado.
+- `POST /playlists/rebuild/{cuatri}` — reconstruye playlist desde DB. Corregidos dos bugs: (1) no filtraba por año, jalaba canciones de Perlas/Mieles anteriores; (2) filter `!= "D"` fallaba con NULL en DB (llegaban como `"nan"` al DF); reemplazado por `rating_order > 0` que excluye D y NULL robustamente.
+- `ToolsPage` — botones "Ordenar Perla/Miel/Latte" individuales + "Reconstruir" con lógica corregida.
+
+Commits: `22fcc07`, `c9aa51c` → desplegado en Render.
