@@ -483,6 +483,26 @@ export default function ToolsPage() {
             Ordenar Galería Anual
           </button>
         </div>
+
+        <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>
+            RECONSTRUIR DESDE DB — usa la base de datos como fuente de verdad y restaura tracks faltantes
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {['perla', 'miel', 'latte'].map(c => (
+              <button key={c}
+                className="btn btn-sm"
+                style={{ color: 'var(--rating-a)' }}
+                onClick={() => doAction(`rebuild-${c}`, async () => {
+                  const res = await api.rebuildPlaylist(c);
+                  return res.message;
+                })}
+                disabled={!!actionLoading}>
+                Reconstruir {CUATRI_DISPLAY[c]}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

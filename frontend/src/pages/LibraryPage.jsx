@@ -5,14 +5,20 @@ import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
 
-const QUICK_PLAYLISTS = ['Perla', 'Miel', 'Latte', 'Galería', '3333'];
+const QUICK_PLAYLISTS = [
+  { label: 'Perla',   key: 'perla' },
+  { label: 'Miel',    key: 'miel' },
+  { label: 'Latte',   key: 'latte' },
+  { label: 'Galería', key: 'anual' },
+  { label: '3333',    key: 'calificar' },
+];
 
 export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [lastQuery, setLastQuery] = useState('');
+  const [activeChip, setActiveChip] = useState('');
   const [sortMode, setSortMode] = useState('spotify');
   const toast = useToast();
 
@@ -20,9 +26,26 @@ export default function LibraryPage() {
     if (!q.trim()) return;
     setLoading(true);
     setSearched(true);
-    setLastQuery(q.trim());
+    setActiveChip('');
     try {
-      const data = await api.getLibrary(q);
+      const data = await api.searchTracks(q.trim(), 200);
+      setTracks(data);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const handleChip = useCallback(async (key) => {
+    setLoading(true);
+    setSearched(true);
+    setActiveChip(key);
+    try {
+      const dist = await api.getDistribution();
+      const playlistId = key === 'calificar' ? dist.calificar : dist[key];
+      if (!playlistId) throw new Error(`No hay playlist para esta opción`);
+      const data = await api.getPlaylistTracks(playlistId);
       setTracks(data);
     } catch (err) {
       toast(err.message, 'error');
@@ -33,31 +56,25 @@ export default function LibraryPage() {
 
   const handleSearch = () => doSearch(search);
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSearch(); };
-  const handleChip = (name) => { setSearch(name); doSearch(name); };
 
   const handleRate = async (track, rating) => {
-    setTracks(prev => prev.map(t => t.id === track.id ? { ...t, rating } : t));
+    const tid = track.track_id || track.id;
+    setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating } : t));
     try {
       await api.rateTrack({
-        track_id: track.id, name: track.name,
+        track_id: tid, name: track.name,
         artist: track.artist, album: track.album || '', rating,
       });
       toast(`${track.name} → ${rating}`, 'success');
     } catch (err) {
-      setTracks(prev => prev.map(t => t.id === track.id ? { ...t, rating: track.rating } : t));
+      setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating: track.rating } : t));
       toast(`Error: ${err.message}`, 'error');
     }
   };
 
-  const sorted = [...tracks].sort((a, b) => {
-    if (sortMode === 'recent') {
-      return new Date(b.added_at || 0) - new Date(a.added_at || 0);
-    }
-    // Orden Spotify: posición en la playlist
-    const oa = a.spotify_position ?? a.manual_order ?? 999;
-    const ob = b.spotify_position ?? b.manual_order ?? 999;
-    return oa - ob;
-  });
+  const sorted = sortMode === 'recent'
+    ? [...tracks].sort((a, b) => new Date(b.added_at || 0) - new Date(a.added_at || 0))
+    : [...tracks];
 
   return (
     <div className="page">
@@ -66,7 +83,6 @@ export default function LibraryPage() {
         <div className="page-subtitle">Busca por playlist o por nombre de canción</div>
       </div>
 
-      {/* Buscador */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={16} style={{
@@ -75,16 +91,13 @@ export default function LibraryPage() {
             color: 'var(--text-muted)', pointerEvents: 'none',
           }} />
           <input
-            type="text" value={search}
+            className="input"
+            type="text"
+            value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Perla, Miel, Latte, nombre de canción..."
-            style={{
-              width: '100%', padding: '10px 12px 10px 36px',
-              background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
-              borderRadius: '10px', color: 'var(--text-primary)',
-              fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box',
-            }}
+            placeholder="Nombre o artista..."
+            style={{ paddingLeft: '36px' }}
           />
         </div>
         <button className="btn" onClick={handleSearch} disabled={loading || !search.trim()}>
@@ -92,31 +105,28 @@ export default function LibraryPage() {
         </button>
       </div>
 
-      {/* Chips */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
-        {QUICK_PLAYLISTS.map(pl => (
-          <button key={pl} onClick={() => handleChip(pl)} style={{
+        {QUICK_PLAYLISTS.map(({ label, key }) => (
+          <button key={key} onClick={() => handleChip(key)} style={{
             padding: '5px 14px', borderRadius: '20px',
             fontSize: '0.78rem', fontWeight: 600,
             border: '1px solid var(--border-subtle)',
-            background: lastQuery.toLowerCase() === pl.toLowerCase() ? 'var(--accent)' : 'var(--bg-card)',
-            color: lastQuery.toLowerCase() === pl.toLowerCase() ? '#fff' : 'var(--text-muted)',
+            background: activeChip === key ? 'var(--accent)' : 'var(--bg-card)',
+            color: activeChip === key ? '#fff' : 'var(--text-muted)',
             cursor: 'pointer', transition: 'all 0.15s',
           }}>
-            {pl}
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Controles de orden */}
-      {tracks.length > 0 && !loading && (
+      {sorted.length > 0 && !loading && (
         <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
           <ArrowUpDown size={13} style={{ color: 'var(--text-muted)' }} />
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginRight: '2px' }}>Orden:</span>
           {[
-            { key: 'spotify', icon: <List size={12} />, label: 'Spotify' },
-            { key: 'recent',  icon: <Clock size={12} />, label: 'Recientes' },
-          ].map(({ key, icon, label }) => (
+            { key: 'spotify', label: 'Spotify' },
+            { key: 'recent',  label: 'Recientes' },
+          ].map(({ key, label }) => (
             <button key={key} onClick={() => setSortMode(key)} style={{
               padding: '5px 12px', borderRadius: '20px',
               fontSize: '0.78rem', fontWeight: 600, border: '1px solid',
@@ -124,37 +134,37 @@ export default function LibraryPage() {
               background: sortMode === key ? 'var(--accent)' : 'transparent',
               color: sortMode === key ? '#fff' : 'var(--text-muted)',
               cursor: 'pointer', transition: 'all 0.15s',
-              display: 'flex', alignItems: 'center', gap: '4px',
             }}>
-              {icon} {label}
+              {label}
             </button>
           ))}
           <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-            {tracks.length} canción{tracks.length !== 1 ? 'es' : ''}
+            {sorted.length} canción{sorted.length !== 1 ? 'es' : ''}
           </span>
         </div>
       )}
 
-      {/* Contenido */}
       {loading ? (
         <LoadingSkeleton count={8} />
       ) : !searched ? (
         <div className="empty-state">
           <Music />
           <div>Busca por playlist o canción</div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Toca un chip arriba o escribe el nombre
-          </div>
         </div>
       ) : sorted.length === 0 ? (
         <div className="empty-state">
           <Music />
-          <div>Sin resultados para "{lastQuery}"</div>
+          <div>Sin resultados</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {sorted.map((t, i) => (
-            <TrackCard key={t.id} track={t} onRate={handleRate} index={i} />
+            <TrackCard
+              key={t.track_id || t.id}
+              track={{ ...t, id: t.track_id || t.id }}
+              onRate={handleRate}
+              index={i}
+            />
           ))}
         </div>
       )}
