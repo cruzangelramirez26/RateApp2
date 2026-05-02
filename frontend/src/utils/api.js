@@ -54,4 +54,11 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ track_ids: trackIds }),
   }),
+
+  // Migración de cuatrimestre
+  getMigrationCandidates: () => request('/tracks/migrate/candidates'),
+  migrateTracks: (trackIds, toCuatrimestre) => request('/tracks/migrate', {
+    method: 'POST',
+    body: JSON.stringify({ track_ids: trackIds, to_cuatrimestre: toCuatrimestre }),
+  }),
 };

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { ListMusic, Clock, Library, BarChart3 } from 'lucide-react';
+import { ListMusic, Clock, Library, Wrench, BarChart3 } from 'lucide-react';
 
 export default function NavBar() {
   return (
@@ -15,6 +15,10 @@ export default function NavBar() {
       <NavLink to="/recent" className={({ isActive }) => isActive ? 'active' : ''}>
         <Clock />
         <span>Recientes</span>
+      </NavLink>
+      <NavLink to="/tools" className={({ isActive }) => isActive ? 'active' : ''}>
+        <Wrench />
+        <span>Herramientas</span>
       </NavLink>
       <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
         <BarChart3 />

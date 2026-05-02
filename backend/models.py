@@ -65,3 +65,8 @@ class OrderRequest(BaseModel):
 
 class AplusApplyRequest(BaseModel):
     track_ids: list[str]
+
+
+class MigrateRequest(BaseModel):
+    track_ids: list[str]
+    to_cuatrimestre: str

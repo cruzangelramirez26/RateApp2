@@ -2,6 +2,13 @@
 from datetime import datetime, timezone
 import pandas as pd
 
+# Previous cuatrimestre in the cycle. Latte has no defined next for now.
+CUATRIMESTRE_PREV = {
+    "perla": None,
+    "miel": "perla",
+    "latte": "miel",
+}
+
 
 def get_cuatrimestre(dt: datetime) -> str:
     """Return cuatrimestre name based on month."""

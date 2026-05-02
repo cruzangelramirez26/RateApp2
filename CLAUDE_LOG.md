@@ -17,3 +17,26 @@ Cambios:
 - `frontend/src/pages/StatsPage.jsx` — checkboxes por candidato, todos marcados por defecto, botón "Marcar/Desmarcar todo", botón Aplicar muestra conteo y se deshabilita si hay 0 seleccionados
 
 Commit: `9432400` → desplegado en Render.
+
+---
+
+## 2026-05-01 (sesión 2)
+
+**Feature: Migración de cuatrimestre + página Herramientas**
+
+Nueva funcionalidad para mover canciones del cuatrimestre anterior al actual sin alterar `added_at` ni `rating`. Las canciones históricas permanecen visibles en su cuatrimestre de origen; la migración es aditiva (se agregan a la playlist destino en Spotify, la playlist origen queda intocable).
+
+Ciclo definido: Perla → Miel → Latte → (sin siguiente por ahora).
+
+Cambios:
+- `backend/database.py` — `ensure_table()` aplica migración de columna `cuatrimestre_override` (nullable); `get_migration_candidates(from_cuatri, from_year)` filtra por año exacto y excluye ya migradas; `set_cuatrimestre_override(track_ids, to_cuatri)`
+- `backend/utils.py` — constante `CUATRIMESTRE_PREV` con el ciclo
+- `backend/models.py` — nuevo modelo `MigrateRequest`
+- `backend/routes/tracks.py` — `GET /tracks/migrate/candidates` y `POST /tracks/migrate`
+- `frontend/src/utils/api.js` — `getMigrationCandidates()` y `migrateTracks()`
+- `frontend/src/pages/ToolsPage.jsx` — página nueva con Modo Virtual, A+ Instantáneos, Migración y Orden de playlists
+- `frontend/src/pages/StatsPage.jsx` — simplificado, solo muestra distribución de ratings
+- `frontend/src/components/NavBar.jsx` — tab "Herramientas" antes de Dashboard
+- `frontend/src/App.jsx` — ruta `/tools`
+
+Commit: pendiente

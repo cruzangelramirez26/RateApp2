@@ -1,8 +1,4 @@
-/**
- * StatsPage — Rating distribution + playlist tools.
- */
 import { useState, useEffect } from 'react';
-import { BarChart3, Settings2, Play, Pause, Zap, RefreshCw } from 'lucide-react';
 import { api } from '../utils/api';
 import { useToast } from '../hooks/useToast';
 
@@ -20,44 +16,15 @@ const RATING_ORDER = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
 
 export default function StatsPage() {
   const [stats, setStats] = useState(null);
-  const [virtualStatus, setVirtualStatus] = useState(null);
-  const [aplusStatus, setAplusStatus] = useState(null);
-  const [aplusCandidates, setAplusCandidates] = useState([]);
-  const [selectedIds, setSelectedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState('');
   const toast = useToast();
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [s, v, ap] = await Promise.all([api.getStats(), api.virtualStatus(), api.aplusStatus()]);
-        setStats(s);
-        setVirtualStatus(v);
-        setAplusStatus(ap);
-      } catch (err) {
-        toast(err.message, 'error');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [toast]);
-
-  const doAction = async (key, fn) => {
-    setActionLoading(key);
-    try {
-      const result = await fn();
-      toast(typeof result === 'string' ? result : JSON.stringify(result), 'success', 4000);
-      // Refresh statuses
-      const [s, v] = await Promise.all([api.getStats(), api.virtualStatus()]);
-      setStats(s);
-      setVirtualStatus(v);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setActionLoading('');
-    }
-  };
+    api.getStats()
+      .then(s => setStats(s))
+      .catch(err => toast(err.message, 'error'))
+      .finally(() => setLoading(false));
+  }, []);
 
   if (loading) {
     return (
@@ -83,8 +50,7 @@ export default function StatsPage() {
         <div className="page-subtitle">{stats?.total || 0} canciones calificadas</div>
       </div>
 
-      {/* Rating distribution chart */}
-      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
+      <div className="card fade-in" style={{ padding: '20px' }}>
         <div style={{
           fontSize: '0.78rem',
           color: 'var(--text-muted)',
@@ -144,275 +110,6 @@ export default function StatsPage() {
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* Virtual mode section */}
-      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
-        <div style={{
-          fontSize: '0.78rem',
-          color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          fontWeight: 600,
-          marginBottom: '12px',
-          fontFamily: 'var(--font-mono)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}>
-          <Settings2 size={14} />
-          Modo Virtual
-          {virtualStatus?.active && (
-            <span style={{
-              background: 'rgba(110, 207, 138, 0.15)',
-              color: 'var(--rating-b-plus)',
-              padding: '2px 8px',
-              borderRadius: '20px',
-              fontSize: '0.7rem',
-              fontFamily: 'var(--font-mono)',
-            }}>
-              ACTIVO — {virtualStatus.cuatri?.toUpperCase()}
-            </span>
-          )}
-        </div>
-
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
-          Congela las fronteras de rating en la playlist del cuatrimestre. 
-          Mueve canciones en Spotify, luego simula y aplica los cambios.
-        </p>
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {!virtualStatus?.active ? (
-            <button
-              className="btn btn-accent btn-sm"
-              onClick={() => doAction('start', api.virtualStart)}
-              disabled={!!actionLoading}
-            >
-              <Play size={14} /> Iniciar
-            </button>
-          ) : (
-            <>
-              <button
-                className="btn btn-sm"
-                onClick={() => doAction('sim', api.virtualSimulate)}
-                disabled={!!actionLoading}
-              >
-                <Zap size={14} /> Simular
-              </button>
-              <button
-                className="btn btn-accent btn-sm"
-                onClick={() => doAction('apply', () => api.virtualApply(false))}
-                disabled={!!actionLoading}
-              >
-                Aplicar cambios
-              </button>
-              <button
-                className="btn btn-sm"
-                onClick={() => doAction('end', api.virtualEnd)}
-                disabled={!!actionLoading}
-                style={{ color: 'var(--rating-d)' }}
-              >
-                <Pause size={14} /> Finalizar
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* A+ Instant Detection */}
-      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
-        <div style={{
-          fontSize: '0.78rem',
-          color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          fontWeight: 600,
-          marginBottom: '12px',
-          fontFamily: 'var(--font-mono)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}>
-          <span style={{ color: 'var(--rating-a-plus)', fontSize: '14px' }}>★</span>
-          A+ Instantáneos
-          {aplusStatus?.active && (
-            <span style={{
-              background: 'rgba(245, 197, 66, 0.15)',
-              color: 'var(--rating-a-plus)',
-              padding: '2px 8px',
-              borderRadius: '20px',
-              fontSize: '0.7rem',
-              fontFamily: 'var(--font-mono)',
-            }}>
-              ACTIVO
-            </span>
-          )}
-        </div>
-
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.6 }}>
-          Detecta canciones nuevas en tus "Me gusta" de Spotify y las marca como A+ automáticamente.
-        </p>
-
-        {aplusCandidates.length > 0 && (
-          <div style={{
-            background: 'var(--bg-surface)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '10px',
-            marginBottom: '12px',
-            maxHeight: '220px',
-            overflowY: 'auto',
-          }}>
-            <div style={{
-              fontSize: '0.75rem',
-              color: 'var(--rating-a-plus)',
-              fontWeight: 600,
-              marginBottom: '6px',
-              fontFamily: 'var(--font-mono)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
-              <span>{aplusCandidates.length} candidatos detectados</span>
-              <button
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '0.7rem',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  padding: '0',
-                  fontFamily: 'var(--font-mono)',
-                }}
-                onClick={() => {
-                  if (selectedIds.size === aplusCandidates.length) {
-                    setSelectedIds(new Set());
-                  } else {
-                    setSelectedIds(new Set(aplusCandidates.map(c => c.id)));
-                  }
-                }}
-              >
-                {selectedIds.size === aplusCandidates.length ? 'Desmarcar todo' : 'Marcar todo'}
-              </button>
-            </div>
-            {aplusCandidates.map((c, i) => (
-              <label
-                key={c.id || i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.82rem',
-                  color: selectedIds.has(c.id) ? 'var(--text-primary)' : 'var(--text-muted)',
-                  padding: '5px 0',
-                  borderBottom: i < aplusCandidates.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(c.id)}
-                  onChange={() => {
-                    setSelectedIds(prev => {
-                      const next = new Set(prev);
-                      if (next.has(c.id)) next.delete(c.id);
-                      else next.add(c.id);
-                      return next;
-                    });
-                  }}
-                  style={{ accentColor: 'var(--rating-a-plus)', width: '14px', height: '14px' }}
-                />
-                {c.name} <span style={{ color: 'var(--text-muted)' }}>— {c.artist}</span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-sm"
-            style={{ borderColor: 'var(--rating-a-plus)', color: 'var(--rating-a-plus)' }}
-            onClick={() => doAction('aplus-scan', async () => {
-              const res = await api.aplusScan();
-              if (res.candidates && res.candidates.length > 0) {
-                setAplusCandidates(res.candidates);
-                setSelectedIds(new Set(res.candidates.map(c => c.id)));
-              }
-              const st = await api.aplusStatus();
-              setAplusStatus(st);
-              return res.message;
-            })}
-            disabled={!!actionLoading}
-          >
-            {aplusStatus?.active ? 'Escanear nuevos likes' : 'Escanear nuevos likes'}
-          </button>
-
-          {aplusCandidates.length > 0 && (
-            <button
-              className="btn btn-sm"
-              style={{ background: 'rgba(245, 197, 66, 0.12)', borderColor: 'var(--rating-a-plus)', color: 'var(--rating-a-plus)' }}
-              onClick={() => doAction('aplus-apply', async () => {
-                const res = await api.aplusApply(Array.from(selectedIds));
-                setAplusCandidates([]);
-                setSelectedIds(new Set());
-                const [s, st] = await Promise.all([api.getStats(), api.aplusStatus()]);
-                setStats(s);
-                setAplusStatus(st);
-                return res.message;
-              })}
-              disabled={!!actionLoading || selectedIds.size === 0}
-            >
-              Aplicar {selectedIds.size} como A+
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Playlist tools */}
-      <div className="card fade-in" style={{ padding: '20px' }}>
-        <div style={{
-          fontSize: '0.78rem',
-          color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          fontWeight: 600,
-          marginBottom: '12px',
-          fontFamily: 'var(--font-mono)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}>
-          <RefreshCw size={14} /> Herramientas
-        </div>
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-sm btn-spotify"
-            onClick={() => doAction('order', async () => {
-              const dist = await api.getDistribution();
-              // Order current cuatri
-              const cuatriMap = { perla: dist.perla, miel: dist.miel, latte: dist.latte };
-              const month = new Date().getMonth() + 1;
-              const cuatri = month <= 4 ? 'perla' : month <= 8 ? 'miel' : 'latte';
-              await api.orderPlaylist(cuatriMap[cuatri], 1);
-              return `${cuatri.toUpperCase()} ordenada`;
-            })}
-            disabled={!!actionLoading}
-          >
-            Ordenar cuatrimestre
-          </button>
-          <button
-            className="btn btn-sm btn-spotify"
-            onClick={() => doAction('order-anual', async () => {
-              const dist = await api.getDistribution();
-              await api.orderPlaylist(dist.anual, 4); // B+ = 4
-              return 'Galería Anual ordenada';
-            })}
-            disabled={!!actionLoading}
-          >
-            Ordenar Galería Anual
-          </button>
         </div>
       </div>
     </div>

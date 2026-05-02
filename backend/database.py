@@ -43,7 +43,7 @@ def get_conn():
 
 
 def ensure_table():
-    """Create the tracks table if it doesn't exist."""
+    """Create the tracks table if it doesn't exist, and apply schema migrations."""
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("""
@@ -57,6 +57,18 @@ def ensure_table():
                 manual_order INT        NOT NULL DEFAULT 0
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         """)
+        # Migration: add cuatrimestre_override column if absent
+        cur.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'tracks'
+              AND COLUMN_NAME = 'cuatrimestre_override'
+        """)
+        if cur.fetchone()[0] == 0:
+            cur.execute(
+                "ALTER TABLE tracks "
+                "ADD COLUMN cuatrimestre_override VARCHAR(10) NULL DEFAULT NULL"
+            )
         conn.commit()
         cur.close()
 
@@ -214,3 +226,46 @@ def get_stats() -> dict:
         rows = cur.fetchall()
         cur.close()
         return {r: c for r, c in rows}
+
+
+_CUATRI_MONTHS = {
+    "perla": (1, 4),
+    "miel": (5, 8),
+    "latte": (9, 12),
+}
+
+
+def get_migration_candidates(from_cuatri: str, from_year: int) -> list[dict]:
+    """
+    Return tracks whose added_at falls in from_cuatri/from_year that haven't
+    been migrated out yet. Excludes D-rated and unrated tracks.
+    """
+    start_m, end_m = _CUATRI_MONTHS[from_cuatri]
+    with get_conn() as conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            """SELECT * FROM tracks
+               WHERE YEAR(added_at) = %s
+                 AND MONTH(added_at) BETWEEN %s AND %s
+                 AND (cuatrimestre_override IS NULL OR cuatrimestre_override = %s)
+                 AND rating NOT IN ('D', '')""",
+            (from_year, start_m, end_m, from_cuatri),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+
+
+def set_cuatrimestre_override(track_ids: list[str], to_cuatri: str):
+    """Mark tracks as migrated to to_cuatri without touching added_at or rating."""
+    if not track_ids:
+        return
+    with get_conn() as conn:
+        cur = conn.cursor()
+        ph = ",".join(["%s"] * len(track_ids))
+        cur.execute(
+            f"UPDATE tracks SET cuatrimestre_override = %s WHERE track_id IN ({ph})",
+            [to_cuatri] + track_ids,
+        )
+        conn.commit()
+        cur.close()

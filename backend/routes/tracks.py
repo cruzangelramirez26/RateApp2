@@ -8,7 +8,7 @@ import database
 import spotify
 import config
 import utils
-from models import RateRequest, TrackOut, StatsOut, AplusApplyRequest
+from models import RateRequest, TrackOut, StatsOut, AplusApplyRequest, MigrateRequest
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
 
@@ -354,3 +354,64 @@ def aplus_apply(req: AplusApplyRequest):
     _order_playlist(sp, anual_id, min_rating_order=config.RATING_ORDER["B+"])
 
     return {"applied": applied, "message": f"Se aplicaron {applied} canciones como A+."}
+
+
+# ─── Migración de cuatrimestre ───────────────────────────────────
+
+_CUATRI_DISPLAY = {"perla": "Perla", "miel": "Miel", "latte": "Latte"}
+
+
+@router.get("/migrate/candidates")
+def get_migrate_candidates():
+    """Return tracks from the previous cuatrimestre that haven't been migrated yet."""
+    current_cuatri = utils.get_cuatrimestre(utils.now_utc())
+    prev_cuatri = utils.CUATRIMESTRE_PREV.get(current_cuatri)
+
+    if prev_cuatri is None:
+        return {"candidates": [], "from_cuatri": None, "to_cuatri": current_cuatri}
+
+    from_year = utils.now_utc().year
+    candidates = database.get_migration_candidates(prev_cuatri, from_year)
+
+    # Serialize datetimes
+    for c in candidates:
+        if c.get("added_at") and hasattr(c["added_at"], "isoformat"):
+            c["added_at"] = c["added_at"].isoformat()
+
+    return {
+        "candidates": candidates,
+        "from_cuatri": prev_cuatri,
+        "to_cuatri": current_cuatri,
+    }
+
+
+@router.post("/migrate")
+def migrate_tracks(req: MigrateRequest):
+    """Migrate selected tracks to to_cuatrimestre: set override, add to Spotify playlist, reorder."""
+    if not req.track_ids:
+        return {"migrated": 0, "message": "No se seleccionaron canciones."}
+
+    to_cuatri = req.to_cuatrimestre
+    cuatri_id = config.DISTRIBUTION_PLAYLISTS.get(to_cuatri)
+    if not cuatri_id:
+        raise HTTPException(400, f"No hay playlist configurada para '{to_cuatri}'.")
+
+    sp = spotify.get_client()
+
+    database.set_cuatrimestre_override(req.track_ids, to_cuatri)
+
+    existing = set(spotify.get_playlist_track_ids(sp, cuatri_id))
+    to_add = [tid for tid in req.track_ids if tid not in existing]
+    for chunk in utils.chunk_list(to_add, 100):
+        try:
+            spotify.add_to_playlist(sp, cuatri_id, chunk)
+        except Exception:
+            pass
+
+    _order_playlist(sp, cuatri_id, min_rating_order=1)
+
+    label = _CUATRI_DISPLAY.get(to_cuatri, to_cuatri.capitalize())
+    return {
+        "migrated": len(req.track_ids),
+        "message": f"{len(req.track_ids)} canciones migradas a {label}.",
+    }
