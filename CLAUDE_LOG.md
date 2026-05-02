@@ -2,6 +2,16 @@
 
 ---
 
+## 2026-05-02
+
+**Feature: Picture-in-Picture para calificar desde ventana flotante**
+
+- `frontend/src/pages/PendingPage.jsx` — botón PiP junto al refresh. Usa `documentPictureInPicture` API (Chrome desktop). Abre ventana flotante 300×460 con portada, nombre/artista, 7 botones de rating (colores del design system) y botón "saltar". Al llegar al final reconstruye la cola con las que siguen sin calificar (loop); si no queda ninguna muestra pantalla de done. Calificar desde PiP ejecuta el mismo `handleRate` del componente principal (actualizaciones de estado y API idénticas).
+
+Commit: `15340e4` → desplegado en Render.
+
+---
+
 ## 2026-05-01 (sesión 3)
 
 **Feature: Liked Songs sync + re-calificación histórica + UI mejoras**
