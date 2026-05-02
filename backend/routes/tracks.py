@@ -373,6 +373,24 @@ def get_migrate_candidates():
     from_year = utils.now_utc().year
     candidates = database.get_migration_candidates(prev_cuatri, from_year)
 
+    # Enrich with album art (smallest thumbnail) via Spotify
+    if candidates:
+        try:
+            sp = spotify.get_client()
+            ids = [c["track_id"] for c in candidates]
+            image_map = {}
+            for chunk in utils.chunk_list(ids, 50):
+                result = sp.tracks(chunk)
+                for t in (result.get("tracks") or []):
+                    if t:
+                        images = (t.get("album") or {}).get("images") or []
+                        image_map[t["id"]] = images[-1].get("url") if images else None
+            for c in candidates:
+                c["image"] = image_map.get(c["track_id"])
+        except Exception:
+            for c in candidates:
+                c.setdefault("image", None)
+
     # Serialize datetimes
     for c in candidates:
         if c.get("added_at") and hasattr(c["added_at"], "isoformat"):

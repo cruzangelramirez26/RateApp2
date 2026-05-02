@@ -41,13 +41,24 @@ export default function ToolsPage() {
     }
   };
 
+  // Rating desc → added_at desc (replica el orden de la playlist)
   const sortedMigCandidates = useMemo(() => {
     if (!migData?.candidates?.length) return [];
     return [...migData.candidates].sort((a, b) => {
       if (migSort === 'recent') return new Date(b.added_at) - new Date(a.added_at);
-      return (RATING_ORDER_MAP[b.rating] ?? -1) - (RATING_ORDER_MAP[a.rating] ?? -1);
+      const rd = (RATING_ORDER_MAP[b.rating] ?? -1) - (RATING_ORDER_MAP[a.rating] ?? -1);
+      if (rd !== 0) return rd;
+      return new Date(b.added_at) - new Date(a.added_at);
     });
   }, [migData, migSort]);
+
+  const toggleMigAll = () => {
+    if (migSelectedIds.size === migData.candidates.length) {
+      setMigSelectedIds(new Set());
+    } else {
+      setMigSelectedIds(new Set(migData.candidates.map(c => c.track_id)));
+    }
+  };
 
   if (loading) {
     return (
@@ -263,7 +274,7 @@ export default function ToolsPage() {
                   return 'No hay migración disponible para este cuatrimestre.';
                 }
                 setMigData(data);
-                setMigSelectedIds(new Set(data.candidates.map(c => c.track_id)));
+                setMigSelectedIds(new Set());
                 return data.candidates.length > 0
                   ? `${data.candidates.length} canciones de ${CUATRI_DISPLAY[data.from_cuatri]} disponibles.`
                   : `No hay canciones en ${CUATRI_DISPLAY[data.from_cuatri]} para migrar.`;
@@ -281,6 +292,7 @@ export default function ToolsPage() {
           </div>
         ) : (
           <>
+            {/* Encabezado: ruta + sort */}
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               marginBottom: '10px', flexWrap: 'wrap', gap: '8px',
@@ -305,36 +317,33 @@ export default function ToolsPage() {
               </div>
             </div>
 
+            {/* Control de selección */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              marginBottom: '8px',
+            }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {migSelectedIds.size} / {migData.candidates.length} seleccionadas
+              </span>
+              <button className="btn btn-sm" style={{ fontSize: '0.72rem', padding: '3px 12px' }}
+                onClick={toggleMigAll}>
+                {migSelectedIds.size === migData.candidates.length ? 'Desmarcar todo' : 'Marcar todo'}
+              </button>
+            </div>
+
+            {/* Lista */}
             <div style={{
               background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)',
-              padding: '10px', marginBottom: '12px', maxHeight: '280px', overflowY: 'auto',
+              padding: '6px 10px', marginBottom: '12px', maxHeight: '320px', overflowY: 'auto',
             }}>
-              <div style={{
-                fontSize: '0.75rem', fontWeight: 600, marginBottom: '6px',
-                fontFamily: 'var(--font-mono)', display: 'flex',
-                justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)',
-              }}>
-                <span>{migData.candidates.length} canciones</span>
-                <button
-                  style={{ background: 'none', border: 'none', fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-mono)' }}
-                  onClick={() => {
-                    if (migSelectedIds.size === migData.candidates.length) {
-                      setMigSelectedIds(new Set());
-                    } else {
-                      setMigSelectedIds(new Set(migData.candidates.map(c => c.track_id)));
-                    }
-                  }}>
-                  {migSelectedIds.size === migData.candidates.length ? 'Desmarcar todo' : 'Marcar todo'}
-                </button>
-              </div>
-
               {sortedMigCandidates.map((c, i) => (
                 <label key={c.track_id} style={{
-                  display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem',
-                  color: migSelectedIds.has(c.track_id) ? 'var(--text-primary)' : 'var(--text-muted)',
-                  padding: '5px 0',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '6px 0',
                   borderBottom: i < sortedMigCandidates.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                   cursor: 'pointer', userSelect: 'none',
+                  opacity: migSelectedIds.has(c.track_id) ? 1 : 0.45,
+                  transition: 'opacity 0.15s',
                 }}>
                   <input type="checkbox"
                     checked={migSelectedIds.has(c.track_id)}
@@ -345,24 +354,40 @@ export default function ToolsPage() {
                         return next;
                       });
                     }}
-                    style={{ width: '14px', height: '14px' }}
+                    style={{ width: '14px', height: '14px', flexShrink: 0 }}
                   />
                   <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 700,
-                    color: RATING_COLORS[c.rating] ?? 'var(--text-muted)', minWidth: '26px',
+                    fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 700,
+                    color: RATING_COLORS[c.rating] ?? 'var(--text-muted)',
+                    minWidth: '26px', flexShrink: 0,
                   }}>
                     {c.rating}
                   </span>
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.name}
-                  </span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', flexShrink: 0, maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.image ? (
+                    <img src={c.image} alt="" style={{ width: '34px', height: '34px', borderRadius: '4px', flexShrink: 0, objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '34px', height: '34px', borderRadius: '4px', background: 'var(--bg-deep)', flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.name}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.album}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0,
+                    maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap', textAlign: 'right',
+                  }}>
                     {c.artist}
                   </span>
                 </label>
               ))}
             </div>
 
+            {/* Acciones */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 className="btn btn-accent btn-sm"
@@ -376,7 +401,7 @@ export default function ToolsPage() {
                   setMigSelectedIds(new Set());
                   return res.message;
                 })}>
-                Mover {migSelectedIds.size} a {CUATRI_DISPLAY[migData.to_cuatri]}
+                Mover {migSelectedIds.size > 0 ? migSelectedIds.size : ''} a {CUATRI_DISPLAY[migData.to_cuatri]}
               </button>
               <button
                 className="btn btn-sm"
