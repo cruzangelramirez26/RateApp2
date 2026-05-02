@@ -146,7 +146,7 @@ def upsert_track(track_id: str, name: str, artist: str, album: str, added_at, ra
                VALUES (%s, %s, %s, %s, %s, %s, 0)
                ON DUPLICATE KEY UPDATE
                  name=VALUES(name), artist=VALUES(artist), album=VALUES(album),
-                 added_at=VALUES(added_at), rating=VALUES(rating)""",
+                 rating=VALUES(rating)""",
             (track_id, name, artist, album, added_at, rating),
         )
         conn.commit()

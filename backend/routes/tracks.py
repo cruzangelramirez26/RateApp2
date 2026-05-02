@@ -76,61 +76,75 @@ def get_stats():
     return {"total": total, "by_rating": raw}
 
 
+_CUATRI_MONTH_RANGES = {"perla": (1, 4), "miel": (5, 8), "latte": (9, 12)}
+
+
+def _belongs_to_current_cuatri(track_data: dict, cuatri: str) -> bool:
+    """True if track naturally belongs to the given cuatrimestre by added_at (ignores override)."""
+    added_at = track_data.get("added_at")
+    if not added_at:
+        return False
+    try:
+        dt = pd.to_datetime(added_at, errors="coerce")
+        if pd.isna(dt):
+            return False
+        now = utils.now_utc()
+        start_m, end_m = _CUATRI_MONTH_RANGES[cuatri]
+        target_year = now.year if now.month >= start_m else now.year - 1
+        return int(dt.year) == target_year and start_m <= int(dt.month) <= end_m
+    except Exception:
+        return False
+
+
 @router.post("/rate")
 def rate_track(req: RateRequest):
-    """
-    Rate a track. Handles:
-    - Saving to DB
-    - Adding/removing from cuatri, MMG, Anual playlists
-    - Auto-reordering affected playlists
-    """
     sp = spotify.get_client()
     tid = req.track_id
     new_rating = req.rating.strip().upper()
-    
-    # Get old rating
+
     old_track = database.get_track(tid)
-    old_rating = None
-    if old_track:
-        old_rating = str(old_track.get("rating", "")).strip().upper() or None
+    old_rating = str(old_track.get("rating", "")).strip().upper() if old_track else None
 
     now_str = utils.now_utc_str()
+    current_cuatri = utils.get_cuatrimestre(utils.now_utc())
+    cuatri_id = config.DISTRIBUTION_PLAYLISTS.get(current_cuatri)
+    mmg_id = config.DISTRIBUTION_PLAYLISTS["mis_me_gusta"]
+    anual_id = config.DISTRIBUTION_PLAYLISTS["anual"]
+
+    # Preserve original added_at on re-rate (upsert only sets it on INSERT)
+    database.upsert_track(tid, req.name, req.artist, req.album, now_str, new_rating)
 
     if new_rating == "D":
-        database.upsert_track(tid, req.name, req.artist, req.album, now_str, "D")
-        cuatri = utils.get_cuatrimestre(utils.now_utc())
-        to_remove = [
-            config.DISTRIBUTION_PLAYLISTS.get(cuatri),
-            config.DISTRIBUTION_PLAYLISTS["mis_me_gusta"],
-            config.DISTRIBUTION_PLAYLISTS["anual"],
-        ]
-        for pl_id in to_remove:
+        for pl_id in [cuatri_id, mmg_id, anual_id]:
             if pl_id:
                 try:
                     spotify.remove_from_playlist(sp, pl_id, [tid])
                 except Exception:
                     pass
+        try:
+            spotify.unsave_tracks(sp, [tid])
+        except Exception:
+            pass
         return {"ok": True, "rating": "D"}
 
-    # Save with current timestamp
-    database.upsert_track(tid, req.name, req.artist, req.album, now_str, new_rating)
-
-    # Add to cuatrimestre playlist
-    cuatri = utils.get_cuatrimestre(utils.now_utc())
-    cuatri_id = config.DISTRIBUTION_PLAYLISTS.get(cuatri)
-    if cuatri_id:
-        existing = set(spotify.get_playlist_track_ids(sp, cuatri_id))
-        if tid not in existing:
+    if new_rating in config.TOP_SET:
+        # Add to current cuatrimestre
+        if cuatri_id:
             try:
-                spotify.add_to_playlist(sp, cuatri_id, [tid])
+                existing = set(spotify.get_playlist_track_ids(sp, cuatri_id))
+                if tid not in existing:
+                    spotify.add_to_playlist(sp, cuatri_id, [tid])
             except Exception:
                 pass
-
-    # Handle MMG + Anual
-    mmg_id = config.DISTRIBUTION_PLAYLISTS["mis_me_gusta"]
-    anual_id = config.DISTRIBUTION_PLAYLISTS["anual"]
-
-    if new_rating in config.TOP_SET:
+        # If track is historical, set override so rebuild lo incluye en el cuatri actual
+        if old_track:
+            override = old_track.get("cuatrimestre_override")
+            if not _belongs_to_current_cuatri(old_track, current_cuatri) and override != current_cuatri:
+                try:
+                    database.set_cuatrimestre_override([tid], current_cuatri)
+                except Exception:
+                    pass
+        # Add to MMG + Anual
         for pl_id in [mmg_id, anual_id]:
             try:
                 existing = set(spotify.get_playlist_track_ids(sp, pl_id))
@@ -138,20 +152,27 @@ def rate_track(req: RateRequest):
                     spotify.add_to_playlist(sp, pl_id, [tid])
             except Exception:
                 pass
+        # Like
+        try:
+            spotify.save_tracks(sp, [tid])
+        except Exception:
+            pass
     else:
-        # Remove from MMG + Anual if was in TOP_SET before
-        if old_rating and old_rating in config.TOP_SET:
+        # B, C+, C — sale de MMG + Anual + unlike solo si venía de TOP_SET
+        if old_rating in config.TOP_SET:
             for pl_id in [mmg_id, anual_id]:
                 try:
                     spotify.remove_from_playlist(sp, pl_id, [tid])
                 except Exception:
                     pass
+            try:
+                spotify.unsave_tracks(sp, [tid])
+            except Exception:
+                pass
 
-    # Auto-reorder cuatrimestre
+    # Auto-reorder
     if cuatri_id:
         _order_playlist(sp, cuatri_id, min_rating_order=1)
-
-    # Reorder Anual if TOP_SET involved
     if new_rating in config.TOP_SET or (old_rating and old_rating in config.TOP_SET):
         _order_playlist(sp, anual_id, min_rating_order=config.RATING_ORDER["B+"])
 
