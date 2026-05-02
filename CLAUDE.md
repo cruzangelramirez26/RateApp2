@@ -7,6 +7,7 @@
 - Nunca hacer nada sin explicar primero qué entendí y qué voy a hacer
 - Siempre preguntar dudas antes de asumir algo
 - Solo actuar con visto bueno del usuario
+- Al final de cada sesión donde se hagan cambios de código: actualizar `CLAUDE_LOG.md` con la fecha, qué se cambió y por qué, y el commit hash. Luego incluirlo en el push a GitHub.
 
 ## Deploy
 
