@@ -66,8 +66,15 @@ def rebuild_anual():
     df["rating_order"] = df["rating_str"].map(config.RATING_ORDER)
     df["added_at_dt"] = pd.to_datetime(df["added_at"], errors="coerce")
 
+    import utils as _utils
+    current_year = _utils.now_utc().year
+
     top_set_min = config.RATING_ORDER["B+"]
-    df_top = df[df["rating_order"].notna() & (df["rating_order"] >= top_set_min)].copy()
+    df_top = df[
+        df["rating_order"].notna() &
+        (df["rating_order"] >= top_set_min) &
+        (df["added_at_dt"].dt.year == current_year)
+    ].copy()
     df_top = df_top.sort_values(
         ["rating_order", "added_at_dt"],
         ascending=[False, False],
@@ -81,7 +88,7 @@ def rebuild_anual():
     return {
         "ok": True,
         "count": len(track_ids),
-        "message": f"Galería Anual reconstruida con {len(track_ids)} canciones TOP SET.",
+        "message": f"Galería Anual reconstruida con {len(track_ids)} canciones TOP SET ({current_year}).",
     }
 
 
