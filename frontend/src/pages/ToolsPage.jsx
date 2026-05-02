@@ -459,19 +459,20 @@ export default function ToolsPage() {
         }}>
           <RefreshCw size={14} /> Orden de playlists
         </div>
+        {/* Ordenar cualquier cuatrimestre (solo reordena lo que ya está) */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-sm btn-spotify"
-            onClick={() => doAction('order', async () => {
-              const dist = await api.getDistribution();
-              const month = new Date().getMonth() + 1;
-              const cuatri = month <= 4 ? 'perla' : month <= 8 ? 'miel' : 'latte';
-              await api.orderPlaylist(dist[cuatri], 1);
-              return `${cuatri.toUpperCase()} ordenada`;
-            })}
-            disabled={!!actionLoading}>
-            Ordenar cuatrimestre
-          </button>
+          {['perla', 'miel', 'latte'].map(c => (
+            <button key={c}
+              className="btn btn-sm btn-spotify"
+              onClick={() => doAction(`order-${c}`, async () => {
+                const dist = await api.getDistribution();
+                await api.orderPlaylist(dist[c], 1);
+                return `${CUATRI_DISPLAY[c]} ordenada`;
+              })}
+              disabled={!!actionLoading}>
+              Ordenar {CUATRI_DISPLAY[c]}
+            </button>
+          ))}
           <button
             className="btn btn-sm btn-spotify"
             onClick={() => doAction('order-anual', async () => {
@@ -484,9 +485,10 @@ export default function ToolsPage() {
           </button>
         </div>
 
+        {/* Reconstruir desde DB — filtra por año más reciente */}
         <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)' }}>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>
-            RECONSTRUIR DESDE DB — usa la base de datos como fuente de verdad y restaura tracks faltantes
+            RECONSTRUIR DESDE DB — recupera tracks faltantes usando solo el año actual del periodo
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {['perla', 'miel', 'latte'].map(c => (
