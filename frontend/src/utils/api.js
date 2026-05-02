@@ -45,6 +45,7 @@ export const api = {
   getDistribution: () => request('/playlists/distribution'),
   orderPlaylist: (id, minRating) => request(`/playlists/order/${id}${minRating != null ? `?min_rating_order=${minRating}` : ''}`, { method: 'POST' }),
   rebuildPlaylist: (cuatri) => request(`/playlists/rebuild/${cuatri}`, { method: 'POST' }),
+  rebuildAnual: () => request('/playlists/rebuild/anual', { method: 'POST' }),
 
   // Virtual
   virtualStatus: () => request('/virtual/status'),

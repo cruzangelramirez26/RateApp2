@@ -48,6 +48,43 @@ _MONTH_RANGES = {"perla": (1, 4), "miel": (5, 8), "latte": (9, 12)}
 _CUATRI_DISPLAY = {"perla": "Perla", "miel": "Miel", "latte": "Latte"}
 
 
+@router.post("/rebuild/anual")
+def rebuild_anual():
+    """
+    Rebuild Galería Anual from DB: all TOP_SET (B+/A/A+) songs regardless of cuatrimestre.
+    Sorted by rating desc, added_at desc.
+    """
+    anual_id = config.DISTRIBUTION_PLAYLISTS.get("anual")
+    if not anual_id:
+        raise HTTPException(400, "No hay playlist configurada para Galería Anual")
+
+    df = database.load_all()
+    if df.empty:
+        return {"ok": True, "count": 0, "message": "No hay canciones en la base de datos."}
+
+    df["rating_str"] = df["rating"].astype(str).str.upper().str.strip()
+    df["rating_order"] = df["rating_str"].map(config.RATING_ORDER)
+    df["added_at_dt"] = pd.to_datetime(df["added_at"], errors="coerce")
+
+    top_set_min = config.RATING_ORDER["B+"]
+    df_top = df[df["rating_order"].notna() & (df["rating_order"] >= top_set_min)].copy()
+    df_top = df_top.sort_values(
+        ["rating_order", "added_at_dt"],
+        ascending=[False, False],
+        na_position="last",
+    )
+
+    track_ids = df_top["track_id"].dropna().drop_duplicates().tolist()
+    sp = spotify.get_client()
+    spotify.replace_playlist(sp, anual_id, track_ids)
+
+    return {
+        "ok": True,
+        "count": len(track_ids),
+        "message": f"Galería Anual reconstruida con {len(track_ids)} canciones TOP SET.",
+    }
+
+
 @router.post("/rebuild/{cuatri}")
 def rebuild_playlist(cuatri: str):
     """

@@ -503,6 +503,16 @@ export default function ToolsPage() {
                 Reconstruir {CUATRI_DISPLAY[c]}
               </button>
             ))}
+            <button
+              className="btn btn-sm"
+              style={{ color: '#f5c542' }}
+              onClick={() => doAction('rebuild-anual', async () => {
+                const res = await api.rebuildAnual();
+                return res.message;
+              })}
+              disabled={!!actionLoading}>
+              Reconstruir Galería
+            </button>
           </div>
         </div>
       </div>
