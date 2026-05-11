@@ -2,6 +2,29 @@
 
 ---
 
+## 2026-05-10 (sesión UI improvements)
+
+**Features: PiP light theme, toggle Lista/Individual, Stats portadas, Library pagination, mobile sizing**
+
+Sin cambios de backend lógicos — solo nuevos campos expuestos en la API existente.
+
+**Backend:**
+- `backend/spotify.py` — `get_all_liked_tracks` acepta `start_offset` para paginación.
+- `backend/routes/tracks.py` — `/tracks/liked-all` acepta `offset` (para cargar más); retorna `cuatrimestre_override` y `db_added_at` de DB en cada track para que el frontend calcule el cuatrimestre.
+
+**Frontend:**
+- `frontend/src/pages/PendingPage.jsx` — PiP usa tema claro (#f5f4f0); toggle Lista/Individual en el header (default: individual, como estaba); modo individual disponible en móvil (layout responsivo); `pending-mobile-only`/`pending-desktop-only` eliminados, reemplazados por `viewMode` state.
+- `frontend/src/pages/LibraryPage.jsx` — función `computeCuatrimestre()` calcula cuatrimestre desde `cuatrimestre_override` + `db_added_at`; paginación "Cargar 500 más" para vista Me Gusta.
+- `frontend/src/pages/StatsPage.jsx` — nombres año-específicos: 2025 → Savia/Lirio/Marea con colores #cfd8be/#efdffc/#bde8f3; portadas en cards de cuatrimestre con gradiente overlay.
+- `frontend/src/styles/global.css` — CSS para `pending-individual-grid` responsivo (single-col móvil, 2-col desktop); `pending-upnext-hide-mobile` oculta UP NEXT en móvil; media query `max-width: 480px` reduce padding y font-sizes.
+- `frontend/src/utils/api.js` — `getLikedAll` acepta `offset`.
+- `frontend/index.html` — `theme-color` actualizado a #f5f4f0.
+- `frontend/public/portadas/` — portadas copiadas de `recursos/portadas/` (Savia, Lirio, Marea 2025; Perla, Miel, Latte 2026).
+
+Commit: `10af4b7` → desplegado en Render.
+
+---
+
 ## 2026-05-10 (sesión implementación)
 
 **Feature: Rediseño visual completo — tema claro + layouts desktop**
