@@ -64,6 +64,7 @@ export default function LibraryPage() {
   const [sortMode, setSortMode] = useState('spotify');
   const [isLikedView, setIsLikedView] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [ratingPickerOpen, setRatingPickerOpen] = useState(false);
   const [likedOffset, setLikedOffset] = useState(0);
   const [hasMoreLiked, setHasMoreLiked] = useState(false);
   const menuRef = useRef(null);
@@ -73,6 +74,7 @@ export default function LibraryPage() {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setOpenMenuId(null);
+        setRatingPickerOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -156,6 +158,7 @@ export default function LibraryPage() {
     const tid = track.track_id || track.id;
     setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating } : t));
     setOpenMenuId(null);
+    setRatingPickerOpen(false);
     try {
       const rateArgs = {
         track_id: tid, name: track.name,
@@ -355,7 +358,10 @@ export default function LibraryPage() {
                       </td>
                       <td style={{ position: 'relative' }}>
                         <button
-                          onClick={() => setOpenMenuId(isMenuOpen ? null : tid)}
+                          onClick={() => {
+                            if (isMenuOpen) { setOpenMenuId(null); setRatingPickerOpen(false); }
+                            else { setOpenMenuId(tid); setRatingPickerOpen(false); }
+                          }}
                           style={{
                             background: 'none', border: 'none', cursor: 'pointer',
                             color: 'var(--text-muted)', padding: '4px',
@@ -370,36 +376,62 @@ export default function LibraryPage() {
                             background: '#fff', borderRadius: 'var(--radius-md)',
                             boxShadow: 'var(--shadow-lg)',
                             border: '1px solid var(--border-subtle)',
-                            minWidth: 160, overflow: 'hidden',
+                            minWidth: 170, overflow: 'hidden',
                           }}>
-                            <button
-                              onClick={() => handleRate({ ...t, id: tid }, 'A+')}
-                              style={{
-                                display: 'block', width: '100%', textAlign: 'left',
-                                padding: '9px 14px', background: 'none', border: 'none',
-                                cursor: 'pointer', fontSize: '0.85rem',
-                                color: RATING_COLORS['A+'], fontWeight: 600,
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                            >
-                              Calificar A+
-                            </button>
-                            <a
-                              href={`https://open.spotify.com/track/${tid}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={() => setOpenMenuId(null)}
-                              style={{
-                                display: 'block', padding: '9px 14px',
-                                fontSize: '0.85rem', color: 'var(--text-secondary)',
-                                textDecoration: 'none',
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                            >
-                              Open in Spotify
-                            </a>
+                            {!ratingPickerOpen ? (
+                              <>
+                                <button
+                                  onClick={() => setRatingPickerOpen(true)}
+                                  style={{
+                                    display: 'block', width: '100%', textAlign: 'left',
+                                    padding: '9px 14px', background: 'none', border: 'none',
+                                    cursor: 'pointer', fontSize: '0.85rem',
+                                    color: 'var(--text-primary)', fontWeight: 500,
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                >
+                                  Cambiar calificación
+                                </button>
+                                <a
+                                  href={`https://open.spotify.com/track/${tid}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => { setOpenMenuId(null); setRatingPickerOpen(false); }}
+                                  style={{
+                                    display: 'block', padding: '9px 14px',
+                                    fontSize: '0.85rem', color: 'var(--text-secondary)',
+                                    textDecoration: 'none',
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                >
+                                  Open in Spotify
+                                </a>
+                              </>
+                            ) : (
+                              <div style={{ padding: '8px 10px', display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                {['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'].map(r => (
+                                  <button
+                                    key={r}
+                                    onClick={() => handleRate({ ...t, id: tid }, r)}
+                                    style={{
+                                      padding: '4px 9px',
+                                      border: `1.5px solid ${t.rating === r ? RATING_COLORS[r] : 'rgba(0,0,0,0.1)'}`,
+                                      borderRadius: '7px', cursor: 'pointer',
+                                      fontSize: '0.75rem', fontWeight: 700,
+                                      fontFamily: 'var(--font-mono)',
+                                      background: t.rating === r ? `${RATING_COLORS[r]}18` : 'transparent',
+                                      color: t.rating === r ? RATING_COLORS[r] : 'var(--text-muted)',
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = RATING_COLORS[r]; e.currentTarget.style.color = RATING_COLORS[r]; }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = t.rating === r ? RATING_COLORS[r] : 'rgba(0,0,0,0.1)'; e.currentTarget.style.color = t.rating === r ? RATING_COLORS[r] : 'var(--text-muted)'; }}
+                                  >
+                                    {r}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
