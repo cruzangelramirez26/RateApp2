@@ -241,9 +241,31 @@ def rate_track(req: RateRequest, soft: bool = False):
             except Exception:
                 pass
 
-    # Auto-reorder
+        if new_rating in {"B", "C+"}:
+            # B y C+ van al cuatrimestre actual (si la canción es del cuatrimestre actual)
+            is_current_track = (
+                old_track is None
+                or _belongs_to_current_cuatri(old_track, current_cuatri)
+                or old_track.get("cuatrimestre_override") == current_cuatri
+            )
+            if is_current_track and cuatri_id:
+                try:
+                    existing = set(spotify.get_playlist_track_ids(sp, cuatri_id))
+                    if tid not in existing:
+                        spotify.add_to_playlist(sp, cuatri_id, [tid])
+                except Exception:
+                    pass
+        else:
+            # C — no va al cuatrimestre; si ya estaba, se elimina
+            if cuatri_id:
+                try:
+                    spotify.remove_from_playlist(sp, cuatri_id, [tid])
+                except Exception:
+                    pass
+
+    # Auto-reorder (min_rating_order=2 = C+; excluye C y D del cuatrimestre)
     if cuatri_id:
-        _order_playlist(sp, cuatri_id, min_rating_order=1)
+        _order_playlist(sp, cuatri_id, min_rating_order=2)
     if new_rating in config.TOP_SET or (old_rating and old_rating in config.TOP_SET):
         _order_playlist(sp, anual_id, min_rating_order=config.RATING_ORDER["B+"])
 

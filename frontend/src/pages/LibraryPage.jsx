@@ -19,7 +19,10 @@ const RATING_COLORS = {
   'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a',
   'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
 };
-const CUATRI_LABEL = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
+const YEAR_NAMES = {
+  2025: { perla: 'Savia', miel: 'Lirio', latte: 'Marea' },
+  2026: { perla: 'Perla', miel: 'Miel', latte: 'Latte' },
+};
 
 function computeCuatrimestre(track) {
   if (track.cuatrimestre_override) return track.cuatrimestre_override;
@@ -33,6 +36,20 @@ function computeCuatrimestre(track) {
   return 'latte';
 }
 
+function getCuatriLabel(track) {
+  const cuatri = computeCuatrimestre(track);
+  if (!cuatri) return null;
+  let year;
+  if (track.cuatrimestre_override) {
+    year = new Date().getFullYear();
+  } else {
+    const dt = track.db_added_at ? new Date(track.db_added_at) : null;
+    year = dt && !isNaN(dt.getTime()) ? dt.getFullYear() : new Date().getFullYear();
+  }
+  const names = YEAR_NAMES[year];
+  return (names && names[cuatri]) || cuatri;
+}
+
 function exportCSV(tracks) {
   const header = ['#', 'Título', 'Artista', 'Álbum', 'Cuatrimestre', 'Rating'];
   const rows = tracks.map((t, i) => [
@@ -40,7 +57,7 @@ function exportCSV(tracks) {
     `"${(t.name || '').replace(/"/g, '""')}"`,
     `"${(t.artist || '').replace(/"/g, '""')}"`,
     `"${(t.album || '').replace(/"/g, '""')}"`,
-    computeCuatrimestre(t) ? CUATRI_LABEL[computeCuatrimestre(t)] || computeCuatrimestre(t) : '—',
+    getCuatriLabel(t) || '—',
     t.rating || '—',
   ]);
   const csv = [header, ...rows].map(r => r.join(',')).join('\n');
@@ -335,7 +352,7 @@ export default function LibraryPage() {
                         {t.album || '—'}
                       </td>
                       <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                        {cuatri ? CUATRI_LABEL[cuatri] || cuatri : '—'}
+                        {getCuatriLabel(t) || '—'}
                       </td>
                       <td>
                         {t.rating ? (
