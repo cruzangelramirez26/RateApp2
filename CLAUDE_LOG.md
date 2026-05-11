@@ -2,6 +2,26 @@
 
 ---
 
+## 2026-05-11 (sesión Now Playing + Library menu)
+
+**Features: widget Now Playing en sidebar con PiP, picker de calificación en menú de Biblioteca**
+
+**Backend:**
+- `backend/spotify.py` — scope `user-read-currently-playing` agregado.
+- `backend/routes/tracks.py` — nuevo endpoint `GET /tracks/now-playing`: llama a `sp.current_user_playing_track()`, devuelve info del track + rating desde DB si existe. Retorna `{"is_playing": false}` si no hay nada sonando.
+
+**Frontend:**
+- `frontend/src/utils/api.js` — `getNowPlaying()` apunta al nuevo endpoint.
+- `frontend/src/components/NavBar.jsx` — sidebar footer reemplazado: cuando hay algo sonando muestra portada 34×34 + nombre + artista + rating con su color + botón PiP. Si no hay nada, sigue mostrando "Connected". Polling cada 5s. El PiP de Now Playing es independiente del PiP de 3333; abre ventana 300×380 con portada grande + 7 botones de calificación; se actualiza automáticamente cuando cambia la canción. Calificar usa lógica completa (`api.rateTrack`), no soft.
+- `frontend/src/styles/global.css` — clases `now-playing-widget`, `now-playing-img`, `now-playing-info`, `now-playing-name`, `now-playing-artist`, `now-playing-actions`, `now-playing-rating`, `now-playing-pip-btn`.
+- `frontend/src/pages/LibraryPage.jsx` — menú ⋯ de tabla desktop: reemplaza "Calificar A+" por "Cambiar calificación". Al hacer clic el dropdown muta a un picker con los 7 ratings como botones inline (rating actual resaltado con su color). Al seleccionar se califica y cierra el menú.
+
+**Nota de re-autorización:** el nuevo scope requiere que el usuario desloguée y vuelva a hacer login en Render para activarse.
+
+Commits: `8a73205`, `f455c62`, `37348b8` → desplegados en Render.
+
+---
+
 ## 2026-05-10 (sesión UI improvements)
 
 **Features: PiP light theme, toggle Lista/Individual, Stats portadas, Library pagination, mobile sizing**
