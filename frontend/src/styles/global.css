@@ -659,81 +659,204 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════
-   PENDING PAGE — desktop layout
+   PENDING PAGE — individual + lista views (all screens)
    ══════════════════════════════════════════════════════ */
-.pending-mobile-only  { display: block; }
 .pending-desktop-only { display: none; }
 
 @media (min-width: 768px) {
-  .pending-mobile-only  { display: none; }
   .pending-desktop-only { display: block; }
+}
 
-  .pending-desktop-grid {
+/* Individual view: single column on mobile, 2-col grid on desktop */
+.pending-individual-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding-top: 8px;
+}
+
+.pending-album-art {
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 1;
+  border-radius: var(--radius-lg);
+  object-fit: cover;
+  box-shadow: var(--shadow-lg);
+}
+
+.pending-track-info {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.pending-track-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.pending-track-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.pending-track-artist {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.pending-track-album {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.pending-rating-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pending-rating-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.pending-rating-shortcut {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.pending-rating-btn-lg {
+  min-width: 42px;
+  height: 40px;
+  font-size: 0.82rem;
+}
+
+.pending-skip-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  justify-content: center;
+}
+
+/* UP NEXT panel */
+.upnext-panel {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+  width: 100%;
+}
+
+.pending-upnext-hide-mobile {
+  display: none;
+}
+
+.upnext-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+
+.upnext-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.upnext-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.upnext-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.upnext-item:last-child {
+  border-bottom: none;
+}
+
+.upnext-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+}
+
+.upnext-item-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upnext-item-artist {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Desktop overrides for individual view ── */
+@media (min-width: 768px) {
+  .pending-individual-grid {
     display: grid;
     grid-template-columns: 380px 1fr;
     gap: 32px;
     align-items: start;
-    padding-top: 8px;
+    flex-direction: unset;
   }
 
   .pending-album-art {
-    width: 100%;
     max-width: 320px;
-    aspect-ratio: 1;
-    border-radius: var(--radius-lg);
-    object-fit: cover;
-    box-shadow: var(--shadow-lg);
   }
 
   .pending-track-info {
     margin-top: 20px;
-  }
-
-  .pending-track-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 6px;
+    text-align: left;
   }
 
   .pending-track-name {
     font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
   }
 
   .pending-track-artist {
     font-size: 1rem;
-    color: var(--text-secondary);
-    margin-top: 6px;
-  }
-
-  .pending-track-album {
-    font-size: 0.82rem;
-    color: var(--text-muted);
-    margin-top: 2px;
   }
 
   .pending-rating-row {
-    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     gap: 8px;
     margin-top: 28px;
-  }
-
-  .pending-rating-col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .pending-rating-shortcut {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
   }
 
   .pending-rating-btn-lg {
@@ -743,77 +866,12 @@ body {
   }
 
   .pending-skip-row {
+    justify-content: flex-start;
     margin-top: 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    color: var(--text-muted);
-    font-size: 0.82rem;
   }
 
-  /* UP NEXT panel */
-  .upnext-panel {
-    background: #ffffff;
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
-    padding: 20px;
-  }
-
-  .upnext-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 16px;
-  }
-
-  .upnext-title {
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-primary);
-  }
-
-  .upnext-subtitle {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-  }
-
-  .upnext-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .upnext-item:last-child {
-    border-bottom: none;
-  }
-
-  .upnext-swatch {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-sm);
-    object-fit: cover;
-    flex-shrink: 0;
-    background: var(--bg-surface);
-  }
-
-  .upnext-item-name {
-    font-size: 0.85rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .upnext-item-artist {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .pending-upnext-hide-mobile {
+    display: block;
   }
 }
 
@@ -970,4 +1028,55 @@ body {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+/* ══════════════════════════════════════════════════════
+   SMALL SCREEN FIXES (< 480px)
+   Reduce padding and font sizes for compact phones
+   ══════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .page {
+    padding: 12px 12px 90px;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .track-card {
+    padding: 8px;
+  }
+
+  .track-card-art {
+    width: 38px;
+    height: 38px;
+  }
+
+  .track-card-name {
+    font-size: 0.85rem;
+  }
+
+  .track-card-artist {
+    font-size: 0.72rem;
+  }
+
+  .track-card-ratings {
+    padding-left: 46px;
+  }
+
+  .rating-btn {
+    min-width: 32px;
+    height: 30px;
+    font-size: 0.72rem;
+    padding: 0 7px;
+  }
+
+  .stats-filter-tab {
+    padding: 5px 10px;
+    font-size: 0.76rem;
+  }
+
+  .stats-metric-value {
+    font-size: 1.6rem;
+  }
 }

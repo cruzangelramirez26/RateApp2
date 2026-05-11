@@ -21,6 +21,18 @@ const RATING_COLORS = {
 };
 const CUATRI_LABEL = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
 
+function computeCuatrimestre(track) {
+  if (track.cuatrimestre_override) return track.cuatrimestre_override;
+  const dateStr = track.db_added_at;
+  if (!dateStr) return null;
+  const dt = new Date(dateStr);
+  if (isNaN(dt.getTime())) return null;
+  const m = dt.getMonth() + 1;
+  if (m <= 4) return 'perla';
+  if (m <= 8) return 'miel';
+  return 'latte';
+}
+
 function exportCSV(tracks) {
   const header = ['#', 'Título', 'Artista', 'Álbum', 'Cuatrimestre', 'Rating'];
   const rows = tracks.map((t, i) => [
@@ -28,7 +40,7 @@ function exportCSV(tracks) {
     `"${(t.name || '').replace(/"/g, '""')}"`,
     `"${(t.artist || '').replace(/"/g, '""')}"`,
     `"${(t.album || '').replace(/"/g, '""')}"`,
-    t.cuatrimestre || t.cuatrimestre_override || '—',
+    computeCuatrimestre(t) ? CUATRI_LABEL[computeCuatrimestre(t)] || computeCuatrimestre(t) : '—',
     t.rating || '—',
   ]);
   const csv = [header, ...rows].map(r => r.join(',')).join('\n');
@@ -41,18 +53,22 @@ function exportCSV(tracks) {
   URL.revokeObjectURL(url);
 }
 
+const PAGE_SIZE = 500;
+
 export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [activeChip, setActiveChip] = useState('liked');
   const [sortMode, setSortMode] = useState('spotify');
   const [isLikedView, setIsLikedView] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [likedOffset, setLikedOffset] = useState(0);
+  const [hasMoreLiked, setHasMoreLiked] = useState(false);
   const menuRef = useRef(null);
   const toast = useToast();
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -68,15 +84,32 @@ export default function LibraryPage() {
     setActiveChip('liked');
     setIsLikedView(true);
     setSearch('');
+    setLikedOffset(0);
     try {
-      const data = await api.getLikedAll();
+      const data = await api.getLikedAll(PAGE_SIZE, 0);
       setTracks(data);
+      setHasMoreLiked(data.length >= PAGE_SIZE);
+      setLikedOffset(PAGE_SIZE);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
       setLoading(false);
     }
   }, [toast]);
+
+  const loadMoreLiked = async () => {
+    setLoadingMore(true);
+    try {
+      const data = await api.getLikedAll(PAGE_SIZE, likedOffset);
+      setTracks(prev => [...prev, ...data]);
+      setHasMoreLiked(data.length >= PAGE_SIZE);
+      setLikedOffset(prev => prev + PAGE_SIZE);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => { loadLiked(); }, [loadLiked]);
 
@@ -85,6 +118,7 @@ export default function LibraryPage() {
     setLoading(true);
     setActiveChip('');
     setIsLikedView(false);
+    setHasMoreLiked(false);
     try {
       const data = await api.searchTracks(q.trim(), 200);
       setTracks(data);
@@ -100,6 +134,7 @@ export default function LibraryPage() {
     setLoading(true);
     setActiveChip(key);
     setIsLikedView(false);
+    setHasMoreLiked(false);
     setSearch('');
     try {
       const dist = await api.getDistribution();
@@ -142,8 +177,8 @@ export default function LibraryPage() {
 
   const sorted = sortMode === 'recent'
     ? [...filtered].sort((a, b) => {
-        const da = new Date(a.rated_at || a.added_at || 0);
-        const db = new Date(b.rated_at || b.added_at || 0);
+        const da = new Date(a.rated_at || a.db_added_at || a.added_at || 0);
+        const db = new Date(b.rated_at || b.db_added_at || b.added_at || 0);
         return db - da;
       })
     : sortMode === 'rating'
@@ -274,7 +309,7 @@ export default function LibraryPage() {
               <tbody>
                 {sorted.map((t, i) => {
                   const tid = t.track_id || t.id;
-                  const cuatri = t.cuatrimestre || t.cuatrimestre_override;
+                  const cuatri = computeCuatrimestre(t);
                   const isMenuOpen = openMenuId === tid;
                   return (
                     <tr key={tid}>
@@ -374,6 +409,20 @@ export default function LibraryPage() {
               </tbody>
             </table>
           </div>
+
+          {/* ── Cargar más (Me Gusta) ── */}
+          {isLikedView && hasMoreLiked && (
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <button
+                className="btn"
+                onClick={loadMoreLiked}
+                disabled={loadingMore}
+                style={{ opacity: loadingMore ? 0.6 : 1 }}
+              >
+                {loadingMore ? 'Cargando…' : 'Cargar 500 más'}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -111,10 +111,10 @@ def get_user_playlists(sp: spotipy.Spotify) -> list[dict]:
     return playlists
 
 
-def get_all_liked_tracks(sp: spotipy.Spotify, limit: int = 500) -> list[dict]:
-    """Return up to `limit` most recent liked songs with full metadata."""
+def get_all_liked_tracks(sp: spotipy.Spotify, limit: int = 500, start_offset: int = 0) -> list[dict]:
+    """Return up to `limit` most recent liked songs with full metadata, starting at start_offset."""
     tracks = []
-    offset = 0
+    offset = start_offset
     while len(tracks) < limit:
         results = sp.current_user_saved_tracks(limit=50, offset=offset)
         items = results.get("items", [])

@@ -213,20 +213,33 @@ def rate_track(req: RateRequest, soft: bool = False):
 
 
 @router.get("/liked-all")
-def get_liked_all(limit: int = Query(500, ge=1, le=1000)):
-    """Return all liked songs enriched with DB ratings."""
+def get_liked_all(limit: int = Query(500, ge=1, le=1000), offset: int = Query(0, ge=0)):
+    """Return liked songs enriched with DB ratings, cuatrimestre, and added_at."""
     sp = spotify.get_client()
-    liked = spotify.get_all_liked_tracks(sp, limit=limit)
+    liked = spotify.get_all_liked_tracks(sp, limit=limit, start_offset=offset)
 
     df = database.load_all()
-    ratings_map = {}
+    db_map: dict = {}
     if not df.empty:
         for _, r in df.iterrows():
-            ratings_map[r["track_id"]] = str(r.get("rating", "")).strip().upper() or None
+            tid = r["track_id"]
+            added_at_val = r.get("added_at")
+            try:
+                db_added_at = str(added_at_val) if added_at_val is not None and not pd.isna(added_at_val) else None
+            except Exception:
+                db_added_at = None
+            db_map[tid] = {
+                "rating": str(r.get("rating", "")).strip().upper() or None,
+                "cuatrimestre_override": r.get("cuatrimestre_override") or None,
+                "db_added_at": db_added_at,
+            }
 
     for t in liked:
         t["track_id"] = t["id"]
-        t["rating"] = ratings_map.get(t["id"])
+        db_data = db_map.get(t["id"], {})
+        t["rating"] = db_data.get("rating")
+        t["cuatrimestre_override"] = db_data.get("cuatrimestre_override")
+        t["db_added_at"] = db_data.get("db_added_at")
 
     return liked
 

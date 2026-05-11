@@ -9,7 +9,25 @@ const RATING_COLORS = {
 const RATING_ORDER = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
 const CUATRI_LABEL = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
 const CUATRI_DATE  = { perla: 'Ene–Abr', miel: 'May–Ago', latte: 'Sep–Dic' };
-const CUATRI_COLOR = { perla: '#5ba8d4', miel: '#f5c542', latte: '#e8a83e' };
+
+// Year-specific names, colors, and cover images per cuatrimestre
+const CUATRI_META = {
+  '2025-perla': { label: 'Savia', color: '#cfd8be', img: '/portadas/2025/Savia.jpg' },
+  '2025-miel':  { label: 'Lirio', color: '#efdffc', img: '/portadas/2025/Lirio.jpg' },
+  '2025-latte': { label: 'Marea', color: '#bde8f3', img: '/portadas/2025/Marea.jpg' },
+  '2026-perla': { label: 'Perla', color: '#5ba8d4', img: '/portadas/2026/Perla.jpg' },
+  '2026-miel':  { label: 'Miel',  color: '#f5c542', img: '/portadas/2026/Miel.jpg' },
+  '2026-latte': { label: 'Latte', color: '#e8a83e', img: '/portadas/2026/Latte.jpg' },
+};
+
+function getCuatriMeta(year, cuatri) {
+  const key = `${year}-${cuatri}`;
+  return CUATRI_META[key] || {
+    label: CUATRI_LABEL[cuatri] || cuatri,
+    color: '#9ca3af',
+    img: null,
+  };
+}
 
 function getCurrentPeriod() {
   const now = new Date();
@@ -219,45 +237,72 @@ export default function StatsPage() {
         <div className="card fade-in" style={{ padding: '20px' }}>
           <div style={labelStyle}>Cuatrimestres</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-            {filteredCuatri.map(({ year, cuatri, count, top_rating }) => (
-              <div key={`${year}-${cuatri}`} style={{
-                flex: '1 1 160px',
-                background: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-md)',
-                padding: '14px 16px',
-                borderLeft: `3px solid ${CUATRI_COLOR[cuatri] || 'var(--accent)'}`,
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: CUATRI_COLOR[cuatri] || 'var(--text-secondary)' }}>
-                    {CUATRI_LABEL[cuatri] || cuatri}
-                  </span>
-                  {top_rating && (
-                    <span style={{
-                      fontSize: '0.68rem', fontWeight: 700, fontFamily: 'var(--font-mono)',
-                      color: RATING_COLORS[top_rating],
-                    }}>{top_rating}</span>
+            {filteredCuatri.map(({ year, cuatri, count, top_rating }) => {
+              const meta = getCuatriMeta(year, cuatri);
+              return (
+                <div key={`${year}-${cuatri}`} style={{
+                  flex: '1 1 160px',
+                  background: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-md)',
+                  overflow: 'hidden',
+                  borderLeft: `3px solid ${meta.color}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}>
+                  {/* Portada */}
+                  {meta.img && (
+                    <div style={{ position: 'relative', height: 90, overflow: 'hidden' }}>
+                      <img
+                        src={meta.img}
+                        alt={meta.label}
+                        style={{
+                          width: '100%', height: '100%',
+                          objectFit: 'cover', objectPosition: 'center top',
+                          display: 'block',
+                        }}
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
+                      />
+                      <div style={{
+                        position: 'absolute', inset: 0,
+                        background: `linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.35) 100%)`,
+                      }} />
+                    </div>
                   )}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  {CUATRI_DATE[cuatri]} {year}
-                </div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                  {count}
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>canciones</div>
 
-                {/* Mini bar */}
-                <div style={{ marginTop: '10px', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${(count / maxCuatriCount) * 100}%`,
-                    height: '100%',
-                    background: CUATRI_COLOR[cuatri] || 'var(--accent)',
-                    borderRadius: '2px',
-                    transition: 'width 0.6s var(--ease-out)',
-                  }} />
+                  <div style={{ padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: meta.color }}>
+                        {meta.label}
+                      </span>
+                      {top_rating && (
+                        <span style={{
+                          fontSize: '0.68rem', fontWeight: 700, fontFamily: 'var(--font-mono)',
+                          color: RATING_COLORS[top_rating],
+                        }}>{top_rating}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                      {CUATRI_DATE[cuatri]} {year}
+                    </div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                      {count}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>canciones</div>
+
+                    {/* Mini bar */}
+                    <div style={{ marginTop: '10px', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${(count / maxCuatriCount) * 100}%`,
+                        height: '100%',
+                        background: meta.color,
+                        borderRadius: '2px',
+                        transition: 'width 0.6s var(--ease-out)',
+                      }} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
