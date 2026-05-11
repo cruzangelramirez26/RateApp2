@@ -386,7 +386,7 @@ export default function LibraryPage() {
                                     display: 'block', width: '100%', textAlign: 'left',
                                     padding: '9px 14px', background: 'none', border: 'none',
                                     cursor: 'pointer', fontSize: '0.85rem',
-                                    color: 'var(--text-primary)', fontWeight: 500,
+                                    color: 'var(--text-secondary)', fontWeight: 400,
                                   }}
                                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
                                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
