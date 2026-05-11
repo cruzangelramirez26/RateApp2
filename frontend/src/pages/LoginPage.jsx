@@ -24,7 +24,7 @@ export default function LoginPage() {
         width: '300px',
         height: '300px',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(200,164,255,0.08) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(29,185,84,0.08) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 
@@ -32,7 +32,7 @@ export default function LoginPage() {
         <div style={{
           fontSize: '3.5rem',
           marginBottom: '8px',
-          filter: 'drop-shadow(0 0 20px rgba(200,164,255,0.3))',
+          filter: 'drop-shadow(0 0 20px rgba(29,185,84,0.3))',
         }}>
           🎵
         </div>

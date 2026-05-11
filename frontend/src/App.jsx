@@ -45,14 +45,18 @@ export default function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
-        <NavBar />
-        <Routes>
-          <Route path="/" element={<PendingPage />} />
-          <Route path="/library" element={<LibraryPage />} />
-          <Route path="/recent" element={<RecentPage />} />
-          <Route path="/tools" element={<ToolsPage />} />
-          <Route path="/dashboard" element={<StatsPage />} />
-        </Routes>
+        <div className="app-layout">
+          <NavBar />
+          <div className="main-content">
+            <Routes>
+              <Route path="/" element={<PendingPage />} />
+              <Route path="/library" element={<LibraryPage />} />
+              <Route path="/recent" element={<RecentPage />} />
+              <Route path="/tools" element={<ToolsPage />} />
+              <Route path="/dashboard" element={<StatsPage />} />
+            </Routes>
+          </div>
+        </div>
       </BrowserRouter>
     </ToastProvider>
   );

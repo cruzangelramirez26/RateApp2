@@ -6,8 +6,7 @@ import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
 
-// Rating colors matching the app design system
-const RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
+const RATINGS = ['D', 'C', 'C+', 'B', 'B+', 'A', 'A+'];
 const RATING_COLORS = {
   'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a',
   'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
@@ -33,7 +32,7 @@ function renderPiPContent(pip, queue, index) {
     return;
   }
 
-  const btns = RATINGS.map(r => {
+  const btns = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'].map(r => {
     const c = RATING_COLORS[r];
     const active = track.rating === r;
     return `<button onclick="window.__pipRate('${r}')"
@@ -98,19 +97,22 @@ export default function PendingPage() {
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [isPiPOpen, setIsPiPOpen] = useState(false);
+  const [skippedIds, setSkippedIds] = useState(new Set());
   const toast = useToast();
 
   const pipWindowRef = useRef(null);
   const pipQueueRef = useRef([]);
   const pipIndexRef = useRef(0);
-  // Kept current every render — safe to read from PiP callbacks
   const tracksRef = useRef([]);
   const handleRateRef = useRef(null);
+  const handleSkipRef = useRef(null);
+  const desktopUnratedRef = useRef([]);
 
   const fetchTracks = useCallback(async () => {
     try {
       const data = await api.getPending();
       setTracks(data);
+      setSkippedIds(new Set());
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -129,10 +131,33 @@ export default function PendingPage() {
     };
   }, []);
 
+  // Keyboard shortcuts for desktop view
+  useEffect(() => {
+    const KEY_TO_RATING = { '1': 'D', '2': 'C', '3': 'C+', '4': 'B', '5': 'B+', '6': 'A', '7': 'A+' };
+    const handler = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const current = desktopUnratedRef.current[0];
+      if (!current) return;
+      if (KEY_TO_RATING[e.key]) {
+        handleRateRef.current(current, KEY_TO_RATING[e.key]);
+      }
+      if (e.key === 's' || e.key === 'S') {
+        handleSkipRef.current();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   const handleRate = async (track, rating) => {
     setTracks(prev =>
       prev.map(t => t.id === track.id ? { ...t, rating } : t)
     );
+    setSkippedIds(prev => {
+      const next = new Set(prev);
+      next.delete(track.id);
+      return next;
+    });
     try {
       await api.rateTrack({
         track_id: track.id,
@@ -150,24 +175,24 @@ export default function PendingPage() {
     }
   };
 
-  // Update refs every render
+  const handleSkip = () => {
+    const current = desktopUnratedRef.current[0];
+    if (!current) return;
+    setSkippedIds(prev => new Set([...prev, current.id]));
+  };
+
+  // Keep refs current every render
   tracksRef.current = tracks;
   handleRateRef.current = handleRate;
+  handleSkipRef.current = handleSkip;
 
-  // Advances the PiP queue. When reaching the end, rebuilds from current unrated tracks.
-  // justRatedId: exclude a track that was just rated but hasn't hit state yet.
   const advancePiP = (pip, justRatedId = null) => {
     pipIndexRef.current++;
-
     if (pipIndexRef.current < pipQueueRef.current.length) {
       renderPiPContent(pip, pipQueueRef.current, pipIndexRef.current);
       return;
     }
-
-    // End of queue — rebuild with whatever's still unrated
-    const nowUnrated = tracksRef.current.filter(
-      t => !t.rating && t.id !== justRatedId
-    );
+    const nowUnrated = tracksRef.current.filter(t => !t.rating && t.id !== justRatedId);
     if (nowUnrated.length === 0) {
       renderPiPContent(pip, [], 0);
       return;
@@ -182,45 +207,34 @@ export default function PendingPage() {
       toast('Picture-in-Picture solo funciona en Chrome desktop', 'error');
       return;
     }
-
-    // Toggle: close if already open
     if (pipWindowRef.current && !pipWindowRef.current.closed) {
       pipWindowRef.current.close();
       pipWindowRef.current = null;
       setIsPiPOpen(false);
       return;
     }
-
     const unrated = tracks.filter(t => !t.rating);
     if (unrated.length === 0) {
       toast('No hay canciones sin calificar', 'error');
       return;
     }
-
     const pip = await window.documentPictureInPicture.requestWindow({
       width: 300,
       height: 460,
       disallowReturnToOpener: false,
     });
-
     pipQueueRef.current = unrated;
     pipIndexRef.current = 0;
-
     pip.__pipRate = (rating) => {
       const track = pipQueueRef.current[pipIndexRef.current];
       if (!track) return;
       advancePiP(pip, track.id);
       handleRateRef.current(track, rating);
     };
-
-    pip.__pipSkip = () => {
-      advancePiP(pip);
-    };
-
+    pip.__pipSkip = () => { advancePiP(pip); };
     renderPiPContent(pip, pipQueueRef.current, 0);
     pipWindowRef.current = pip;
     setIsPiPOpen(true);
-
     pip.addEventListener('pagehide', () => {
       pipWindowRef.current = null;
       setIsPiPOpen(false);
@@ -239,18 +253,34 @@ export default function PendingPage() {
     : tracks;
 
   const unrated = filtered.filter(t => !t.rating);
-  const rated = filtered.filter(t => t.rating);
+  const rated  = filtered.filter(t => t.rating);
+
+  // Desktop queue: non-skipped first, then skipped
+  const desktopUnrated = [
+    ...unrated.filter(t => !skippedIds.has(t.id)),
+    ...unrated.filter(t => skippedIds.has(t.id)),
+  ];
+  desktopUnratedRef.current = desktopUnrated;
+
+  const currentTrack = desktopUnrated[0] ?? null;
 
   return (
     <div className="page">
+      {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <div>
-          <div className="page-title">Calificar</div>
+          <div className="page-title">Pending</div>
           <div className="page-subtitle">
             {tracks.length} canciones · {unrated.length} sin calificar
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <span className="pending-desktop-only" style={{
+            fontSize: '0.75rem', color: 'var(--text-muted)',
+            fontFamily: 'var(--font-mono)', marginRight: '4px',
+          }}>
+            1–7 · S skip
+          </span>
           <button
             className="btn btn-sm"
             onClick={openPiP}
@@ -270,61 +300,157 @@ export default function PendingPage() {
             disabled={refreshing}
             style={{ opacity: refreshing ? 0.5 : 1 }}
           >
-            <RefreshCw size={14} style={{
-              animation: refreshing ? 'spin 1s linear infinite' : 'none',
-            }} />
+            <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
           </button>
         </div>
       </div>
 
       <div style={{ marginBottom: '12px' }}>
-        <SearchBar
-          value={search}
-          onChange={setSearch}
-          placeholder="Buscar canción o artista..."
-        />
+        <SearchBar value={search} onChange={setSearch} placeholder="Buscar canción o artista..." />
       </div>
 
       {loading ? (
         <LoadingSkeleton count={8} />
-      ) : filtered.length === 0 ? (
-        <div className="empty-state">
-          <Music />
-          <div>
-            {search ? 'Sin resultados' : 'No hay canciones en la playlist <3333>'}
-          </div>
-        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {unrated.map((t, i) => (
-            <TrackCard key={t.id} track={t} onRate={handleRate} index={i} />
-          ))}
+        <>
+          {/* ══ MOBILE layout ══ */}
+          <div className="pending-mobile-only">
+            {filtered.length === 0 ? (
+              <div className="empty-state">
+                <Music />
+                <div>{search ? 'Sin resultados' : 'No hay canciones en la playlist <3333>'}</div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {unrated.map((t, i) => (
+                  <TrackCard key={t.id} track={t} onRate={handleRate} index={i} />
+                ))}
+                {unrated.length > 0 && rated.length > 0 && (
+                  <div style={{
+                    fontSize: '0.78rem', color: 'var(--text-muted)',
+                    textTransform: 'uppercase', letterSpacing: '0.08em',
+                    fontWeight: 600, padding: '12px 0 4px',
+                    fontFamily: 'var(--font-mono)',
+                  }}>
+                    ya calificadas ({rated.length})
+                  </div>
+                )}
+                {rated.map((t, i) => (
+                  <TrackCard key={t.id} track={t} onRate={handleRate} index={unrated.length + i} />
+                ))}
+              </div>
+            )}
+          </div>
 
-          {unrated.length > 0 && rated.length > 0 && (
-            <div style={{
-              fontSize: '0.78rem',
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              fontWeight: 600,
-              padding: '12px 0 4px',
-              fontFamily: 'var(--font-mono)',
-            }}>
-              ya calificadas ({rated.length})
-            </div>
-          )}
+          {/* ══ DESKTOP layout ══ */}
+          <div className="pending-desktop-only">
+            {!currentTrack ? (
+              <div className="empty-state">
+                <Music />
+                <div>{search ? 'Sin resultados' : 'No hay canciones sin calificar'}</div>
+              </div>
+            ) : (
+              <div className="pending-desktop-grid">
+                {/* Left column: focal track */}
+                <div>
+                  {currentTrack.image ? (
+                    <img src={currentTrack.image} className="pending-album-art" alt="" />
+                  ) : (
+                    <div className="pending-album-art card" style={{
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: '4rem',
+                    }}>🎵</div>
+                  )}
 
-          {rated.map((t, i) => (
-            <TrackCard key={t.id} track={t} onRate={handleRate} index={unrated.length + i} />
-          ))}
-        </div>
+                  <div className="pending-track-info">
+                    <div className="pending-track-label">NOW RATING</div>
+                    <div className="pending-track-name">{currentTrack.name}</div>
+                    <div className="pending-track-artist">{currentTrack.artist}</div>
+                    {currentTrack.album && (
+                      <div className="pending-track-album">{currentTrack.album}</div>
+                    )}
+                    <a
+                      href={`https://open.spotify.com/track/${currentTrack.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '6px',
+                        color: 'var(--accent)', fontSize: '0.82rem', fontWeight: 600,
+                        marginTop: '10px', textDecoration: 'none',
+                      }}
+                    >
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: 'var(--accent)', display: 'inline-block',
+                      }} />
+                      Open in Spotify
+                    </a>
+                  </div>
+
+                  <div className="pending-rating-row">
+                    {RATINGS.map((r, i) => (
+                      <div key={r} className="pending-rating-col">
+                        <button
+                          className="rating-btn pending-rating-btn-lg"
+                          data-rating={r}
+                          data-active={currentTrack.rating === r ? 'true' : 'false'}
+                          onClick={() => handleRate(currentTrack, r)}
+                        >
+                          {r}
+                        </button>
+                        <span className="pending-rating-shortcut">{i + 1}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pending-skip-row">
+                    <button className="btn btn-sm" onClick={handleSkip}>
+                      ⏭ Skip · S
+                    </button>
+                    <span>{desktopUnrated.length} sin calificar</span>
+                  </div>
+                </div>
+
+                {/* Right column: UP NEXT panel */}
+                <div className="upnext-panel">
+                  <div className="upnext-header">
+                    <span className="upnext-title">UP NEXT</span>
+                    <span className="upnext-subtitle">From recent additions</span>
+                  </div>
+
+                  {desktopUnrated.slice(1, 6).length === 0 ? (
+                    <div style={{
+                      color: 'var(--text-muted)', fontSize: '0.82rem',
+                      textAlign: 'center', padding: '20px 0',
+                    }}>
+                      Última canción
+                    </div>
+                  ) : (
+                    desktopUnrated.slice(1, 6).map(t => (
+                      <div key={t.id} className="upnext-item">
+                        {t.image ? (
+                          <img src={t.image} className="upnext-swatch" alt="" />
+                        ) : (
+                          <div className="upnext-swatch" style={{
+                            display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', fontSize: '1rem',
+                          }}>🎵</div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div className="upnext-item-name">{t.name}</div>
+                          <div className="upnext-item-artist">{t.artist}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Search, Music, ArrowUpDown } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Search, Music, MoreHorizontal } from 'lucide-react';
 import { api } from '../utils/api';
 import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -14,6 +14,33 @@ const QUICK_PLAYLISTS = [
   { label: '3333',    key: 'calificar' },
 ];
 
+const RATING_ORDER = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
+const RATING_COLORS = {
+  'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a',
+  'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
+};
+const CUATRI_LABEL = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
+
+function exportCSV(tracks) {
+  const header = ['#', 'Título', 'Artista', 'Álbum', 'Cuatrimestre', 'Rating'];
+  const rows = tracks.map((t, i) => [
+    i + 1,
+    `"${(t.name || '').replace(/"/g, '""')}"`,
+    `"${(t.artist || '').replace(/"/g, '""')}"`,
+    `"${(t.album || '').replace(/"/g, '""')}"`,
+    t.cuatrimestre || t.cuatrimestre_override || '—',
+    t.rating || '—',
+  ]);
+  const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'biblioteca.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [tracks, setTracks] = useState([]);
@@ -21,7 +48,20 @@ export default function LibraryPage() {
   const [activeChip, setActiveChip] = useState('liked');
   const [sortMode, setSortMode] = useState('spotify');
   const [isLikedView, setIsLikedView] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
   const toast = useToast();
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const loadLiked = useCallback(async () => {
     setLoading(true);
@@ -80,6 +120,7 @@ export default function LibraryPage() {
   const handleRate = async (track, rating) => {
     const tid = track.track_id || track.id;
     setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating } : t));
+    setOpenMenuId(null);
     try {
       const rateArgs = {
         track_id: tid, name: track.name,
@@ -105,17 +146,32 @@ export default function LibraryPage() {
         const db = new Date(b.rated_at || b.added_at || 0);
         return db - da;
       })
+    : sortMode === 'rating'
+    ? [...filtered].sort((a, b) =>
+        (RATING_ORDER[b.rating] ?? -1) - (RATING_ORDER[a.rating] ?? -1)
+      )
     : filtered;
+
+  const aTierCount = sorted.filter(t => ['A', 'A+'].includes(t.rating)).length;
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div className="page-title">Biblioteca</div>
-        <div className="page-subtitle">
-          {isLikedView ? 'Tus Me Gusta de Spotify' : 'Busca por playlist o canción'}
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <div>
+          <div className="page-title">Biblioteca</div>
+          <div className="page-subtitle">
+            {loading ? '…' : `${sorted.length} canciones · ${aTierCount} A-tier`}
+          </div>
         </div>
+        {!loading && sorted.length > 0 && (
+          <button className="btn btn-sm library-desktop-only" onClick={() => exportCSV(sorted)}>
+            Export
+          </button>
+        )}
       </div>
 
+      {/* ── Search bar ── */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <Search size={16} style={{
@@ -140,7 +196,8 @@ export default function LibraryPage() {
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+      {/* ── Chips + sort pills ── */}
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
         {QUICK_PLAYLISTS.map(({ label, key }) => (
           <button key={key} onClick={() => handleChip(key)} style={{
             padding: '5px 14px', borderRadius: '20px',
@@ -156,23 +213,22 @@ export default function LibraryPage() {
       </div>
 
       {sorted.length > 0 && !loading && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', alignItems: 'center' }}>
-          <ArrowUpDown size={13} style={{ color: 'var(--text-muted)' }} />
-          {[
-            { key: 'spotify', label: 'Spotify' },
-            { key: 'recent',  label: 'Recientes' },
-          ].map(({ key, label }) => (
-            <button key={key} onClick={() => setSortMode(key)} style={{
-              padding: '5px 12px', borderRadius: '20px',
-              fontSize: '0.78rem', fontWeight: 600, border: '1px solid',
-              borderColor: sortMode === key ? 'var(--accent)' : 'var(--border-subtle)',
-              background: sortMode === key ? 'var(--accent)' : 'transparent',
-              color: sortMode === key ? '#fff' : 'var(--text-muted)',
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}>
-              {label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', alignItems: 'center' }}>
+          <div className="stats-filter-tabs">
+            {[
+              { key: 'spotify',  label: 'Spotify' },
+              { key: 'recent',   label: 'Recientes' },
+              { key: 'rating',   label: 'Rating' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                className={`stats-filter-tab${sortMode === key ? ' active' : ''}`}
+                onClick={() => setSortMode(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
             {sorted.length} canción{sorted.length !== 1 ? 'es' : ''}
           </span>
@@ -187,16 +243,138 @@ export default function LibraryPage() {
           <div>{search ? 'Sin resultados' : 'No hay canciones'}</div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {sorted.map((t, i) => (
-            <TrackCard
-              key={t.track_id || t.id}
-              track={{ ...t, id: t.track_id || t.id }}
-              onRate={handleRate}
-              index={i}
-            />
-          ))}
-        </div>
+        <>
+          {/* ══ MOBILE layout ══ */}
+          <div className="library-mobile-only">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {sorted.map((t, i) => (
+                <TrackCard
+                  key={t.track_id || t.id}
+                  track={{ ...t, id: t.track_id || t.id }}
+                  onRate={handleRate}
+                  index={i}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ══ DESKTOP layout ══ */}
+          <div className="library-desktop-only" ref={menuRef}>
+            <table className="library-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 36 }}>#</th>
+                  <th>Título</th>
+                  <th>Álbum</th>
+                  <th>Cuatrimestre</th>
+                  <th>Rating</th>
+                  <th style={{ width: 40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((t, i) => {
+                  const tid = t.track_id || t.id;
+                  const cuatri = t.cuatrimestre || t.cuatrimestre_override;
+                  const isMenuOpen = openMenuId === tid;
+                  return (
+                    <tr key={tid}>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.78rem', fontFamily: 'var(--font-mono)' }}>
+                        {i + 1}
+                      </td>
+                      <td>
+                        <div className="library-table-title-cell">
+                          {t.image
+                            ? <img src={t.image} className="library-table-art" alt="" />
+                            : <div className="library-table-art" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>🎵</div>
+                          }
+                          <div style={{ minWidth: 0 }}>
+                            <div className="library-table-name">{t.name}</div>
+                            <div className="library-table-artist">{t.artist}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {t.album || '—'}
+                      </td>
+                      <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                        {cuatri ? CUATRI_LABEL[cuatri] || cuatri : '—'}
+                      </td>
+                      <td>
+                        {t.rating ? (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            fontFamily: 'var(--font-mono)',
+                            color: RATING_COLORS[t.rating] || 'var(--text-muted)',
+                            background: `${RATING_COLORS[t.rating]}18` || 'transparent',
+                            border: `1px solid ${RATING_COLORS[t.rating]}44` || 'transparent',
+                          }}>
+                            {t.rating}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ position: 'relative' }}>
+                        <button
+                          onClick={() => setOpenMenuId(isMenuOpen ? null : tid)}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--text-muted)', padding: '4px',
+                            borderRadius: '4px', display: 'flex', alignItems: 'center',
+                          }}
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
+                        {isMenuOpen && (
+                          <div style={{
+                            position: 'absolute', right: 0, top: '100%', zIndex: 20,
+                            background: '#fff', borderRadius: 'var(--radius-md)',
+                            boxShadow: 'var(--shadow-lg)',
+                            border: '1px solid var(--border-subtle)',
+                            minWidth: 160, overflow: 'hidden',
+                          }}>
+                            <button
+                              onClick={() => handleRate({ ...t, id: tid }, 'A+')}
+                              style={{
+                                display: 'block', width: '100%', textAlign: 'left',
+                                padding: '9px 14px', background: 'none', border: 'none',
+                                cursor: 'pointer', fontSize: '0.85rem',
+                                color: RATING_COLORS['A+'], fontWeight: 600,
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                            >
+                              Calificar A+
+                            </button>
+                            <a
+                              href={`https://open.spotify.com/track/${tid}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setOpenMenuId(null)}
+                              style={{
+                                display: 'block', padding: '9px 14px',
+                                fontSize: '0.85rem', color: 'var(--text-secondary)',
+                                textDecoration: 'none',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                            >
+                              Open in Spotify
+                            </a>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

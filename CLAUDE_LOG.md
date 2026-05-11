@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-05-10 (sesión implementación)
+
+**Feature: Rediseño visual completo — tema claro + layouts desktop**
+
+Sin cambios de backend. 7 archivos frontend modificados:
+
+- `frontend/src/styles/global.css` — variables migradas a paleta clara (fondo #f5f4f0, cards blancas, acento verde Spotify). Sidebar desktop, clases nuevas para PendingPage, LibraryPage y StatsPage. Tab bar cambiado a blanco traslúcido.
+- `frontend/src/App.jsx` — wrapper `app-layout` + `main-content` para soporte de sidebar.
+- `frontend/src/components/NavBar.jsx` — doble render: tab bar móvil + sidebar desktop con badge de pending count.
+- `frontend/src/pages/PendingPage.jsx` — layout desktop 2 columnas (canción focal + UP NEXT panel), keyboard shortcuts 1–7 y S, lógica de skip con `skippedIds`. Mobile conserva layout lista original.
+- `frontend/src/pages/LibraryPage.jsx` — tabla desktop con portada/nombre/álbum/cuatrimestre/rating/acciones. Export CSV client-side. Sort pills Spotify | Recientes | Rating. Mobile conserva TrackCards.
+- `frontend/src/pages/StatsPage.jsx` — time filter tabs (Mes/Cuatrimestre/Año/Todo), metric cards row (4 columnas desktop), layout main-grid distribución + top artistas. Cuatrimestres rediseñados con mini-bar.
+- `frontend/src/pages/LoginPage.jsx` — glow decorativo de lavanda a verde Spotify.
+
+---
+
 ## 2026-05-10
 
 **Sesión de planeación — Rediseño visual frontend (sin cambios de código)**
