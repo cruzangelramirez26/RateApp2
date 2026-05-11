@@ -9,7 +9,7 @@ import config
 
 SCOPE = (
     "playlist-read-private playlist-modify-public playlist-modify-private "
-    "user-library-read user-library-modify"
+    "user-library-read user-library-modify user-read-currently-playing"
 )
 
 _auth_manager = None

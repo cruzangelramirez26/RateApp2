@@ -54,6 +54,44 @@ def get_pending_tracks():
     return tracks
 
 
+@router.get("/now-playing")
+def get_now_playing():
+    """Return the track currently playing on Spotify, with DB rating if available."""
+    sp = spotify.get_client()
+    result = sp.current_user_playing_track()
+    if not result or not result.get("is_playing"):
+        return {"is_playing": False, "track": None}
+
+    item = result.get("item") or {}
+    tid = item.get("id")
+    if not tid:
+        return {"is_playing": False, "track": None}
+
+    artists = item.get("artists") or [{}]
+    images = (item.get("album") or {}).get("images") or []
+
+    df = database.load_all()
+    rating = None
+    if not df.empty:
+        row = df[df["track_id"] == tid]
+        if not row.empty:
+            val = str(row.iloc[0].get("rating", "")).strip()
+            rating = val if val and val.lower() != "nan" else None
+
+    return {
+        "is_playing": True,
+        "track": {
+            "id": tid,
+            "name": item.get("name", ""),
+            "artist": artists[0].get("name", ""),
+            "album": (item.get("album") or {}).get("name", ""),
+            "image": images[0].get("url") if images else None,
+            "spotify_url": (item.get("external_urls") or {}).get("spotify"),
+            "rating": rating,
+        },
+    }
+
+
 @router.get("/recent")
 def get_recent_tracks(limit: int = Query(50, ge=1, le=200)):
     """Return recently rated tracks enriched with album art from Spotify."""
