@@ -63,6 +63,12 @@ export const api = {
     body: JSON.stringify({ track_ids: trackIds }),
   }),
 
+  // Player controls (Premium only)
+  playerPause: () => request('/tracks/player/pause', { method: 'POST' }),
+  playerPlay: () => request('/tracks/player/play', { method: 'POST' }),
+  playerNext: () => request('/tracks/player/next', { method: 'POST' }),
+  playerPrevious: () => request('/tracks/player/previous', { method: 'POST' }),
+
   // Migración de cuatrimestre
   getMigrationCandidates: () => request('/tracks/migrate/candidates'),
   migrateTracks: (trackIds, toCuatrimestre) => request('/tracks/migrate', {

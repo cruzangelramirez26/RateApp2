@@ -56,12 +56,13 @@ def get_pending_tracks():
 
 @router.get("/now-playing")
 def get_now_playing():
-    """Return the track currently playing on Spotify, with DB rating if available."""
+    """Return the track currently playing or paused on Spotify, with DB rating."""
     sp = spotify.get_client()
     result = sp.current_user_playing_track()
-    if not result or not result.get("is_playing"):
+    if not result:
         return {"is_playing": False, "track": None}
 
+    is_playing = result.get("is_playing", False)
     item = result.get("item") or {}
     tid = item.get("id")
     if not tid:
@@ -79,7 +80,7 @@ def get_now_playing():
             rating = val if val and val.lower() != "nan" else None
 
     return {
-        "is_playing": True,
+        "is_playing": is_playing,
         "track": {
             "id": tid,
             "name": item.get("name", ""),
@@ -90,6 +91,46 @@ def get_now_playing():
             "rating": rating,
         },
     }
+
+
+@router.post("/player/pause")
+def player_pause():
+    sp = spotify.get_client()
+    try:
+        sp.pause_playback()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@router.post("/player/play")
+def player_play():
+    sp = spotify.get_client()
+    try:
+        sp.start_playback()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@router.post("/player/next")
+def player_next():
+    sp = spotify.get_client()
+    try:
+        sp.next_track()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@router.post("/player/previous")
+def player_previous():
+    sp = spotify.get_client()
+    try:
+        sp.previous_track()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
 
 
 @router.get("/recent")

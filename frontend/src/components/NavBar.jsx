@@ -23,7 +23,17 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function renderNowPlayingPiP(pip, track) {
+function ctrlBtn(icon, fn) {
+  return `<button onclick="window.${fn}()"
+    style="padding:8px 16px;border:1.5px solid rgba(0,0,0,0.1);border-radius:8px;
+    cursor:pointer;font-size:1.05rem;background:transparent;color:#6b7280;transition:all 0.15s;"
+    onmouseover="this.style.borderColor='#1db954';this.style.color='#1db954'"
+    onmouseout="this.style.borderColor='rgba(0,0,0,0.1)';this.style.color='#6b7280'">
+    ${icon}
+  </button>`;
+}
+
+function renderNowPlayingPiP(pip, track, isPlaying) {
   if (!track) {
     pip.document.body.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -64,21 +74,27 @@ function renderNowPlayingPiP(pip, track) {
       </div>
 
       ${track.image
-        ? `<img src="${escapeHtml(track.image)}" style="width:130px;height:130px;object-fit:cover;
+        ? `<img src="${escapeHtml(track.image)}" style="width:118px;height:118px;object-fit:cover;
             border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.14)" />`
-        : `<div style="width:130px;height:130px;border-radius:10px;background:#eeede9;
+        : `<div style="width:118px;height:118px;border-radius:10px;background:#eeede9;
             display:flex;align-items:center;justify-content:center;font-size:2rem">🎵</div>`
       }
 
       <div style="text-align:center;width:100%;overflow:hidden">
-        <div style="font-weight:700;font-size:0.9rem;line-height:1.3;margin-bottom:2px;
+        <div style="font-weight:700;font-size:0.88rem;line-height:1.3;margin-bottom:2px;
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">
           ${escapeHtml(track.name)}
         </div>
-        <div style="color:#6b7280;font-size:0.78rem;white-space:nowrap;overflow:hidden;
+        <div style="color:#6b7280;font-size:0.76rem;white-space:nowrap;overflow:hidden;
           text-overflow:ellipsis;padding:0 4px">
           ${escapeHtml(track.artist)}
         </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        ${ctrlBtn('⏮', '__npPrev')}
+        ${ctrlBtn(isPlaying ? '⏸' : '▶', '__npToggle')}
+        ${ctrlBtn('⏭', '__npNext')}
       </div>
 
       <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
@@ -90,11 +106,17 @@ function renderNowPlayingPiP(pip, track) {
 export default function NavBar() {
   const [pendingCount, setPendingCount] = useState(null);
   const [nowPlaying, setNowPlaying] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isPiPOpen, setIsPiPOpen] = useState(false);
+  const [showRatingPanel, setShowRatingPanel] = useState(false);
 
   const pipWindowRef = useRef(null);
   const nowPlayingRef = useRef(null);
+  const isPlayingRef = useRef(false);
   const handleRateRef = useRef(null);
+  const handleToggleRef = useRef(null);
+  const handleNextRef = useRef(null);
+  const handlePrevRef = useRef(null);
 
   useEffect(() => {
     api.getPending()
@@ -105,12 +127,16 @@ export default function NavBar() {
   const fetchNowPlaying = useCallback(async () => {
     try {
       const data = await api.getNowPlaying();
-      const track = data.is_playing ? data.track : null;
+      const track = data.track;
       setNowPlaying(track);
+      setIsPlaying(data.is_playing);
       nowPlayingRef.current = track;
+      isPlayingRef.current = data.is_playing;
     } catch {
       setNowPlaying(null);
+      setIsPlaying(false);
       nowPlayingRef.current = null;
+      isPlayingRef.current = false;
     }
   }, []);
 
@@ -119,6 +145,13 @@ export default function NavBar() {
     const interval = setInterval(fetchNowPlaying, 5000);
     return () => clearInterval(interval);
   }, [fetchNowPlaying]);
+
+  const rewirePiP = useCallback((pip) => {
+    pip.__npRate   = (r) => handleRateRef.current(r);
+    pip.__npToggle = ()  => handleToggleRef.current();
+    pip.__npNext   = ()  => handleNextRef.current();
+    pip.__npPrev   = ()  => handlePrevRef.current();
+  }, []);
 
   const handleRate = useCallback(async (rating) => {
     const track = nowPlayingRef.current;
@@ -129,8 +162,8 @@ export default function NavBar() {
     nowPlayingRef.current = updated;
 
     if (pipWindowRef.current && !pipWindowRef.current.closed) {
-      renderNowPlayingPiP(pipWindowRef.current, updated);
-      pipWindowRef.current.__npRate = (r) => handleRateRef.current(r);
+      renderNowPlayingPiP(pipWindowRef.current, updated, isPlayingRef.current);
+      rewirePiP(pipWindowRef.current);
     }
 
     try {
@@ -145,17 +178,45 @@ export default function NavBar() {
       setNowPlaying(track);
       nowPlayingRef.current = track;
     }
-  }, []);
+  }, [rewirePiP]);
 
-  handleRateRef.current = handleRate;
+  const handleTogglePlay = useCallback(async () => {
+    try {
+      if (isPlayingRef.current) {
+        await api.playerPause();
+      } else {
+        await api.playerPlay();
+      }
+      setTimeout(fetchNowPlaying, 300);
+    } catch {}
+  }, [fetchNowPlaying]);
 
-  // Keep PiP in sync when track changes externally (polling)
+  const handleNext = useCallback(async () => {
+    try {
+      await api.playerNext();
+      setTimeout(fetchNowPlaying, 500);
+    } catch {}
+  }, [fetchNowPlaying]);
+
+  const handlePrev = useCallback(async () => {
+    try {
+      await api.playerPrevious();
+      setTimeout(fetchNowPlaying, 500);
+    } catch {}
+  }, [fetchNowPlaying]);
+
+  handleRateRef.current   = handleRate;
+  handleToggleRef.current = handleTogglePlay;
+  handleNextRef.current   = handleNext;
+  handlePrevRef.current   = handlePrev;
+
+  // Keep PiP in sync when track or play state changes
   useEffect(() => {
     if (isPiPOpen && pipWindowRef.current && !pipWindowRef.current.closed) {
-      renderNowPlayingPiP(pipWindowRef.current, nowPlayingRef.current);
-      pipWindowRef.current.__npRate = (r) => handleRateRef.current(r);
+      renderNowPlayingPiP(pipWindowRef.current, nowPlayingRef.current, isPlayingRef.current);
+      rewirePiP(pipWindowRef.current);
     }
-  }, [nowPlaying, isPiPOpen]);
+  }, [nowPlaying, isPlaying, isPiPOpen, rewirePiP]);
 
   const openPiP = async () => {
     if (!('documentPictureInPicture' in window)) return;
@@ -170,7 +231,7 @@ export default function NavBar() {
     try {
       const pip = await window.documentPictureInPicture.requestWindow({
         width: 300,
-        height: 380,
+        height: 420,
         disallowReturnToOpener: false,
       });
 
@@ -178,8 +239,8 @@ export default function NavBar() {
       styleEl.textContent = 'html,body{margin:0;padding:0;background:#f5f4f0;height:100%;}';
       pip.document.head.appendChild(styleEl);
 
-      pip.__npRate = (r) => handleRateRef.current(r);
-      renderNowPlayingPiP(pip, nowPlayingRef.current);
+      rewirePiP(pip);
+      renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current);
 
       pipWindowRef.current = pip;
       setIsPiPOpen(true);
@@ -202,6 +263,56 @@ export default function NavBar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* ── Mobile: Now Playing mini-bar (above tab bar) ── */}
+      {nowPlaying && (
+        <div className="np-mobile-bar" onClick={() => setShowRatingPanel(p => !p)}>
+          <div className="np-mobile-bar-collapsed">
+            {nowPlaying.image && (
+              <img src={nowPlaying.image} alt="" />
+            )}
+            <div className="np-mobile-bar-info">
+              <div className="np-mobile-bar-name">{nowPlaying.name}</div>
+              <div className="np-mobile-bar-artist">{nowPlaying.artist}</div>
+            </div>
+            {nowPlaying.rating && (
+              <span
+                className="np-mobile-bar-rating"
+                style={{ color: RATING_COLORS[nowPlaying.rating] }}
+              >
+                {nowPlaying.rating}
+              </span>
+            )}
+            <span className="np-mobile-bar-chevron">{showRatingPanel ? '▾' : '▸'}</span>
+          </div>
+
+          {showRatingPanel && (
+            <div className="np-mobile-panel" onClick={e => e.stopPropagation()}>
+              <div className="np-mobile-panel-label">calificar</div>
+              <div className="np-mobile-panel-btns">
+                {RATINGS.map(r => {
+                  const c = RATING_COLORS[r];
+                  const active = nowPlaying.rating === r;
+                  return (
+                    <button
+                      key={r}
+                      className={`np-mobile-panel-btn${active ? ' active' : ''}`}
+                      style={{
+                        borderColor: active ? c : undefined,
+                        color: active ? c : undefined,
+                        background: active ? `${c}20` : undefined,
+                      }}
+                      onClick={() => handleRate(r)}
+                    >
+                      {r}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Desktop: sidebar ── */}
       <aside className="sidebar">
