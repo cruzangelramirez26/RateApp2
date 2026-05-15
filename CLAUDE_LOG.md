@@ -2,6 +2,38 @@
 
 ---
 
+## 2026-05-15 (sesión fixes móvil + preload + PiP layout)
+
+**Features: preload cache, PiP toggle vertical/horizontal, fixes móvil, stats filtradas, recently played como default**
+
+**Backend:**
+- `backend/spotify.py` — scope `user-read-recently-played` agregado.
+- `backend/routes/tracks.py` — `GET /tracks/recently-played`: llama a `current_user_recently_played(50)`, desduplicado por ID, enriquecido con ratings de DB. Fix bug Me Gusta: `save_tracks` ahora verifica `are_tracks_saved` antes de llamar para no re-posicionar canciones ya likeadas.
+- `backend/database.py` — `get_stats_extended` actualizado: devuelve `by_rating` y `top_rating` por cuatrimestre; agrega `top_artists_year` (top artistas del año actual).
+
+**Frontend — Preload:**
+- `frontend/src/utils/preloadCache.js` — nuevo módulo singleton. `prime(key, fetcher)` inicia fetch background; `load(key, fetcher)` reutiliza cache, espera in-flight, o fetcha fresco.
+- `frontend/src/App.jsx` — al autenticar, primea: `likedAll`, `recent`, `recentlyPlayed`, `distribution` (que a su vez primea cada chip de playlist: perla/miel/latte/anual/calificar).
+- `frontend/src/pages/LibraryPage.jsx` — `loadLiked` y `handleChip` usan `preloadCache.load`.
+- `frontend/src/pages/RecentPage.jsx` — ambas tabs usan cache; tab default cambiado a "Escuchados"; tabs reordenadas (Escuchados primero).
+
+**Frontend — Stats:**
+- `frontend/src/pages/StatsPage.jsx` — default filter: "año" (antes "todo"). Métricas (Tier A, mode rating, distribución) calculadas desde `by_rating` filtrado por cuatri. Top artistas: global para "todo", `top_artists_year` para cualquier otro filtro.
+
+**Frontend — Mobile fixes:**
+- `frontend/src/styles/global.css` — `.main-content` con `flex:1 + overflow-x:hidden` global (fix contenido descentrado y overflow biblioteca). `np-mobile-bar` sube a `bottom: 64px`. Play dot verde pulsante (`.np-play-dot`) en mini-bar. `pending-album-art` con `margin: 0 auto`. `padding-bottom` de `.page` aumentado a 160px (fix overlap Tools).
+- `frontend/src/components/NavBar.jsx` — sidebar: dot verde + label "now playing"/"Connected" siempre visible. Mini-bar móvil: play dot pulsante (pausa = estático). PiP controles más chicos (`4px 10px`, `0.85rem`).
+
+**Frontend — PiP toggle layout:**
+- `frontend/src/components/NavBar.jsx` — PiP Now Playing con botón ↔/↕ para alternar entre vertical (300×420) y horizontal (420×190). Layout horizontal: portada 80px izquierda, nombre/artista/controles derecha, ratings abajo compactos. `resizeTo()` al cambiar layout.
+
+**Misc:**
+- Chip "calificar" en Biblioteca ahora muestra `<3333` (antes `3333`).
+
+Commits: `909148d`, `7202520`, `f816834`, `71f200d` → desplegados en Render.
+
+---
+
 ## 2026-05-12 (sesión controles PiP + mini-bar móvil)
 
 **Features: controles ⏮⏯⏭ en PiP Now Playing; mini-bar de Now Playing en móvil con calificación inline**
