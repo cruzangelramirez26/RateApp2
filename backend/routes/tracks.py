@@ -308,7 +308,7 @@ def rate_track(req: RateRequest, soft: bool = False):
                 pass
         # Like — only if not already saved, to avoid re-positioning in Liked Songs
         try:
-            if not spotify.are_tracks_saved(sp, [tid])[0]:
+            if not spotify.are_tracks_saved(sp, [tid]).get(tid, False):
                 spotify.save_tracks(sp, [tid])
         except Exception:
             pass
