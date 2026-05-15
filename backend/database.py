@@ -244,6 +244,17 @@ def get_stats_extended() -> dict:
         top_artists = [{"artist": a, "count": c} for a, c in cur.fetchall()]
 
         cur.execute("""
+            SELECT artist, COUNT(*) AS cnt
+            FROM tracks
+            WHERE rating NOT IN ('D', '') AND rating IS NOT NULL
+              AND YEAR(added_at) = YEAR(NOW())
+            GROUP BY artist
+            ORDER BY cnt DESC
+            LIMIT 5
+        """)
+        top_artists_year = [{"artist": a, "count": c} for a, c in cur.fetchall()]
+
+        cur.execute("""
             SELECT
                 YEAR(added_at) AS yr,
                 CASE
@@ -297,7 +308,7 @@ def get_stats_extended() -> dict:
             })
 
         cur.close()
-        return {"top_artists": top_artists, "by_cuatri": by_cuatri}
+        return {"top_artists": top_artists, "top_artists_year": top_artists_year, "by_cuatri": by_cuatri}
 
 
 _CUATRI_MONTHS = {

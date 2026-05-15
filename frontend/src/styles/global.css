@@ -112,7 +112,7 @@ body {
 /* ── Global utility classes ───────────────────────── */
 .page {
   flex: 1;
-  padding: 16px 16px 130px;
+  padding: 16px 16px 160px;
   max-width: 720px;
   margin: 0 auto;
   width: 100%;
@@ -875,6 +875,8 @@ body {
 }
 
 .pending-album-art {
+  display: block;
+  margin: 0 auto;
   width: 100%;
   max-width: 220px;
   aspect-ratio: 1;

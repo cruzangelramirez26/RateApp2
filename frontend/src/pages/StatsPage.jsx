@@ -58,7 +58,7 @@ function MetricCard({ label, value, sub, color }) {
 export default function StatsPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState('todo');
+  const [timeFilter, setTimeFilter] = useState('año');
   const toast = useToast();
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function StatsPage() {
 
   const { year: currentYear, cuatri: currentCuatri } = getCurrentPeriod();
   const byCuatri   = stats?.by_cuatri || [];
-  const topArtists = stats?.top_artists || [];
+  const topArtists = (timeFilter === 'todo' ? stats?.top_artists : stats?.top_artists_year) || [];
 
   const filteredCuatri = byCuatri.filter(({ year, cuatri }) => {
     if (timeFilter === 'todo') return true;

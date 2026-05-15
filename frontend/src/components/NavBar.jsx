@@ -33,7 +33,7 @@ function ctrlBtn(icon, fn) {
   </button>`;
 }
 
-function renderNowPlayingPiP(pip, track, isPlaying) {
+function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
   if (!track) {
     pip.document.body.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -44,12 +44,25 @@ function renderNowPlayingPiP(pip, track, isPlaying) {
     return;
   }
 
-  const btns = RATINGS.map(r => {
+  const toggleBtn = `
+    <button onclick="window.__npToggleLayout()"
+      title="${layout === 'vertical' ? 'Vista horizontal' : 'Vista vertical'}"
+      style="padding:3px 6px;border:1px solid rgba(0,0,0,0.12);border-radius:5px;
+      cursor:pointer;font-size:0.72rem;background:transparent;color:#9ca3af;
+      transition:all 0.15s;line-height:1;"
+      onmouseover="this.style.borderColor='#1db954';this.style.color='#1db954'"
+      onmouseout="this.style.borderColor='rgba(0,0,0,0.12)';this.style.color='#9ca3af'">
+      ${layout === 'vertical' ? '↔' : '↕'}
+    </button>`;
+
+  const ratingBtns = RATINGS.map(r => {
     const c = RATING_COLORS[r];
     const active = track.rating === r;
+    const pad = layout === 'horizontal' ? '3px 7px' : '5px 10px';
+    const fs  = layout === 'horizontal' ? '0.72rem' : '0.78rem';
     return `<button onclick="window.__npRate('${r}')"
-      style="padding:5px 10px;border:1.5px solid ${active ? c : 'rgba(0,0,0,0.1)'};
-      border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:700;
+      style="padding:${pad};border:1.5px solid ${active ? c : 'rgba(0,0,0,0.1)'};
+      border-radius:7px;cursor:pointer;font-size:${fs};font-weight:700;
       font-family:'Space Mono',monospace;
       background:${active ? `${c}20` : 'transparent'};
       color:${active ? c : '#9ca3af'};transition:all 0.15s;"
@@ -58,49 +71,90 @@ function renderNowPlayingPiP(pip, track, isPlaying) {
       ${r}</button>`;
   }).join('');
 
-  pip.document.body.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;padding:14px 12px 12px;gap:9px;
-      background:#f5f4f0;min-height:100%;box-sizing:border-box;
-      font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;">
+  const imgSize = layout === 'horizontal' ? 80 : 118;
+  const imgRadius = layout === 'horizontal' ? 8 : 10;
+  const imgHtml = track.image
+    ? `<img src="${escapeHtml(track.image)}" style="width:${imgSize}px;height:${imgSize}px;object-fit:cover;
+        border-radius:${imgRadius}px;box-shadow:0 4px 16px rgba(0,0,0,0.14);flex-shrink:0" />`
+    : `<div style="width:${imgSize}px;height:${imgSize}px;border-radius:${imgRadius}px;background:#eeede9;
+        display:flex;align-items:center;justify-content:center;font-size:${layout==='horizontal'?'1.5':'2'}rem;flex-shrink:0">🎵</div>`;
 
-      <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-        <span style="font-size:0.65rem;color:#9ca3af;font-family:'Space Mono',monospace;
-          letter-spacing:0.05em">now playing</span>
-        ${track.rating
-          ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;
-              color:${RATING_COLORS[track.rating]}">${track.rating}</span>`
-          : '<span style="font-size:0.65rem;color:#c4c4c4;font-family:\'Space Mono\',monospace">sin calificar</span>'
-        }
-      </div>
+  if (layout === 'horizontal') {
+    pip.document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;height:100%;background:#f5f4f0;
+        padding:10px 12px;gap:8px;box-sizing:border-box;
+        font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;">
 
-      ${track.image
-        ? `<img src="${escapeHtml(track.image)}" style="width:118px;height:118px;object-fit:cover;
-            border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.14)" />`
-        : `<div style="width:118px;height:118px;border-radius:10px;background:#eeede9;
-            display:flex;align-items:center;justify-content:center;font-size:2rem">🎵</div>`
-      }
-
-      <div style="text-align:center;width:100%;overflow:hidden">
-        <div style="font-weight:700;font-size:0.88rem;line-height:1.3;margin-bottom:2px;
-          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">
-          ${escapeHtml(track.name)}
+        <div style="display:flex;gap:10px;align-items:center;flex:1;min-height:0">
+          ${imgHtml}
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="font-weight:700;font-size:0.85rem;line-height:1.2;
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${escapeHtml(track.name)}
+            </div>
+            <div style="color:#6b7280;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${escapeHtml(track.artist)}
+            </div>
+            <div style="display:flex;gap:5px;align-items:center;margin-top:4px">
+              ${ctrlBtn('⏮', '__npPrev')}
+              ${ctrlBtn(isPlaying ? '⏸' : '▶', '__npToggle')}
+              ${ctrlBtn('⏭', '__npNext')}
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0">
+            ${track.rating
+              ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;color:${RATING_COLORS[track.rating]}">${track.rating}</span>`
+              : ''}
+            ${toggleBtn}
+          </div>
         </div>
-        <div style="color:#6b7280;font-size:0.76rem;white-space:nowrap;overflow:hidden;
-          text-overflow:ellipsis;padding:0 4px">
-          ${escapeHtml(track.artist)}
+
+        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
+          ${ratingBtns}
         </div>
-      </div>
+      </div>`;
+  } else {
+    pip.document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;padding:14px 12px 12px;gap:9px;
+        background:#f5f4f0;min-height:100%;box-sizing:border-box;
+        font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;">
 
-      <div style="display:flex;gap:5px;align-items:center">
-        ${ctrlBtn('⏮', '__npPrev')}
-        ${ctrlBtn(isPlaying ? '⏸' : '▶', '__npToggle')}
-        ${ctrlBtn('⏭', '__npNext')}
-      </div>
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
+          <span style="font-size:0.65rem;color:#9ca3af;font-family:'Space Mono',monospace;
+            letter-spacing:0.05em">now playing</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${track.rating
+              ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;
+                  color:${RATING_COLORS[track.rating]}">${track.rating}</span>`
+              : `<span style="font-size:0.65rem;color:#c4c4c4;font-family:'Space Mono',monospace">sin calificar</span>`}
+            ${toggleBtn}
+          </div>
+        </div>
 
-      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
-        ${btns}
-      </div>
-    </div>`;
+        ${imgHtml}
+
+        <div style="text-align:center;width:100%;overflow:hidden">
+          <div style="font-weight:700;font-size:0.88rem;line-height:1.3;margin-bottom:2px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">
+            ${escapeHtml(track.name)}
+          </div>
+          <div style="color:#6b7280;font-size:0.76rem;white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis;padding:0 4px">
+            ${escapeHtml(track.artist)}
+          </div>
+        </div>
+
+        <div style="display:flex;gap:5px;align-items:center">
+          ${ctrlBtn('⏮', '__npPrev')}
+          ${ctrlBtn(isPlaying ? '⏸' : '▶', '__npToggle')}
+          ${ctrlBtn('⏭', '__npNext')}
+        </div>
+
+        <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
+          ${ratingBtns}
+        </div>
+      </div>`;
+  }
 }
 
 export default function NavBar() {
@@ -109,14 +163,17 @@ export default function NavBar() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPiPOpen, setIsPiPOpen] = useState(false);
   const [showRatingPanel, setShowRatingPanel] = useState(false);
+  const [pipLayout, setPipLayout] = useState('vertical');
 
   const pipWindowRef = useRef(null);
   const nowPlayingRef = useRef(null);
   const isPlayingRef = useRef(false);
+  const pipLayoutRef = useRef('vertical');
   const handleRateRef = useRef(null);
   const handleToggleRef = useRef(null);
   const handleNextRef = useRef(null);
   const handlePrevRef = useRef(null);
+  const handleToggleLayoutRef = useRef(null);
 
   useEffect(() => {
     api.getPending()
@@ -147,10 +204,11 @@ export default function NavBar() {
   }, [fetchNowPlaying]);
 
   const rewirePiP = useCallback((pip) => {
-    pip.__npRate   = (r) => handleRateRef.current(r);
-    pip.__npToggle = ()  => handleToggleRef.current();
-    pip.__npNext   = ()  => handleNextRef.current();
-    pip.__npPrev   = ()  => handlePrevRef.current();
+    pip.__npRate         = (r) => handleRateRef.current(r);
+    pip.__npToggle       = ()  => handleToggleRef.current();
+    pip.__npNext         = ()  => handleNextRef.current();
+    pip.__npPrev         = ()  => handlePrevRef.current();
+    pip.__npToggleLayout = ()  => handleToggleLayoutRef.current?.();
   }, []);
 
   const handleRate = useCallback(async (rating) => {
@@ -205,18 +263,29 @@ export default function NavBar() {
     } catch {}
   }, [fetchNowPlaying]);
 
-  handleRateRef.current   = handleRate;
-  handleToggleRef.current = handleTogglePlay;
-  handleNextRef.current   = handleNext;
-  handlePrevRef.current   = handlePrev;
+  const handleToggleLayout = useCallback(() => {
+    setPipLayout(prev => {
+      const next = prev === 'vertical' ? 'horizontal' : 'vertical';
+      pipLayoutRef.current = next;
+      return next;
+    });
+  }, []);
 
-  // Keep PiP in sync when track or play state changes
+  handleRateRef.current         = handleRate;
+  handleToggleRef.current       = handleTogglePlay;
+  handleNextRef.current         = handleNext;
+  handlePrevRef.current         = handlePrev;
+  handleToggleLayoutRef.current = handleToggleLayout;
+
+  // Keep PiP in sync when track, play state, or layout changes
   useEffect(() => {
     if (isPiPOpen && pipWindowRef.current && !pipWindowRef.current.closed) {
-      renderNowPlayingPiP(pipWindowRef.current, nowPlayingRef.current, isPlayingRef.current);
+      const [w, h] = pipLayout === 'horizontal' ? [420, 190] : [300, 420];
+      try { pipWindowRef.current.resizeTo(w, h); } catch {}
+      renderNowPlayingPiP(pipWindowRef.current, nowPlayingRef.current, isPlayingRef.current, pipLayout);
       rewirePiP(pipWindowRef.current);
     }
-  }, [nowPlaying, isPlaying, isPiPOpen, rewirePiP]);
+  }, [nowPlaying, isPlaying, isPiPOpen, pipLayout, rewirePiP]);
 
   const openPiP = async () => {
     if (!('documentPictureInPicture' in window)) return;
@@ -229,9 +298,10 @@ export default function NavBar() {
     }
 
     try {
+      const [initW, initH] = pipLayoutRef.current === 'horizontal' ? [420, 190] : [300, 420];
       const pip = await window.documentPictureInPicture.requestWindow({
-        width: 300,
-        height: 420,
+        width: initW,
+        height: initH,
         disallowReturnToOpener: false,
       });
 
@@ -240,7 +310,7 @@ export default function NavBar() {
       pip.document.head.appendChild(styleEl);
 
       rewirePiP(pip);
-      renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current);
+      renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current, pipLayoutRef.current);
 
       pipWindowRef.current = pip;
       setIsPiPOpen(true);

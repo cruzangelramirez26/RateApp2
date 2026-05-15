@@ -22,6 +22,15 @@ export default function App() {
         if (authenticated) {
           preloadCache.prime('likedAll', () => api.getLikedAll(500, 0));
           preloadCache.prime('recent', () => api.getRecent(100));
+          preloadCache.prime('recentlyPlayed', () => api.getRecentlyPlayed());
+          preloadCache.prime('distribution', async () => {
+            const dist = await api.getDistribution();
+            ['perla', 'miel', 'latte', 'anual'].forEach(k => {
+              if (dist[k]) preloadCache.prime(`playlist_${k}`, () => api.getPlaylistTracks(dist[k]));
+            });
+            if (dist.calificar) preloadCache.prime('playlist_calificar', () => api.getPlaylistTracks(dist.calificar));
+            return dist;
+          });
         }
       })
       .catch(() => setAuth(false));

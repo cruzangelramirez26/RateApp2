@@ -157,11 +157,11 @@ export default function LibraryPage() {
     setHasMoreLiked(false);
     setSearch('');
     try {
-      const dist = await api.getDistribution();
+      const dist = await preloadCache.load('distribution', () => api.getDistribution());
       const playlistId = key === 'calificar' ? dist.calificar : dist[key];
       if (!playlistId) throw new Error(`No hay playlist para esta opción`);
-      const data = await api.getPlaylistTracks(playlistId);
-      setTracks(data);
+      const data = await preloadCache.load(`playlist_${key}`, () => api.getPlaylistTracks(playlistId));
+      setTracks(data || []);
     } catch (err) {
       toast(err.message, 'error');
     } finally {

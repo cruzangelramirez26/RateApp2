@@ -11,12 +11,12 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
 
 const TABS = [
-  { id: 'rated', label: 'Calificados' },
   { id: 'played', label: 'Escuchados' },
+  { id: 'rated', label: 'Calificados' },
 ];
 
 export default function RecentPage() {
-  const [tab, setTab] = useState('rated');
+  const [tab, setTab] = useState('played');
   const [rated, setRated] = useState([]);
   const [played, setPlayed] = useState([]);
   const [loadingRated, setLoadingRated] = useState(true);
@@ -40,8 +40,8 @@ export default function RecentPage() {
     if (playedFetched) return;
     setLoadingPlayed(true);
     try {
-      const data = await api.getRecentlyPlayed();
-      setPlayed(data);
+      const data = await preloadCache.load('recentlyPlayed', () => api.getRecentlyPlayed());
+      setPlayed(data || []);
       setPlayedFetched(true);
     } catch (err) {
       toast(err.message, 'error');
@@ -50,11 +50,11 @@ export default function RecentPage() {
     }
   }, [playedFetched, toast]);
 
-  useEffect(() => { fetchRated(); }, [fetchRated]);
+  useEffect(() => { fetchPlayed(); }, [fetchPlayed]);
 
   useEffect(() => {
-    if (tab === 'played') fetchPlayed();
-  }, [tab, fetchPlayed]);
+    if (tab === 'rated' && rated.length === 0) fetchRated();
+  }, [tab, fetchRated, rated.length]);
 
   const handleRate = async (track, rating, isPlayed = false) => {
     const tid = track.track_id || track.id;
