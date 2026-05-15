@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { api } from './utils/api';
+import { preloadCache } from './utils/preloadCache';
 import { ToastProvider } from './hooks/useToast';
 import NavBar from './components/NavBar';
 import LoginPage from './pages/LoginPage';
@@ -15,7 +16,14 @@ export default function App() {
 
   useEffect(() => {
     api.authStatus()
-      .then(data => setAuth(data.authenticated ? data : false))
+      .then(data => {
+        const authenticated = data.authenticated ? data : false;
+        setAuth(authenticated);
+        if (authenticated) {
+          preloadCache.prime('likedAll', () => api.getLikedAll(500, 0));
+          preloadCache.prime('recent', () => api.getRecent(100));
+        }
+      })
       .catch(() => setAuth(false));
   }, []);
 

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Search, Music, MoreHorizontal } from 'lucide-react';
 import { api } from '../utils/api';
+import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
@@ -105,9 +106,9 @@ export default function LibraryPage() {
     setSearch('');
     setLikedOffset(0);
     try {
-      const data = await api.getLikedAll(PAGE_SIZE, 0);
-      setTracks(data);
-      setHasMoreLiked(data.length >= PAGE_SIZE);
+      const data = await preloadCache.load('likedAll', () => api.getLikedAll(PAGE_SIZE, 0));
+      setTracks(data || []);
+      setHasMoreLiked((data?.length ?? 0) >= PAGE_SIZE);
       setLikedOffset(PAGE_SIZE);
     } catch (err) {
       toast(err.message, 'error');

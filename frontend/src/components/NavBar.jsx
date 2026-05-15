@@ -25,10 +25,10 @@ function escapeHtml(s) {
 
 function ctrlBtn(icon, fn) {
   return `<button onclick="window.${fn}()"
-    style="padding:8px 16px;border:1.5px solid rgba(0,0,0,0.1);border-radius:8px;
-    cursor:pointer;font-size:1.05rem;background:transparent;color:#6b7280;transition:all 0.15s;"
+    style="padding:4px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;
+    cursor:pointer;font-size:0.85rem;background:transparent;color:#9ca3af;transition:all 0.15s;"
     onmouseover="this.style.borderColor='#1db954';this.style.color='#1db954'"
-    onmouseout="this.style.borderColor='rgba(0,0,0,0.1)';this.style.color='#6b7280'">
+    onmouseout="this.style.borderColor='rgba(0,0,0,0.1)';this.style.color='#9ca3af'">
     ${icon}
   </button>`;
 }
@@ -91,7 +91,7 @@ function renderNowPlayingPiP(pip, track, isPlaying) {
         </div>
       </div>
 
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:5px;align-items:center">
         ${ctrlBtn('⏮', '__npPrev')}
         ${ctrlBtn(isPlaying ? '⏸' : '▶', '__npToggle')}
         ${ctrlBtn('⏭', '__npNext')}
@@ -268,6 +268,7 @@ export default function NavBar() {
       {nowPlaying && (
         <div className="np-mobile-bar" onClick={() => setShowRatingPanel(p => !p)}>
           <div className="np-mobile-bar-collapsed">
+            <div className={`np-play-dot${isPlaying ? '' : ' paused'}`} />
             {nowPlaying.image && (
               <img src={nowPlaying.image} alt="" />
             )}
@@ -334,7 +335,11 @@ export default function NavBar() {
         </nav>
 
         <div className="sidebar-footer">
-          {nowPlaying ? (
+          <div className="sidebar-footer-status">
+            <span className="sidebar-footer-dot" />
+            <span>{nowPlaying ? 'now playing' : 'Connected'}</span>
+          </div>
+          {nowPlaying && (
             <div className="now-playing-widget">
               {nowPlaying.image && (
                 <img src={nowPlaying.image} className="now-playing-img" alt="" />
@@ -357,11 +362,6 @@ export default function NavBar() {
                   <PictureInPicture2 size={13} />
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="sidebar-footer-status">
-              <span className="sidebar-footer-dot" />
-              <span>Connected</span>
             </div>
           )}
         </div>

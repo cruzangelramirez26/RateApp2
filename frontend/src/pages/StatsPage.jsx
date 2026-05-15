@@ -94,11 +94,23 @@ export default function StatsPage() {
 
   const filteredTotal = filteredCuatri.reduce((s, x) => s + x.count, 0);
   const maxCuatriCount = Math.max(...filteredCuatri.map(x => x.count), 1);
-  const maxRatingCount = Math.max(...Object.values(stats?.by_rating || {}), 1);
 
-  const aTierCount = (stats?.by_rating?.['A'] || 0) + (stats?.by_rating?.['A+'] || 0);
-  const aTierPct   = stats?.total ? Math.round((aTierCount / stats.total) * 100) : 0;
-  const modeRating = Object.entries(stats?.by_rating || {})
+  // Build filtered by_rating from each cuatri's breakdown (falls back to global when 'todo')
+  const filteredByRating = timeFilter === 'todo'
+    ? (stats?.by_rating || {})
+    : filteredCuatri.reduce((acc, { by_rating }) => {
+        Object.entries(by_rating || {}).forEach(([r, c]) => {
+          acc[r] = (acc[r] || 0) + c;
+        });
+        return acc;
+      }, {});
+
+  const maxRatingCount = Math.max(...Object.values(filteredByRating), 1);
+  const aTierCount = (filteredByRating['A'] || 0) + (filteredByRating['A+'] || 0);
+  const filteredTotalAll = Object.values(filteredByRating).reduce((s, c) => s + c, 0);
+  const aTierPct   = filteredTotalAll ? Math.round((aTierCount / filteredTotalAll) * 100) : 0;
+  const modeRating = Object.entries(filteredByRating)
+    .filter(([r]) => r !== 'D')
     .sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
 
   return (
@@ -155,12 +167,12 @@ export default function StatsPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={labelStyle}>Distribución de ratings</div>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              n = {stats?.total || 0}
+              n = {filteredTotalAll || 0}
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {RATING_ORDER.map(r => {
-              const count = stats?.by_rating?.[r] || 0;
+              const count = filteredByRating[r] || 0;
               const pct = (count / maxRatingCount) * 100;
               return (
                 <div key={r} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

@@ -259,7 +259,42 @@ def get_stats_extended() -> dict:
             GROUP BY yr, cuatri
             ORDER BY yr DESC, FIELD(cuatri, 'latte', 'miel', 'perla')
         """)
-        by_cuatri = [{"year": int(yr), "cuatri": c, "count": int(cnt)} for yr, c, cnt in cur.fetchall()]
+        cuatri_rows = cur.fetchall()
+
+        # Per-cuatri rating breakdown (including D) for filtered metrics in frontend
+        cur.execute("""
+            SELECT
+                YEAR(added_at) AS yr,
+                CASE
+                    WHEN MONTH(added_at) BETWEEN 1 AND 4 THEN 'perla'
+                    WHEN MONTH(added_at) BETWEEN 5 AND 8 THEN 'miel'
+                    ELSE 'latte'
+                END AS cuatri,
+                rating,
+                COUNT(*) AS cnt
+            FROM tracks
+            WHERE rating IS NOT NULL AND rating != ''
+              AND added_at IS NOT NULL
+              AND YEAR(added_at) >= YEAR(NOW()) - 2
+            GROUP BY yr, cuatri, rating
+        """)
+        rating_map = {}
+        for yr, c, rating, cnt in cur.fetchall():
+            key = (int(yr), c)
+            if key not in rating_map:
+                rating_map[key] = {}
+            rating_map[key][rating] = int(cnt)
+
+        _top_order = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D']
+        by_cuatri = []
+        for yr, c, cnt in cuatri_rows:
+            yr = int(yr)
+            by_r = rating_map.get((yr, c), {})
+            top_r = next((r for r in _top_order if by_r.get(r, 0) > 0), None)
+            by_cuatri.append({
+                "year": yr, "cuatri": c, "count": int(cnt),
+                "by_rating": by_r, "top_rating": top_r,
+            })
 
         cur.close()
         return {"top_artists": top_artists, "by_cuatri": by_cuatri}

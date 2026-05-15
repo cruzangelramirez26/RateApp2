@@ -102,6 +102,13 @@ body {
   min-height: 100dvh;
 }
 
+.main-content {
+  flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
+  width: 100%;
+}
+
 /* ── Global utility classes ───────────────────────── */
 .page {
   flex: 1;
@@ -343,7 +350,7 @@ body {
 /* ── Now Playing mini-bar (mobile, above tab bar) ─── */
 .np-mobile-bar {
   position: fixed;
-  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   z-index: 45;
@@ -437,6 +444,26 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s;
+}
+
+/* ── Now Playing play dot (mobile mini-bar) ──────── */
+@keyframes np-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.75); }
+}
+
+.np-play-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: np-pulse 1.4s ease-in-out infinite;
+}
+
+.np-play-dot.paused {
+  animation: none;
+  opacity: 0.4;
 }
 
 /* ── Sidebar (desktop only, hidden on mobile) ─────── */

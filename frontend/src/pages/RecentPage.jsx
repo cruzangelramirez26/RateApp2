@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Clock } from 'lucide-react';
 import { api } from '../utils/api';
+import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -26,8 +27,8 @@ export default function RecentPage() {
 
   const fetchRated = useCallback(async () => {
     try {
-      const data = await api.getRecent(100);
-      setRated(data);
+      const data = await preloadCache.load('recent', () => api.getRecent(100));
+      setRated(data || []);
     } catch (err) {
       toast(err.message, 'error');
     } finally {

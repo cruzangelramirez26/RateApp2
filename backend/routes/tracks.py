@@ -305,9 +305,10 @@ def rate_track(req: RateRequest, soft: bool = False):
                     spotify.add_to_playlist(sp, pl_id, [tid])
             except Exception:
                 pass
-        # Like
+        # Like — only if not already saved, to avoid re-positioning in Liked Songs
         try:
-            spotify.save_tracks(sp, [tid])
+            if not spotify.are_tracks_saved(sp, [tid])[0]:
+                spotify.save_tracks(sp, [tid])
         except Exception:
             pass
     else:
