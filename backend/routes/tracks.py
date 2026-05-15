@@ -157,6 +157,47 @@ def get_recent_tracks(limit: int = Query(50, ge=1, le=200)):
     return rows
 
 
+@router.get("/recently-played")
+def get_recently_played():
+    """Return up to 50 recently played tracks from Spotify, enriched with DB ratings."""
+    sp = spotify.get_client()
+    result = sp.current_user_recently_played(limit=50)
+    items = (result or {}).get("items") or []
+
+    seen = {}
+    for item in items:
+        t = item.get("track") or {}
+        tid = t.get("id")
+        if not tid or tid in seen:
+            continue
+        artists = t.get("artists") or [{}]
+        images = (t.get("album") or {}).get("images") or []
+        seen[tid] = {
+            "track_id": tid,
+            "id": tid,
+            "name": t.get("name", ""),
+            "artist": artists[0].get("name", ""),
+            "album": (t.get("album") or {}).get("name", ""),
+            "image": images[0].get("url") if images else None,
+            "spotify_url": (t.get("external_urls") or {}).get("spotify"),
+            "played_at": item.get("played_at"),
+            "rating": None,
+        }
+
+    tracks = list(seen.values())
+
+    if tracks:
+        df = database.load_all()
+        if not df.empty:
+            for tr in tracks:
+                row = df[df["track_id"] == tr["track_id"]]
+                if not row.empty:
+                    val = str(row.iloc[0].get("rating", "")).strip()
+                    tr["rating"] = val if val and val.lower() != "nan" else None
+
+    return tracks
+
+
 @router.get("/search")
 def search_tracks(q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=200)):
     """Search tracks in the database by name or artist."""

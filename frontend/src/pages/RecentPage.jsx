@@ -1,5 +1,5 @@
 /**
- * RecentPage — View and re-rate recently classified tracks.
+ * RecentPage — Toggle between recently rated and recently played on Spotify.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Clock } from 'lucide-react';
@@ -9,28 +9,57 @@ import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
 
+const TABS = [
+  { id: 'rated', label: 'Calificados' },
+  { id: 'played', label: 'Escuchados' },
+];
+
 export default function RecentPage() {
-  const [tracks, setTracks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('rated');
+  const [rated, setRated] = useState([]);
+  const [played, setPlayed] = useState([]);
+  const [loadingRated, setLoadingRated] = useState(true);
+  const [loadingPlayed, setLoadingPlayed] = useState(false);
+  const [playedFetched, setPlayedFetched] = useState(false);
   const [search, setSearch] = useState('');
   const toast = useToast();
 
-  const fetchRecent = useCallback(async () => {
+  const fetchRated = useCallback(async () => {
     try {
       const data = await api.getRecent(100);
-      setTracks(data);
+      setRated(data);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
-      setLoading(false);
+      setLoadingRated(false);
     }
   }, [toast]);
 
-  useEffect(() => { fetchRecent(); }, [fetchRecent]);
+  const fetchPlayed = useCallback(async () => {
+    if (playedFetched) return;
+    setLoadingPlayed(true);
+    try {
+      const data = await api.getRecentlyPlayed();
+      setPlayed(data);
+      setPlayedFetched(true);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setLoadingPlayed(false);
+    }
+  }, [playedFetched, toast]);
 
-  const handleRate = async (track, rating) => {
+  useEffect(() => { fetchRated(); }, [fetchRated]);
+
+  useEffect(() => {
+    if (tab === 'played') fetchPlayed();
+  }, [tab, fetchPlayed]);
+
+  const handleRate = async (track, rating, isPlayed = false) => {
     const tid = track.track_id || track.id;
-    setTracks(prev =>
+    const setter = isPlayed ? setPlayed : setRated;
+
+    setter(prev =>
       prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating } : t)
     );
 
@@ -44,12 +73,16 @@ export default function RecentPage() {
       });
       toast(`${track.name} → ${rating}`, 'success');
     } catch (err) {
-      setTracks(prev =>
+      setter(prev =>
         prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating: track.rating } : t)
       );
       toast(`Error: ${err.message}`, 'error');
     }
   };
+
+  const tracks = tab === 'rated' ? rated : played;
+  const loading = tab === 'rated' ? loadingRated : loadingPlayed;
+  const isPlayed = tab === 'played';
 
   const filtered = search
     ? tracks.filter(t =>
@@ -61,9 +94,22 @@ export default function RecentPage() {
     <div className="page">
       <div className="page-header">
         <div className="page-title">Recientes</div>
-        <div className="page-subtitle">{tracks.length} canciones calificadas</div>
+        <div className="stats-filter-tabs" style={{ marginTop: '12px', marginBottom: '4px' }}>
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              className={`stats-filter-tab${tab === t.id ? ' active' : ''}`}
+              onClick={() => { setTab(t.id); setSearch(''); }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="page-subtitle">
+          {loading ? '…' : `${filtered.length} canciones`}
+        </div>
         <div style={{ marginTop: '12px' }}>
-          <SearchBar value={search} onChange={setSearch} placeholder="Buscar en recientes..." />
+          <SearchBar value={search} onChange={setSearch} placeholder="Buscar..." />
         </div>
       </div>
 
@@ -72,18 +118,15 @@ export default function RecentPage() {
       ) : filtered.length === 0 ? (
         <div className="empty-state">
           <Clock />
-          <div>{search ? 'Sin resultados' : 'No hay canciones recientes'}</div>
+          <div>{search ? 'Sin resultados' : 'No hay canciones'}</div>
         </div>
       ) : (
         <div className="stagger" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {filtered.map((t, i) => (
             <TrackCard
               key={t.track_id || t.id}
-              track={{
-                ...t,
-                id: t.track_id || t.id,
-              }}
-              onRate={handleRate}
+              track={{ ...t, id: t.track_id || t.id }}
+              onRate={(track, rating) => handleRate(track, rating, isPlayed)}
               index={i}
             />
           ))}

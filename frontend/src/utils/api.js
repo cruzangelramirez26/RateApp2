@@ -28,6 +28,7 @@ export const api = {
   getPending: () => request('/tracks/pending'),
   getNowPlaying: () => request('/tracks/now-playing'),
   getRecent: (limit = 50) => request(`/tracks/recent?limit=${limit}`),
+  getRecentlyPlayed: () => request('/tracks/recently-played'),
   searchTracks: (q, limit = 50) => request(`/tracks/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   getStats: () => request('/tracks/stats'),
   rateTrack: (data) => request('/tracks/rate', {
