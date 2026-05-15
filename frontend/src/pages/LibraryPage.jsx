@@ -12,7 +12,7 @@ const QUICK_PLAYLISTS = [
   { label: 'Miel',    key: 'miel' },
   { label: 'Latte',   key: 'latte' },
   { label: 'Galería', key: 'anual' },
-  { label: '3333',    key: 'calificar' },
+  { label: '<3333',   key: 'calificar' },
 ];
 
 const RATING_ORDER = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
