@@ -55,6 +55,11 @@ export const api = {
   virtualSimulate: () => request('/virtual/simulate', { method: 'POST' }),
   virtualApply: (reorder = false) => request(`/virtual/apply?reorder=${reorder}`, { method: 'POST' }),
   virtualEnd: () => request('/virtual/end', { method: 'POST' }),
+  getVirtualPlaylist: () => request('/virtual/playlist'),
+  reorderPlaylist: (items) => request('/virtual/reorder', {
+    method: 'POST',
+    body: JSON.stringify(items),
+  }),
 
   // A+ Instant Detection
   aplusStatus: () => request('/tracks/aplus/status'),

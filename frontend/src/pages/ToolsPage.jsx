@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical } from 'lucide-react';
 import { api } from '../utils/api';
 import { useToast } from '../hooks/useToast';
 
@@ -9,6 +9,7 @@ const RATING_COLORS = {
 };
 const RATING_ORDER_MAP = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
 const CUATRI_DISPLAY = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
+const REORDER_RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C'];
 
 export default function ToolsPage() {
   const [virtualStatus, setVirtualStatus] = useState(null);
@@ -22,6 +23,18 @@ export default function ToolsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
   const toast = useToast();
+
+  // Modo Virtual — fronteras y cambios detectados
+  const [virtualBoundaries, setVirtualBoundaries] = useState([]);
+  const [simulateChanges, setSimulateChanges] = useState([]);
+
+  // Reordenador
+  const [reorderData, setReorderData] = useState(null);   // { cuatri, blocks: {rating: [track]} }
+  const [reorderLoading, setReorderLoading] = useState(false);
+  const [reorderApplying, setReorderApplying] = useState(false);
+  const dragSrc = useRef(null);
+  const [dragOver, setDragOver] = useState(null);   // { rating, index }
+  const [draggingItem, setDraggingItem] = useState(null); // { rating, index }
 
   useEffect(() => {
     Promise.all([api.virtualStatus(), api.aplusStatus()])
@@ -42,7 +55,95 @@ export default function ToolsPage() {
     }
   };
 
-  // Rating desc → added_at desc (replica el orden de la playlist)
+  // ─── Reordenador handlers ───────────────────────────────────────────────────
+
+  const loadReorder = async () => {
+    setReorderLoading(true);
+    try {
+      const data = await api.getVirtualPlaylist();
+      const blocks = {};
+      for (const r of REORDER_RATINGS) blocks[r] = [];
+      for (const t of data.tracks) {
+        const r = REORDER_RATINGS.includes(t.rating) ? t.rating : 'C';
+        blocks[r].push(t);
+      }
+      setReorderData({ cuatri: data.cuatri, blocks });
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setReorderLoading(false);
+    }
+  };
+
+  const handleDragStart = (e, rating, index) => {
+    dragSrc.current = { rating, index };
+    setDraggingItem({ rating, index });
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, rating, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOver({ rating, index });
+  };
+
+  const handleDrop = (e, toRating, toIndex) => {
+    e.preventDefault();
+    setDragOver(null);
+    setDraggingItem(null);
+    if (!dragSrc.current) return;
+    const { rating: fromRating, index: fromIndex } = dragSrc.current;
+    dragSrc.current = null;
+    if (fromRating === toRating && fromIndex === toIndex) return;
+
+    setReorderData(prev => {
+      if (!prev) return prev;
+      const blocks = {};
+      for (const r of REORDER_RATINGS) blocks[r] = [...prev.blocks[r]];
+
+      const [item] = blocks[fromRating].splice(fromIndex, 1);
+      let insertAt = toIndex;
+      if (fromRating === toRating && fromIndex < toIndex) insertAt = Math.max(0, toIndex - 1);
+      blocks[toRating].splice(insertAt, 0, item);
+
+      return { ...prev, blocks };
+    });
+  };
+
+  const handleDragEnd = () => {
+    dragSrc.current = null;
+    setDraggingItem(null);
+    setDragOver(null);
+  };
+
+  const applyReorder = async () => {
+    if (!reorderData) return;
+    setReorderApplying(true);
+    try {
+      const items = [];
+      for (const r of REORDER_RATINGS) {
+        for (const t of reorderData.blocks[r]) {
+          items.push({ tid: t.tid, rating: r, name: t.name, artist: t.artist, album: t.album || '' });
+        }
+      }
+      const res = await api.reorderPlaylist(items);
+      toast(
+        res.changes_applied > 0
+          ? `Playlist actualizada — ${res.changes_applied} calificación(es) cambiada(s)`
+          : 'Playlist reordenada (sin cambios de calificación)',
+        'success',
+        4000,
+      );
+      setReorderData(null);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setReorderApplying(false);
+    }
+  };
+
+  // ─── Memos (migración) ──────────────────────────────────────────────────────
+
   const sortedMigCandidates = useMemo(() => {
     if (!migData?.candidates?.length) return [];
     return [...migData.candidates].sort((a, b) => {
@@ -53,7 +154,6 @@ export default function ToolsPage() {
     });
   }, [migData, migSort]);
 
-  // Filtro client-side — no toca las selecciones
   const filteredMigCandidates = useMemo(() => {
     if (!migSearch.trim()) return sortedMigCandidates;
     const q = migSearch.toLowerCase();
@@ -64,7 +164,6 @@ export default function ToolsPage() {
     );
   }, [sortedMigCandidates, migSearch]);
 
-  // Marcar/desmarcar solo los visibles (no afecta los ocultos por búsqueda)
   const toggleMigAll = () => {
     const visibleIds = filteredMigCandidates.map(c => c.track_id);
     const allVisible = visibleIds.every(id => migSelectedIds.has(id));
@@ -78,6 +177,18 @@ export default function ToolsPage() {
       return next;
     });
   };
+
+  // ─── Reorder: pending rating changes count ──────────────────────────────────
+  const reorderPendingChanges = useMemo(() => {
+    if (!reorderData) return 0;
+    let count = 0;
+    for (const r of REORDER_RATINGS) {
+      for (const t of reorderData.blocks[r]) {
+        if (t.rating !== r) count++;
+      }
+    }
+    return count;
+  }, [reorderData]);
 
   if (loading) {
     return (
@@ -98,7 +209,7 @@ export default function ToolsPage() {
         <div className="page-title">Herramientas</div>
       </div>
 
-      {/* Modo Virtual */}
+      {/* ── Modo Virtual ────────────────────────────────────────────────────── */}
       <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
         <div style={{
           fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
@@ -126,6 +237,8 @@ export default function ToolsPage() {
               onClick={() => doAction('vstart', async () => {
                 const r = await api.virtualStart();
                 setVirtualStatus(await api.virtualStatus());
+                setVirtualBoundaries(r.boundaries || []);
+                setSimulateChanges([]);
                 return `Modo Virtual iniciado en ${r.cuatri?.toUpperCase()} — ${r.track_count} canciones.`;
               })}
               disabled={!!actionLoading}>
@@ -136,6 +249,8 @@ export default function ToolsPage() {
               <button className="btn btn-sm"
                 onClick={() => doAction('vsim', async () => {
                   const r = await api.virtualSimulate();
+                  setVirtualBoundaries(r.boundaries || []);
+                  setSimulateChanges(r.changes || []);
                   return r.summary ?? 'Simulación completada.';
                 })}
                 disabled={!!actionLoading}>
@@ -145,7 +260,8 @@ export default function ToolsPage() {
                 onClick={() => doAction('vapply', async () => {
                   const r = await api.virtualApply(false);
                   setVirtualStatus(await api.virtualStatus());
-                  return r.message ?? r.summary ?? 'Cambios aplicados.';
+                  setSimulateChanges([]);
+                  return r.message ?? r.summary ?? `${r.changes_applied ?? 0} cambios aplicados.`;
                 })}
                 disabled={!!actionLoading}>
                 Aplicar cambios
@@ -154,6 +270,8 @@ export default function ToolsPage() {
                 onClick={() => doAction('vend', async () => {
                   await api.virtualEnd();
                   setVirtualStatus(await api.virtualStatus());
+                  setVirtualBoundaries([]);
+                  setSimulateChanges([]);
                   return 'Modo Virtual finalizado.';
                 })}
                 disabled={!!actionLoading}
@@ -163,9 +281,245 @@ export default function ToolsPage() {
             </>
           )}
         </div>
+
+        {/* Fronteras */}
+        {virtualBoundaries.length > 0 && (
+          <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '8px', letterSpacing: '0.05em' }}>
+              FRONTERAS
+            </div>
+            {virtualBoundaries.map((b, i) => (
+              <div key={i} style={{
+                display: 'grid', gridTemplateColumns: '64px 1fr 1fr', gap: '8px',
+                padding: '5px 0',
+                borderBottom: i < virtualBoundaries.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                fontSize: '0.78rem',
+              }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-muted)' }}>
+                  {b.pair}
+                </span>
+                <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {b.upper}
+                </span>
+                <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {b.lower}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Cambios detectados */}
+        {simulateChanges.length > 0 && (
+          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '8px', letterSpacing: '0.05em' }}>
+              {simulateChanges.length} CAMBIO(S) DETECTADO(S)
+            </div>
+            {simulateChanges.map((ch, i) => (
+              <div key={ch.tid} style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '4px 0',
+                borderBottom: i < simulateChanges.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                fontSize: '0.8rem',
+              }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: RATING_COLORS[ch.old] ?? 'var(--text-muted)', minWidth: '26px' }}>
+                  {ch.old}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>→</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: RATING_COLORS[ch.new] ?? 'var(--text-muted)', minWidth: '26px' }}>
+                  {ch.new}
+                </span>
+                <span style={{ color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ch.name}
+                </span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', flexShrink: 0 }}>
+                  {ch.artist}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* A+ Instantáneos */}
+      {/* ── Reordenador in-app ───────────────────────────────────────────────── */}
+      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
+        <div style={{
+          fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
+          letterSpacing: '0.06em', fontWeight: 600, marginBottom: '12px',
+          fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          <GripVertical size={14} />
+          Reordenador
+        </div>
+
+        {reorderData === null ? (
+          <>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
+              Arrastra canciones dentro de la app para reordenar la playlist actual.
+              Cruzar la frontera entre bloques cambia la calificación automáticamente.
+            </p>
+            <button
+              className="btn btn-sm"
+              onClick={loadReorder}
+              disabled={reorderLoading || !!actionLoading}>
+              {reorderLoading ? 'Cargando…' : 'Cargar playlist actual'}
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{
+              fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
+              marginBottom: '12px',
+            }}>
+              {CUATRI_DISPLAY[reorderData.cuatri] ?? reorderData.cuatri?.toUpperCase()}
+              {reorderPendingChanges > 0 && (
+                <span style={{
+                  marginLeft: '10px', background: 'rgba(110, 207, 138, 0.15)',
+                  color: 'var(--rating-b-plus)', padding: '2px 8px', borderRadius: '12px',
+                }}>
+                  {reorderPendingChanges} calificación(es) por cambiar
+                </span>
+              )}
+            </div>
+
+            {/* Bloques de rating */}
+            <div style={{ maxHeight: '520px', overflowY: 'auto', marginBottom: '12px' }}>
+              {REORDER_RATINGS.map(rating => {
+                const block = reorderData.blocks[rating] ?? [];
+                return (
+                  <div key={rating} style={{ marginBottom: '6px' }}>
+                    {/* Block header — también es drop zone para el bloque vacío */}
+                    <div
+                      onDragOver={(e) => handleDragOver(e, rating, 0)}
+                      onDrop={(e) => handleDrop(e, rating, 0)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        padding: '4px 8px',
+                        background: `${RATING_COLORS[rating]}18`,
+                        borderRadius: '6px 6px 0 0',
+                        borderLeft: `3px solid ${RATING_COLORS[rating]}`,
+                        borderTop: dragOver?.rating === rating && dragOver?.index === 0 && block.length === 0
+                          ? `2px solid var(--accent)` : '2px solid transparent',
+                      }}>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.75rem',
+                        color: RATING_COLORS[rating], minWidth: '28px',
+                      }}>
+                        {rating}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {block.length} {block.length === 1 ? 'canción' : 'canciones'}
+                      </span>
+                    </div>
+
+                    {/* Track list */}
+                    <div style={{
+                      background: 'var(--bg-surface)',
+                      borderRadius: '0 0 6px 6px',
+                      borderLeft: `3px solid ${RATING_COLORS[rating]}40`,
+                    }}>
+                      {block.length === 0 ? (
+                        <div
+                          onDragOver={(e) => handleDragOver(e, rating, 0)}
+                          onDrop={(e) => handleDrop(e, rating, 0)}
+                          style={{
+                            padding: '8px 10px',
+                            fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic',
+                            textAlign: 'center',
+                            borderTop: dragOver?.rating === rating ? '2px solid var(--accent)' : '2px solid transparent',
+                          }}>
+                          Arrastra aquí para {rating}
+                        </div>
+                      ) : (
+                        block.map((t, index) => {
+                          const isDragTarget = dragOver?.rating === rating && dragOver?.index === index;
+                          const isBeingDragged = draggingItem?.rating === rating && draggingItem?.index === index;
+                          return (
+                            <div
+                              key={t.tid}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, rating, index)}
+                              onDragOver={(e) => handleDragOver(e, rating, index)}
+                              onDrop={(e) => handleDrop(e, rating, index)}
+                              onDragEnd={handleDragEnd}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                padding: '6px 10px',
+                                cursor: 'grab',
+                                opacity: isBeingDragged ? 0.35 : 1,
+                                borderTop: isDragTarget ? '2px solid var(--accent)' : '2px solid transparent',
+                                transition: 'opacity 0.1s',
+                                borderBottom: index < block.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                                userSelect: 'none',
+                              }}>
+                              <GripVertical size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                              {/* Muestra si la calificación cambió */}
+                              {t.rating !== rating && (
+                                <span style={{
+                                  fontFamily: 'var(--font-mono)', fontSize: '0.65rem',
+                                  color: RATING_COLORS[t.rating] ?? 'var(--text-muted)',
+                                  textDecoration: 'line-through', flexShrink: 0,
+                                }}>
+                                  {t.rating}
+                                </span>
+                              )}
+                              {t.image ? (
+                                <img src={t.image} alt="" style={{ width: '28px', height: '28px', borderRadius: '3px', flexShrink: 0, objectFit: 'cover' }} />
+                              ) : (
+                                <div style={{ width: '28px', height: '28px', borderRadius: '3px', background: 'var(--bg-deep)', flexShrink: 0 }} />
+                              )}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {t.name}
+                                </div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {t.artist}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      {/* Drop zone al final del bloque */}
+                      {block.length > 0 && (
+                        <div
+                          onDragOver={(e) => handleDragOver(e, rating, block.length)}
+                          onDrop={(e) => handleDrop(e, rating, block.length)}
+                          style={{
+                            height: '10px',
+                            borderTop: dragOver?.rating === rating && dragOver?.index === block.length
+                              ? '2px solid var(--accent)' : '2px solid transparent',
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Acciones */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-accent btn-sm"
+                onClick={applyReorder}
+                disabled={reorderApplying}>
+                {reorderApplying ? 'Aplicando…' : reorderPendingChanges > 0
+                  ? `Aplicar (${reorderPendingChanges} cambio(s))`
+                  : 'Aplicar orden'}
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={() => setReorderData(null)}
+                disabled={reorderApplying}>
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── A+ Instantáneos ─────────────────────────────────────────────────── */}
       <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
         <div style={{
           fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
@@ -269,7 +623,7 @@ export default function ToolsPage() {
         </div>
       </div>
 
-      {/* Migración */}
+      {/* ── Migración ────────────────────────────────────────────────────────── */}
       <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
         <div style={{
           fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
@@ -311,7 +665,6 @@ export default function ToolsPage() {
           </div>
         ) : (
           <>
-            {/* Encabezado: ruta + sort */}
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               marginBottom: '10px', flexWrap: 'wrap', gap: '8px',
@@ -336,7 +689,6 @@ export default function ToolsPage() {
               </div>
             </div>
 
-            {/* Búsqueda */}
             <input
               type="text"
               placeholder="Buscar por canción, artista o álbum…"
@@ -351,7 +703,6 @@ export default function ToolsPage() {
               }}
             />
 
-            {/* Control de selección */}
             <div style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               marginBottom: '8px',
@@ -366,7 +717,6 @@ export default function ToolsPage() {
               </button>
             </div>
 
-            {/* Lista */}
             <div style={{
               background: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)',
               padding: '6px 10px', marginBottom: '12px', maxHeight: '320px', overflowY: 'auto',
@@ -422,7 +772,6 @@ export default function ToolsPage() {
               ))}
             </div>
 
-            {/* Acciones */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button
                 className="btn btn-accent btn-sm"
@@ -450,7 +799,7 @@ export default function ToolsPage() {
         )}
       </div>
 
-      {/* Orden de playlists */}
+      {/* ── Orden de playlists ───────────────────────────────────────────────── */}
       <div className="card fade-in" style={{ padding: '20px' }}>
         <div style={{
           fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
@@ -459,7 +808,6 @@ export default function ToolsPage() {
         }}>
           <RefreshCw size={14} /> Orden de playlists
         </div>
-        {/* Ordenar cualquier cuatrimestre (solo reordena lo que ya está) */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {['perla', 'miel', 'latte'].map(c => (
             <button key={c}
@@ -485,7 +833,6 @@ export default function ToolsPage() {
           </button>
         </div>
 
-        {/* Reconstruir desde DB — filtra por año más reciente */}
         <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border-subtle)' }}>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>
             RECONSTRUIR DESDE DB — recupera tracks faltantes usando solo el año actual del periodo

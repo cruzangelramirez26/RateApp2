@@ -1,11 +1,10 @@
-"""Virtual edit mode routes — the drag-to-rerate feature."""
+"""Virtual edit mode routes — the drag-to-rerate feature + in-app reorderer."""
 from fastapi import APIRouter, HTTPException
 from datetime import datetime, timezone
 import bisect
-import json
-import os
 
 import pandas as pd
+from pydantic import BaseModel
 
 import database
 import spotify
@@ -14,21 +13,7 @@ import utils
 
 router = APIRouter(prefix="/virtual", tags=["virtual"])
 
-STATE_FILE = "cuatri_virtual_state.json"
 RATINGS_IN_ORDER = config.RATINGS_IN_ORDER
-
-
-def _save_state(state: dict):
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
-
-
-def _load_state() -> dict:
-    try:
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
 
 
 def _counts_by_rating(ids: list[str]) -> dict:
@@ -78,6 +63,7 @@ def _segment_for_index(ix: int, segments: dict) -> str:
 
 def _boundary_lines(segments: dict, ids: list[str], df_idx) -> list[str]:
     lines = []
+
     def label(tid):
         if df_idx is not None and tid in df_idx.index:
             nm = df_idx.at[tid, "name"] or ""
@@ -91,16 +77,16 @@ def _boundary_lines(segments: dict, ids: list[str], df_idx) -> list[str]:
         su, eu = segments[upper]
         sl, el = segments[lower]
         up_txt = (
-            f"última {upper} = {label(ids[eu])} (idx {eu})"
+            f"última {upper} = {label(ids[eu])}"
             if eu >= su and 0 <= eu < len(ids)
             else f"última {upper} = (vacío)"
         )
         lo_txt = (
-            f"primera {lower} = {label(ids[sl])} (idx {sl})"
+            f"primera {lower} = {label(ids[sl])}"
             if sl <= el and 0 <= sl < len(ids)
             else f"primera {lower} = (vacío)"
         )
-        lines.append(f"{upper}/{lower} → {up_txt}; {lo_txt}")
+        lines.append({"pair": f"{upper}/{lower}", "upper": up_txt, "lower": lo_txt})
     return lines
 
 
@@ -125,10 +111,11 @@ def _lis_indices(seq: list[int]) -> list[int]:
     return out
 
 
+# ─── Estado Virtual (MySQL, no archivo) ──────────────────────────────────────
+
 @router.get("/status")
 def virtual_status():
-    """Check if virtual edit mode is active."""
-    st = _load_state()
+    st = database.get_virtual_state()
     return {
         "active": bool(st.get("editing")),
         "cuatri": st.get("cuatri"),
@@ -161,7 +148,7 @@ def virtual_start():
         "counts": counts,
         "snapshot_id": snap,
     }
-    _save_state(state)
+    database.set_virtual_state(state)
 
     segments = _build_segments(counts, len(curr_ids))
     df = database.load_all()
@@ -179,7 +166,7 @@ def virtual_start():
 @router.post("/simulate")
 def virtual_simulate():
     """Detect which songs crossed segment boundaries."""
-    st = _load_state()
+    st = database.get_virtual_state()
     if not st.get("editing"):
         raise HTTPException(400, "Virtual edit mode is not active")
 
@@ -194,7 +181,6 @@ def virtual_simulate():
     prev_pos = {tid: i for i, tid in enumerate(prev)}
     curr = utils.dedupe_preserve_order(spotify.get_playlist_track_ids(sp, pl_id))
 
-    # LIS to find moved tracks
     seq = []
     seq_map = []
     for i, tid in enumerate(curr):
@@ -234,18 +220,12 @@ def virtual_simulate():
 
     boundaries = _boundary_lines(segments, curr, df_idx)
 
-    summary_lines = [
-        f"Playlist: {cuatri.upper()} ({pl_id})",
-        f"Moved tracks: {len(moved)}",
-        f"Rating changes: {len(changes)}",
-    ]
-
     return {
         "playlist_id": pl_id,
         "cuatri": cuatri,
         "moved_count": len(moved),
         "changes": changes,
-        "summary": "\n".join(summary_lines),
+        "summary": f"Movidas: {len(moved)} · Cambios de calificación: {len(changes)}",
         "boundaries": boundaries,
         "curr_order": curr,
         "segments": segments,
@@ -255,11 +235,10 @@ def virtual_simulate():
 @router.post("/apply")
 def virtual_apply(reorder: bool = False):
     """Apply the simulated changes."""
-    st = _load_state()
+    st = database.get_virtual_state()
     if not st.get("editing"):
         raise HTTPException(400, "Virtual edit mode is not active")
 
-    # Re-run simulation to get fresh data
     sim = virtual_simulate()
     changes = sim["changes"]
     segments = sim["segments"]
@@ -267,13 +246,11 @@ def virtual_apply(reorder: bool = False):
 
     sp = spotify.get_client()
 
-    # Build block assignments
     ids_by_block = {rk: [] for rk in RATINGS_IN_ORDER}
     for ix, tid in enumerate(curr):
         rk = _segment_for_index(ix, segments)
         ids_by_block[rk].append(tid)
 
-    # Apply rating changes
     to_remove = {"mis_me_gusta": set(), "anual": set()}
     to_add = {"mis_me_gusta": set(), "anual": set()}
 
@@ -308,17 +285,13 @@ def virtual_apply(reorder: bool = False):
 
         database.upsert_track(tid, name, artist, album, utils.now_utc_str(), new_r)
 
-    # Spotify batch ops
     for k, ids in to_remove.items():
         if ids:
-            pl = config.DISTRIBUTION_PLAYLISTS[k]
-            spotify.remove_from_playlist(sp, pl, list(ids))
+            spotify.remove_from_playlist(sp, config.DISTRIBUTION_PLAYLISTS[k], list(ids))
     for k, ids in to_add.items():
         if ids:
-            pl = config.DISTRIBUTION_PLAYLISTS[k]
-            spotify.add_to_playlist(sp, pl, list(ids))
+            spotify.add_to_playlist(sp, config.DISTRIBUTION_PLAYLISTS[k], list(ids))
 
-    # Reseal timestamps per block
     base_now = pd.Timestamp(utils.now_utc())
     df2 = database.load_all()
     for rk in RATINGS_IN_ORDER:
@@ -347,7 +320,6 @@ def virtual_apply(reorder: bool = False):
         pl_id = sim["playlist_id"]
         _order_playlist(sp, pl_id, min_rating_order=1)
 
-    # Refresh state
     cuatri = utils.get_cuatrimestre(utils.now_utc())
     pl_id = config.DISTRIBUTION_PLAYLISTS.get(cuatri)
     new_curr = utils.dedupe_preserve_order(spotify.get_playlist_track_ids(sp, pl_id))
@@ -359,15 +331,177 @@ def virtual_apply(reorder: bool = False):
         "counts": _counts_by_rating(new_curr),
         "snapshot_id": spotify.get_snapshot_id(sp, pl_id),
     }
-    _save_state(new_state)
+    database.set_virtual_state(new_state)
 
     return {"ok": True, "changes_applied": len(changes)}
 
 
 @router.post("/end")
 def virtual_end():
-    """End virtual edit mode."""
-    st = _load_state()
+    st = database.get_virtual_state()
     st["editing"] = False
-    _save_state(st)
+    database.set_virtual_state(st)
     return {"ok": True}
+
+
+# ─── Reordenador in-app ───────────────────────────────────────────────────────
+
+@router.get("/playlist")
+def virtual_playlist():
+    """Return current cuatrimestre playlist in order with ratings + images."""
+    sp = spotify.get_client()
+    cuatri = utils.get_cuatrimestre(utils.now_utc())
+    pl_id = config.DISTRIBUTION_PLAYLISTS.get(cuatri)
+    if not pl_id:
+        raise HTTPException(400, f"No playlist for cuatri {cuatri}")
+
+    curr_ids = utils.dedupe_preserve_order(spotify.get_playlist_track_ids(sp, pl_id))
+    if not curr_ids:
+        return {"cuatri": cuatri, "playlist_id": pl_id, "tracks": []}
+
+    df = database.load_all()
+    df_idx = df.set_index("track_id") if not df.empty else None
+
+    sp_meta = {}
+    try:
+        for i in range(0, len(curr_ids), 50):
+            result = sp.tracks(curr_ids[i : i + 50])
+            for t in result.get("tracks") or []:
+                if not t or not t.get("id"):
+                    continue
+                images = (t.get("album") or {}).get("images") or []
+                sp_meta[t["id"]] = {
+                    "name": t.get("name", ""),
+                    "artist": (t.get("artists") or [{}])[0].get("name", ""),
+                    "album": (t.get("album") or {}).get("name", ""),
+                    "image": images[0].get("url") if images else None,
+                }
+    except Exception:
+        pass
+
+    tracks = []
+    for tid in curr_ids:
+        t = {"tid": tid, "rating": "C", "name": "", "artist": "", "album": "", "image": None}
+        if tid in sp_meta:
+            t.update(sp_meta[tid])
+        if df_idx is not None and tid in df_idx.index:
+            row = df_idx.loc[tid]
+            r = str(row.get("rating", "") or "").upper().strip()
+            if r:
+                t["rating"] = r
+        tracks.append(t)
+
+    return {"cuatri": cuatri, "playlist_id": pl_id, "tracks": tracks}
+
+
+class ReorderItem(BaseModel):
+    tid: str
+    rating: str
+    name: str = ""
+    artist: str = ""
+    album: str = ""
+
+
+@router.post("/reorder")
+def virtual_reorder(items: list[ReorderItem]):
+    """Apply in-app reorder: update DB ratings and sync Spotify playlists."""
+    if not items:
+        raise HTTPException(400, "Empty item list")
+
+    sp = spotify.get_client()
+    cuatri = utils.get_cuatrimestre(utils.now_utc())
+    pl_id = config.DISTRIBUTION_PLAYLISTS.get(cuatri)
+    if not pl_id:
+        raise HTTPException(400, f"No playlist for cuatri {cuatri}")
+
+    df = database.load_all()
+    df_idx = df.set_index("track_id") if not df.empty else None
+
+    to_remove_mmg: set = set()
+    to_add_mmg: set = set()
+    to_remove_anual: set = set()
+    to_add_anual: set = set()
+    to_save_liked: list = []
+    to_unsave_liked: list = []
+    changes = 0
+
+    for item in items:
+        tid = item.tid
+        new_r = item.rating.upper()
+        old_r = None
+        name, artist, album = item.name, item.artist, item.album
+
+        if df_idx is not None and tid in df_idx.index:
+            row = df_idx.loc[tid]
+            old_r = str(row.get("rating", "") or "").upper().strip() or None
+            if not name:
+                name = row.get("name", "")
+            if not artist:
+                artist = row.get("artist", "")
+            if not album:
+                album = row.get("album", "")
+
+        if old_r == new_r:
+            continue
+        changes += 1
+
+        was_top = bool(old_r and old_r in config.TOP_SET)
+        now_top = new_r in config.TOP_SET
+
+        if was_top and not now_top:
+            to_remove_mmg.add(tid)
+            to_remove_anual.add(tid)
+            to_unsave_liked.append(tid)
+        elif now_top and not was_top:
+            to_add_mmg.add(tid)
+            to_add_anual.add(tid)
+            to_save_liked.append(tid)
+
+        database.upsert_track(tid, name, artist, album, utils.now_utc_str(), new_r)
+
+    # Liked songs sync
+    if to_save_liked:
+        try:
+            already_saved = spotify.are_tracks_saved(sp, to_save_liked)
+            new_likes = [t for t in to_save_liked if not already_saved.get(t)]
+            if new_likes:
+                spotify.save_tracks(sp, new_likes)
+        except Exception:
+            pass
+    if to_unsave_liked:
+        try:
+            spotify.unsave_tracks(sp, to_unsave_liked)
+        except Exception:
+            pass
+
+    # Playlist batch ops
+    if to_remove_mmg:
+        try:
+            spotify.remove_from_playlist(sp, config.DISTRIBUTION_PLAYLISTS["mis_me_gusta"], list(to_remove_mmg))
+        except Exception:
+            pass
+    if to_add_mmg:
+        try:
+            spotify.add_to_playlist(sp, config.DISTRIBUTION_PLAYLISTS["mis_me_gusta"], list(to_add_mmg))
+        except Exception:
+            pass
+    if to_remove_anual:
+        try:
+            spotify.remove_from_playlist(sp, config.DISTRIBUTION_PLAYLISTS["anual"], list(to_remove_anual))
+        except Exception:
+            pass
+    if to_add_anual:
+        try:
+            spotify.add_to_playlist(sp, config.DISTRIBUTION_PLAYLISTS["anual"], list(to_add_anual))
+        except Exception:
+            pass
+
+    # Replace cuatrimestre playlist with new order (A+, A, B+, B, C+ — no C, no D)
+    in_cuatri = set(config.RATINGS_IN_ORDER) - {"C"}
+    new_ids = [item.tid for item in items if item.rating.upper() in in_cuatri]
+    try:
+        spotify.replace_playlist(sp, pl_id, new_ids)
+    except Exception as e:
+        raise HTTPException(500, f"Error reordering playlist: {e}")
+
+    return {"ok": True, "changes_applied": changes}

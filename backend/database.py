@@ -352,3 +352,21 @@ def set_cuatrimestre_override(track_ids: list[str], to_cuatri: str):
         )
         conn.commit()
         cur.close()
+
+
+def get_virtual_state() -> dict:
+    """Return the virtual edit mode state from DB (survives Render restarts)."""
+    import json
+    val = get_config("virtual_state")
+    if not val:
+        return {}
+    try:
+        return json.loads(val)
+    except Exception:
+        return {}
+
+
+def set_virtual_state(state: dict):
+    """Persist virtual edit mode state to DB."""
+    import json
+    set_config("virtual_state", json.dumps(state, ensure_ascii=False))
