@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-05-23 (sesión reordenador in-app + fix bug estado virtual + fronteras visibles)
+
+**Bug fix: estado del Modo Virtual migrado de archivo JSON a MySQL (sobrevive reinicios de Render)**
+**Feature: Reordenador in-app con drag & drop — arrastra canciones entre bloques de rating para cambiar calificación sin tocar Spotify manualmente**
+**UX: Modo Virtual ahora muestra fronteras y cambios detectados con nombres de canciones**
+
+**Backend:**
+- `backend/database.py` — `get_virtual_state()` y `set_virtual_state()`: leen/escriben el estado del modo virtual en la tabla `config` (MySQL) en lugar del archivo `cuatri_virtual_state.json`. Esto corrige el bug donde el estado se perdía en cada reinicio de Render.
+- `backend/routes/virtual.py` — eliminado `STATE_FILE` / `_save_state` / `_load_state`; reemplazados con llamadas a DB. `_boundary_lines` ahora retorna lista de dicts `{pair, upper, lower}` en vez de strings. Nuevos endpoints: `GET /virtual/playlist` (retorna playlist actual del cuatrimestre con ratings e imágenes para el reordenador) y `POST /virtual/reorder` (acepta lista ordenada con ratings, actualiza DB, sincroniza MMG/Anual/Me Gusta, y reemplaza la playlist de Spotify).
+
+**Frontend:**
+- `frontend/src/utils/api.js` — `getVirtualPlaylist()` y `reorderPlaylist(items)`.
+- `frontend/src/pages/ToolsPage.jsx` — Modo Virtual ahora muestra tabla de fronteras (última/primera de cada par de ratings con nombre de canción) y lista de cambios detectados tras simular. Nueva sección "Reordenador": carga la playlist actual, muestra canciones agrupadas por bloques de rating con drag & drop nativo HTML5; arrastrar entre bloques cambia la calificación pendiente (con tachado del rating original visible); al aplicar, actualiza Spotify + DB + Me Gusta en un solo paso. Tracks con rating C quedan fuera de la playlist de Spotify al aplicar (igual que la lógica de rate_track).
+
+Commit: `5cbdb54` → desplegado en Render.
+
+---
+
 ## 2026-05-15 (sesión fixes móvil + preload + PiP layout)
 
 **Features: preload cache, PiP toggle vertical/horizontal, fixes móvil, stats filtradas, recently played como default**
