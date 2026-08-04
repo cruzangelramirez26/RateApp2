@@ -2,6 +2,22 @@
 
 ---
 
+## 2026-08-04 (sesión fix tamaño PiP Now Playing)
+
+**Bug fix: el PiP de Now Playing perdía el tamaño ajustado a mano cada vez que cambiaba la canción**
+
+Sin cambios de backend.
+
+**Frontend:**
+- `frontend/src/components/NavBar.jsx` — el efecto que sincroniza el PiP (`[nowPlaying, isPlaying, isPiPOpen, pipLayout]`) llamaba `resizeTo(w, h)` con el tamaño fijo del layout en **cada** corrida, así que cualquier resize manual se borraba al cambiar de canción o al pausar. Nuevo `appliedLayoutRef` guarda para qué layout ya se aplicó tamaño; el `resizeTo` solo se dispara cuando ese valor difiere del `pipLayout` actual (o sea, solo al tocar el botón ↔/↕).
+- Además el tamaño ahora se recuerda: helpers `loadPipSizes` / `pipSizeFor` / `savePipSize` persisten `{vertical: [w,h], horizontal: [w,h]}` en `localStorage` bajo la clave `rateapp_np_pip_size`. Se guarda desde un listener `resize` de la ventana PiP (debounce 400 ms), al cerrar el PiP, y al cambiar de layout (bajo el layout que se está dejando). `requestWindow` usa el tamaño guardado del layout; si no hay o es inválido (<200×120), cae al default de siempre (300×420 vertical, 420×190 horizontal).
+
+Nota: no se pudo verificar con `vite build` — `frontend/node_modules` no está instalado en esta máquina (laptop). Validación por revisión de diff.
+
+Commit: `6248d42` → desplegado en Render.
+
+---
+
 ## 2026-05-23 (sesión reordenador in-app + fix bug estado virtual + fronteras visibles)
 
 **Bug fix: estado del Modo Virtual migrado de archivo JSON a MySQL (sobrevive reinicios de Render)**
