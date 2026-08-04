@@ -17,6 +17,38 @@ const NAV_LINKS = [
   { to: '/tools',     end: false, icon: Wrench,    label: 'Herramientas' },
 ];
 
+const PIP_DEFAULT_SIZE = { vertical: [300, 420], horizontal: [420, 190] };
+const PIP_SIZE_KEY = 'rateapp_np_pip_size';
+const PIP_MIN_W = 200;
+const PIP_MIN_H = 120;
+
+function loadPipSizes() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PIP_SIZE_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch { return {}; }
+}
+
+function pipSizeFor(layout) {
+  const saved = loadPipSizes()[layout];
+  if (Array.isArray(saved) && saved.length === 2 &&
+      Number.isFinite(saved[0]) && Number.isFinite(saved[1]) &&
+      saved[0] >= PIP_MIN_W && saved[1] >= PIP_MIN_H) {
+    return saved;
+  }
+  return PIP_DEFAULT_SIZE[layout] || PIP_DEFAULT_SIZE.vertical;
+}
+
+function savePipSize(layout, w, h) {
+  if (!layout) return;
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < PIP_MIN_W || h < PIP_MIN_H) return;
+  try {
+    const sizes = loadPipSizes();
+    sizes[layout] = [Math.round(w), Math.round(h)];
+    localStorage.setItem(PIP_SIZE_KEY, JSON.stringify(sizes));
+  } catch {}
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -169,6 +201,8 @@ export default function NavBar() {
   const nowPlayingRef = useRef(null);
   const isPlayingRef = useRef(false);
   const pipLayoutRef = useRef('vertical');
+  const appliedLayoutRef = useRef(null);   // layout cuyo tamaño ya se aplicó a la ventana
+  const sizeSaveTimerRef = useRef(null);
   const handleRateRef = useRef(null);
   const handleToggleRef = useRef(null);
   const handleNextRef = useRef(null);
@@ -264,6 +298,16 @@ export default function NavBar() {
   }, [fetchNowPlaying]);
 
   const handleToggleLayout = useCallback(() => {
+    // Guarda el tamaño actual bajo el layout que se está dejando
+    const pip = pipWindowRef.current;
+    if (pip && !pip.closed) {
+      clearTimeout(sizeSaveTimerRef.current);
+      savePipSize(
+        appliedLayoutRef.current,
+        pip.outerWidth  || pip.innerWidth,
+        pip.outerHeight || pip.innerHeight,
+      );
+    }
     setPipLayout(prev => {
       const next = prev === 'vertical' ? 'horizontal' : 'vertical';
       pipLayoutRef.current = next;
@@ -277,13 +321,19 @@ export default function NavBar() {
   handlePrevRef.current         = handlePrev;
   handleToggleLayoutRef.current = handleToggleLayout;
 
-  // Keep PiP in sync when track, play state, or layout changes
+  // Keep PiP in sync when track, play state, or layout changes.
+  // El resize SOLO se aplica cuando cambia el layout — si se hiciera en cada
+  // cambio de canción se perdería el tamaño que el usuario ajustó a mano.
   useEffect(() => {
-    if (isPiPOpen && pipWindowRef.current && !pipWindowRef.current.closed) {
-      const [w, h] = pipLayout === 'horizontal' ? [420, 190] : [300, 420];
-      try { pipWindowRef.current.resizeTo(w, h); } catch {}
-      renderNowPlayingPiP(pipWindowRef.current, nowPlayingRef.current, isPlayingRef.current, pipLayout);
-      rewirePiP(pipWindowRef.current);
+    const pip = pipWindowRef.current;
+    if (isPiPOpen && pip && !pip.closed) {
+      if (appliedLayoutRef.current !== pipLayout) {
+        const [w, h] = pipSizeFor(pipLayout);
+        try { pip.resizeTo(w, h); } catch {}
+        appliedLayoutRef.current = pipLayout;
+      }
+      renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current, pipLayout);
+      rewirePiP(pip);
     }
   }, [nowPlaying, isPlaying, isPiPOpen, pipLayout, rewirePiP]);
 
@@ -291,14 +341,22 @@ export default function NavBar() {
     if (!('documentPictureInPicture' in window)) return;
 
     if (pipWindowRef.current && !pipWindowRef.current.closed) {
-      pipWindowRef.current.close();
+      const openPip = pipWindowRef.current;
+      clearTimeout(sizeSaveTimerRef.current);
+      savePipSize(
+        appliedLayoutRef.current,
+        openPip.outerWidth  || openPip.innerWidth,
+        openPip.outerHeight || openPip.innerHeight,
+      );
+      openPip.close();
       pipWindowRef.current = null;
+      appliedLayoutRef.current = null;
       setIsPiPOpen(false);
       return;
     }
 
     try {
-      const [initW, initH] = pipLayoutRef.current === 'horizontal' ? [420, 190] : [300, 420];
+      const [initW, initH] = pipSizeFor(pipLayoutRef.current);
       const pip = await window.documentPictureInPicture.requestWindow({
         width: initW,
         height: initH,
@@ -313,10 +371,31 @@ export default function NavBar() {
       renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current, pipLayoutRef.current);
 
       pipWindowRef.current = pip;
+      appliedLayoutRef.current = pipLayoutRef.current;
       setIsPiPOpen(true);
 
+      // Recuerda el tamaño que el usuario deja (debounce para no escribir en cada frame)
+      const rememberSize = () => {
+        clearTimeout(sizeSaveTimerRef.current);
+        sizeSaveTimerRef.current = setTimeout(() => {
+          savePipSize(
+            appliedLayoutRef.current,
+            pip.outerWidth  || pip.innerWidth,
+            pip.outerHeight || pip.innerHeight,
+          );
+        }, 400);
+      };
+      pip.addEventListener('resize', rememberSize);
+
       pip.addEventListener('pagehide', () => {
+        clearTimeout(sizeSaveTimerRef.current);
+        savePipSize(
+          appliedLayoutRef.current,
+          pip.outerWidth  || pip.innerWidth,
+          pip.outerHeight || pip.innerHeight,
+        );
         pipWindowRef.current = null;
+        appliedLayoutRef.current = null;
         setIsPiPOpen(false);
       });
     } catch { /* user cancelled or browser unsupported */ }
