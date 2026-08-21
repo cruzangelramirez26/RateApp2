@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Music, RefreshCw, PictureInPicture2, List, Square } from 'lucide-react';
 import { api } from '../utils/api';
+import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -103,6 +104,7 @@ export default function PendingPage() {
   const [isPiPOpen, setIsPiPOpen] = useState(false);
   const [skippedIds, setSkippedIds] = useState(new Set());
   const [viewMode, setViewMode] = useState('individual'); // 'individual' | 'lista'
+  const [calificarId, setCalificarId] = useState(null);   // id de la playlist <3333
   const toast = useToast();
 
   const pipWindowRef = useRef(null);
@@ -127,6 +129,14 @@ export default function PendingPage() {
   }, [toast]);
 
   useEffect(() => { fetchTracks(); }, [fetchTracks]);
+
+  // Id de <3333> para poder linkear la canción DENTRO de la playlist.
+  // App.jsx ya primea 'distribution', así que normalmente sale de cache.
+  useEffect(() => {
+    preloadCache.load('distribution', api.getDistribution)
+      .then(dist => setCalificarId(dist?.calificar ?? null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -300,7 +310,9 @@ export default function PendingPage() {
               <div className="pending-track-album">{currentTrack.album}</div>
             )}
             <a
-              href={`https://open.spotify.com/track/${currentTrack.id}`}
+              href={calificarId
+                ? `https://open.spotify.com/playlist/${calificarId}?highlight=spotify:track:${currentTrack.id}`
+                : `https://open.spotify.com/track/${currentTrack.id}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -313,7 +325,7 @@ export default function PendingPage() {
                 width: 8, height: 8, borderRadius: '50%',
                 background: 'var(--accent)', display: 'inline-block',
               }} />
-              Open in Spotify
+              {calificarId ? 'Abrir en <3333' : 'Open in Spotify'}
             </a>
           </div>
 

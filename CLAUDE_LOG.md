@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-08-20 (sesión link contextual a <3333>)
+
+**Feature: el link "Open in Spotify" de la canción focal de Pending ahora abre la playlist `<3333>` posicionada en esa canción, no la página aislada del track**
+
+Sin cambios de backend — `GET /playlists/distribution` ya expone el id de `calificar`.
+
+**Frontend:**
+- `frontend/src/pages/PendingPage.jsx` — el link apuntaba a `open.spotify.com/track/{id}`, que abre el track sin contexto de playlist (nunca se implementó el contexto, no era un bug). Ahora construye `open.spotify.com/playlist/{calificar}?highlight=spotify:track:{id}`. El id de la playlist se obtiene con `preloadCache.load('distribution', api.getDistribution)` — `App.jsx` ya primea esa key, así que sale de cache. Si el id no está disponible cae al link de track de siempre; el label también cambia (`Abrir en <3333` vs `Open in Spotify`).
+
+Nota: el link solo *abre* la playlist, no reproduce, así que no dispara shuffle. Si el shuffle está prendido en Spotify y se le da play a mano, el orden sí se revuelve — queda anotado en `Mejoras.txt` un endpoint opcional de shuffle-off y el botón de "reproducir en contexto" vía `start_playback(context_uri=...)`.
+
+También se creó `Mejoras.txt` con el backlog acordado: (1) link/play contextual, (2) modo oscuro con toggle + preferencia del sistema, (3) reescritura del PiP como React real con barra de progreso y seek, (4) hosting que no se duerma, (5) apps nativas con Tauri (Windows) y Capacitor (Android).
+
+Verificación: `frontend/node_modules` sigue sin instalar en esta laptop, así que no hubo `vite build`. Se validó con parse de esbuild (`PendingPage.jsx`, `NavBar.jsx`, `App.jsx` → OK) y revisión de diff.
+
+Commit: `2bcef67` → desplegado en Render.
+
+---
+
 ## 2026-08-04 (sesión fix tamaño PiP Now Playing)
 
 **Bug fix: el PiP de Now Playing perdía el tamaño ajustado a mano cada vez que cambiaba la canción**
