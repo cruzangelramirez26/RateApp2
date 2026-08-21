@@ -1,6 +1,6 @@
 # RateApp — Arquitectura
 
-> Documento de referencia técnica. Última revisión: **2026-08-20**, contra el código en `main` (commit `7ab8893`).
+> Documento de referencia técnica. Última revisión: **2026-08-20**, contra el código en `main` (commit `cd1d37d`).
 > El *changelog* de sesiones vive en [`CLAUDE_LOG.md`](CLAUDE_LOG.md); el backlog en [`Mejoras.txt`](Mejoras.txt).
 
 ---
@@ -41,12 +41,12 @@ Una app de un solo usuario (Angel) para calificar canciones de Spotify con una e
                     │  └──────┬────────────────┬──────────┘  │
                     └─────────┼────────────────┼─────────────┘
                               │                │
-                   ┌──────────▼──────┐  ┌──────▼───────────────┐
-                   │  MySQL externo  │  │  Spotify Web API     │
-                   │  tablas:        │  │  (vía spotipy)       │
-                   │   tracks        │  │  OAuth Authorization │
-                   │   config        │  │  Code + refresh      │
-                   └─────────────────┘  └──────────────────────┘
+                   ┌──────────▼───────┐ ┌──────▼───────────────┐
+                   │  TiDB Cloud      │ │  Spotify Web API     │
+                   │  (MySQL 8.0)     │ │  (vía spotipy)       │
+                   │  tablas:         │ │  OAuth Authorization │
+                   │   tracks, config │ │  Code + refresh      │
+                   └──────────────────┘ └──────────────────────┘
 ```
 
 **Un solo contenedor sirve todo.** El `Dockerfile` es multi-stage: compila el frontend con Node 20, copia el `dist/` resultante a `backend/static/`, y FastAPI lo monta en `/` con `StaticFiles(html=True)`. No hay CDN, no hay servidor web separado, no hay build de frontend en runtime.
@@ -99,12 +99,15 @@ RateApp/
     │   └── portadas/       # imágenes de cada cuatrimestre por año
     └── src/
         ├── App.jsx         # auth gate + router + preload de caches
-        ├── components/     # NavBar (sidebar+tabbar+PiP), TrackCard, RatingButtons, SearchBar, LoadingSkeleton
+        ├── components/     # NavBar (sidebar+tabbar+PiP), ThemeToggle, TrackCard,
+        │                   #   RatingButtons, SearchBar, LoadingSkeleton
         ├── pages/          # Pending, Library, Recent, Stats, Tools, Login
-        ├── hooks/useToast.jsx
+        ├── hooks/useToast.jsx   # toasts
+        ├── hooks/useTheme.jsx   # ThemeProvider + useTheme()
         ├── utils/api.js         # cliente HTTP único
         ├── utils/preloadCache.js# cache de sesión en memoria
-        └── styles/global.css    # design system completo (~1300 líneas)
+        ├── utils/theme.js       # tokens del tema, helpers de rating, CSS para el PiP
+        └── styles/global.css    # design system completo (~1400 líneas)
 ```
 
 ---
@@ -161,7 +164,7 @@ Si no cumple ninguna de las dos, es **histórica**. La consecuencia práctica: *
 
 ## 6. Base de datos
 
-MySQL externo, dos tablas, creadas y migradas en el `lifespan` de FastAPI (`database.ensure_table()` + `ensure_config_table()`). No hay Alembic ni ORM: las migraciones son `information_schema` + `ALTER TABLE` a mano.
+**TiDB Cloud Serverless** (free tier, región `us-east-1`), hablado por protocolo MySQL 8.0. Dos tablas, creadas y migradas en el `lifespan` de FastAPI (`database.ensure_table()` + `ensure_config_table()`). No hay Alembic ni ORM: las migraciones son `information_schema` + `ALTER TABLE` a mano.
 
 ### `tracks`
 
@@ -186,6 +189,12 @@ Un simple `key`/`value` de texto. Es la respuesta a un problema concreto: **el f
 ### Acceso
 
 `pooling.MySQLConnectionPool(pool_size=5, use_pure=True, autocommit=False)`, expuesto por el context manager `get_conn()`. `load_all()` devuelve la tabla completa como DataFrame y es la base de casi toda la lógica.
+
+Tres cosas que conviene saber del proveedor:
+
+- **Es compatible con MySQL, no es MySQL.** Las migraciones por `information_schema` funcionan, pero no conviene apoyarse en comportamientos exóticos del motor.
+- **Exige TLS.** Nunca hubo que configurarlo porque `mysql-connector-python` lo negocia por default; si alguien pusiera `ssl_disabled`, la conexión se cae.
+- **La región importa más de lo que parece.** La DB está en `us-east-1` (Virginia). Como `load_all()` jala la tabla completa en casi cada operación, si el web service de Render vive en otra región cada query cruza el continente y la latencia se multiplica por el número de queries. Vale la pena confirmar la región del servicio en Render y, si no coincide, recrearlo en Virginia. Es probablemente la mejora de rendimiento más barata disponible.
 
 ---
 
@@ -294,7 +303,7 @@ SECRET_KEY  FRONTEND_URL  PORT
 CALIFICAR_PLAYLIST_ID  PL_PERLA  PL_MIEL  PL_LATTE  PL_MMG  PL_ANUAL  PL_MAREA_ARCHIVO
 ```
 
-> ⚠️ `.env.example` trae el comentario `# MySQL (AWS RDS)`. **Es incorrecto** — no hay nada en AWS. El MySQL está en un proveedor gratuito por identificar; el `MYSQL_HOST` real solo existe en las variables de entorno de Render y su hostname delatará cuál es.
+> `MYSQL_HOST` es `gateway01.us-east-1.prod.aws.tidbcloud.com`: **TiDB Cloud Serverless**, free tier. El `aws` del hostname es la infraestructura de TiDB, no una cuenta de AWS propia. El comentario `# MySQL (AWS RDS)` que traía `.env.example` era falso y ya se corrigió.
 
 No existe `.env` en ninguna de las dos máquinas de desarrollo: la configuración real vive únicamente en Render.
 
@@ -346,7 +355,8 @@ En dev el frontend corre en `:5173` y el proxy de Vite manda `/auth`, `/tracks`,
 
 - **`api.js` es el único punto de red.** Ningún componente hace `fetch` directo. Los errores llegan como `Error("<status>: <body>")`, así que el frontend hace `JSON.parse` del mensaje para sacar el `detail` de FastAPI.
 - **`preloadCache.js`** es un cache de sesión en memoria (se pierde al recargar). `prime()` dispara el fetch en background y `load()` reutiliza, espera lo que esté en vuelo, o va fresco. `App.jsx` precalienta `likedAll`, `recent`, `recentlyPlayed` y `distribution`, y esa última a su vez precalienta cada playlist por chip.
-- **Design system en CSS puro.** Todo son custom properties en `:root` en `global.css`. Los 7 colores de rating están duplicados como constante JS (`RATING_COLORS`) en los componentes que dibujan PiP, porque ahí se escriben estilos inline.
+- **Design system en CSS puro.** Todo son custom properties en `:root` en `global.css`, más un bloque `:root[data-theme="dark"]` que solo redefine tokens. El modo elegido (`light` | `dark` | `system`) vive en `localStorage`; lo que se escribe al DOM es siempre el tema *resuelto*, primero por un script inline en `index.html` antes del primer paint y después por `useTheme`. Los colores de rating se consumen desde JSX con `ratingColor()` / `ratingDim()` / `ratingSoft()` (`utils/theme.js`), que devuelven referencias `var(...)` — no hay hex duplicado entre CSS y JS.
+- **Los documentos de PiP no heredan custom properties.** `pipThemeCss()` lee los tokens ya resueltos y los inyecta como un `:root` propio en la ventana del PiP; al cambiar de tema se reescribe esa hoja y se redibuja.
 - **Mobile-first con dos renders separados.** `NavBar` dibuja tab bar (móvil) *y* sidebar (desktop), controlados por media queries a 768px. Varias páginas hacen lo mismo.
 - **Los PiP se dibujan con strings de HTML.** `documentPictureInPicture` + `innerHTML` reescrito completo en cada poll de 5 s. Funciona, pero parpadea, pierde el foco y hace imposible animar. Hay dos implementaciones casi duplicadas (`NavBar.jsx` y `PendingPage.jsx`). **Está agendada su reescritura como React real** — ver `Mejoras.txt` punto 3.
 - **Polling, no websockets.** El Now Playing se consulta cada 5 s. No hay estado en tiempo real en ninguna parte.
@@ -406,12 +416,11 @@ En dev el frontend corre en `:5173` y el proxy de Vite manda `/auth`, `/tracks`,
 | 2 | **Render free duerme** | 30–60 s en el primer request. Backlog punto 4 |
 | 3 | **PiP con `innerHTML`** | Parpadea, no se puede animar, y hay dos copias del mismo código. Backlog punto 3 |
 | 4 | **`CLAUDE.md` desactualizado** en la tabla de acciones de `rate_track` | Ver §8.1. Documentación que miente es peor que no tenerla |
-| 5 | **`.env.example` dice AWS RDS** y es falso | Ver §9 |
-| 6 | **Sin tests, de ningún tipo** | La única verificación es `npm run build` y probar a mano. En una función tan ramificada como `rate_track`, esto es el riesgo real |
-| 7 | **`load_all()` carga la tabla completa** en cada operación | Aceptable hoy; es el primer cuello de botella cuando crezca |
-| 8 | **IDs de playlist hardcoded** con default en el código | Si alguna se borra en Spotify, el fallo aparece como un `except: pass` silencioso |
-| 9 | **Colores de rating duplicados** entre CSS y JS | Cambiar la paleta obliga a tocar los dos lados. Va a doler al implementar el modo oscuro |
-| 10 | **`railway.json` es un vestigio** | Ya no se despliega en Railway. Confunde |
+| 5 | **Sin tests, de ningún tipo** | La única verificación es `npm run build` y probar a mano. En una función tan ramificada como `rate_track`, esto es el riesgo real |
+| 6 | **`load_all()` carga la tabla completa** en cada operación | Aceptable hoy; es el primer cuello de botella cuando crezca |
+| 7 | **IDs de playlist hardcoded** con default en el código | Si alguna se borra en Spotify, el fallo aparece como un `except: pass` silencioso |
+| 8 | **`railway.json` es un vestigio** | Ya no se despliega en Railway. Confunde |
+| 9 | **Región de Render vs. región de la DB** | Si no coinciden, cada query cruza el continente. Ver §6 |
 
 ---
 
