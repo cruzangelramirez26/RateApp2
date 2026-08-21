@@ -245,7 +245,73 @@ sobre 12 A; bajarlo mas es trabajo de 6b, no de calibrar la ventana.
 un reorder — calificar una cancion, o los botones de Herramientas. Angel puede
 forzarlo con "Ordenar" / "Reconstruir Galeria".
 
-Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `58fb493` (pausa), `efd71e1` (orden).
+**Cierre de sesion — la causa real del A+ inflado, dicha por Angel.**
+
+Al final de la sesion Angel explico el origen de la densidad de A+, y descarta
+la hipotesis del "A+ Instantaneo" que se habia planteado con los agregados:
+
+  "me malacostumbre a ponerlas en a+ solo porque las queria mero arriba"
+
+No fue un bulk ni un cambio de criterio: era un **workaround del propio bug del
+orden**. A+ era la unica palanca que existia para subir una cancion, asi que la
+uso como boton de "ponme esto arriba". Eso explica que el salto sea de 2026 y
+no gradual, y que el ratio A+/A se vaya a 7 justo ahi.
+
+Dos consecuencias, las dos buenas, y las dos anotadas en `Mejoras.txt` §6b:
+
+1. **La densidad deberia dejar de crecer sola.** Con el bloque de novedades el
+   incentivo desaparecio. Antes de planear cualquier cupo hay que **medir el
+   ratio A+/A al cierre del proximo cuatrimestre**. Si baja a los ~2 de 2025,
+   6b se cierra casi solo. El escenario "solo hacia adelante" pasa de ultimo
+   recurso a primera opcion.
+2. **Lo historico deja de ser doloroso.** No es "degrada canciones que juzgaste
+   A+", es "deshaz un workaround que tu mismo llamas mala costumbre". Quedo
+   escrito que 6b **no** se vuelva a plantear como cupo duro ni como
+   revalidacion dolorosa.
+
+Se corrigio tambien la memoria `project-aplus-saturacion`, que ya iba por la
+hipotesis equivocada.
+
+**Por que Angel no vio cambio en las playlists.** Dos razones, y la primera
+bloquea todo:
+
+1. Su sesion de Spotify estaba muerta — `/tracks/now-playing` devolvia 500. Los
+   redeploys de hoy (cuatro) borraron el `.spotify_cache` cada vez. Sin token no
+   se puede escribir en Spotify.
+2. El orden nuevo **no se aplica solo**: entra cuando algo dispara un reorder.
+   Las 295 canciones que ya estaban en Galeria Anual siguen con el orden que
+   Spotify tiene guardado.
+
+Se le indico: re-login, y luego en Herramientas apretar **"Ordenar Galeria
+Anual"** (`orderPlaylist(dist.anual, 4)`) y **"Ordenar Miel"**. Se aclaro que
+"Ordenar" basta y que "Reconstruir" no hace falta para esto. Aviso dado: si esta
+escuchando esa playlist mientras se reordena, Spotify salta de posicion.
+
+**PENDIENTE PARA LA PROXIMA SESION** (en orden de valor):
+
+- [ ] **El token de Spotify a MySQL.** Es la deuda que mas molesto hoy: tumbo la
+      sesion de Angel cuatro veces, una por redeploy, y fue lo que impidio ver
+      el orden nuevo funcionando al final. `backend/spotify.py:29` usa
+      `cache_path=".spotify_cache"` y el filesystem de Render es efimero. El
+      patron ya existe dos veces en el proyecto (`aplus_cutoff` y el estado del
+      Modo Virtual viven en la tabla `config`), asi que es un `CacheHandler` de
+      spotipy leyendo y escribiendo ahi. Nada mas.
+- [ ] Confirmar que el orden nuevo se ve bien en Spotify una vez que Angel
+      apriete "Ordenar". Lo unico que no se pudo verificar en vivo esta sesion.
+- [ ] Endpoint de solo lectura que liste tracks desde la DB sin token de
+      Spotify. Hoy `/tracks/stats` solo da agregados, y por eso no se pudo saber
+      **cuales** A+ son candidatas a revisar.
+- [ ] Medir el ratio A+/A al cierre del cuatrimestre, antes de tocar 6b.
+
+**Nota de proceso:** a mitad de sesion `Mejoras.txt` aparecio modificado en el
+working tree despues de un commit, con la seccion 6 reescrita. No fue OneDrive
+pisando el archivo — las ediciones de esta sesion quedaron intactas, o sea quien
+escribio tenia esta version en mano. Editor concurrente (otra sesion o Angel).
+No se perdio nada y se preservo tal cual, pero conviene tenerlo presente: el
+repo vive en OneDrive y Angel trabaja en dos maquinas.
+
+Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA),
+`58fb493` (pausa), `efd71e1` (orden), `9b37c66` (causa real del A+).
 
 ---
 
