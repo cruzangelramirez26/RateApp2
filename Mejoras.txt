@@ -40,6 +40,9 @@ strings de HTML + innerHTML reescrito completo en cada poll de 5s → parpadeo,
 pierde hover/foco, imposible animar.
 - [ ] Reescribir como React real (createPortal al documento del PiP + hoja CSS
       inyectada). Sin innerHTML.
+      NOTA: parte del camino ya está hecho por el modo oscuro — pipThemeCss()
+      inyecta los tokens en el documento del PiP y el HTML ya usa var(...) en
+      lugar de hex, así que el componente nuevo puede usar clases CSS normales.
 - [ ] Barra de progreso con seek: exponer progress_ms / duration_ms en
       /tracks/now-playing (Spotify ya los manda, hoy se descartan) + endpoint seek.
       Interpolación local cada segundo para que se vea fluida entre polls.
@@ -61,8 +64,14 @@ Render free duerme el servicio tras ~15 min sin tráfico (arranque frío 30–60
 - [ ] Alternativa: Oracle Cloud Always Free (VM ARM) — nunca duerme, pero
       administras VM (docker, nginx, TLS, updates).
 - Fly.io / Railway ya no tienen tier gratuito real (~$2–5/mes).
-- PENDIENTE DE CONFIRMAR: ¿dónde está hospedado el MySQL? Pesa más que el compute
-  para decidir a dónde mover el backend (latencia).
+- MySQL: CONFIRMADO. Es TiDB Cloud Serverless (free tier), región us-east-1
+  (Virginia). Host: gateway01.us-east-1.prod.aws.tidbcloud.com. El free tier
+  sobra para un usuario; el problema es Render, no la DB.
+- [ ] PRIMERO ESTO, es gratis y rápido: verificar en qué región está el web
+      service de Render. Si no es Virginia/us-east, cada query cruza el
+      continente — y load_all() jala la tabla completa en casi cada operación,
+      así que la latencia se multiplica por el número de queries de cada acción.
+      Si no coincide, recrear el servicio en Virginia.
 
 ## 5. Apps nativas
 - [ ] Windows con Tauri v2 (instalador ~8MB, WebView2). Ganancia real: ventana
@@ -74,6 +83,15 @@ Render free duerme el servicio tras ~15 min sin tráfico (arranque frío 30–60
   así que el punto 4 no desaparece.
 - BLOQUEO ACTUAL: frontend/node_modules no está instalado en esta laptop; sin Node
   no se puede compilar ni verificar nada de esto.
+
+## Decisiones chicas sin resolver
+- [ ] `frontend/package-lock.json` existe en la PC desde el `npm install` del
+      2026-08-20 pero NO está versionado. Versionarlo congela versiones y hace
+      los builds de Render reproducibles (el Dockerfile ya lo copia si existe:
+      `COPY frontend/package.json frontend/package-lock.json* ./`). Contra: el
+      primer build tras agregarlo puede resolver árbol distinto al de hoy.
+      Falta el visto bueno de Angel.
+- [ ] `railway.json` es un vestigio: ya no se despliega en Railway. ¿Se borra?
 
 ## Ideas viejas que siguen abiertas
 - Vista Play en el chip <3333 de Biblioteca (toggle lista/play, una canción a la

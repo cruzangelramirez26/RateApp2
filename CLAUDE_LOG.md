@@ -31,6 +31,8 @@ Sin cambios de backend.
 
 Commit: `cd1d37d`.
 
+**Cierre de sesión.** Angel confirmó `MYSQL_HOST` = `gateway01.us-east-1.prod.aws.tidbcloud.com`: es **TiDB Cloud Serverless** (free tier), no AWS RDS de él — el `aws` del hostname es la infraestructura de TiDB. Se documentó en `ARQUITECTURA.md` §6 y §9, con las tres consecuencias prácticas: es compatible con MySQL pero no es MySQL, exige TLS (lo negocia solo el conector), y la región `us-east-1` importa porque `load_all()` jala la tabla completa en casi cada operación. Se agregó fila de deuda por la posible discordancia de región Render/DB, y se quitaron las dos filas ya resueltas (el comentario falso de `.env.example` y los colores duplicados CSS/JS). Commit: `5ffb7b0`.
+
 ---
 
 ## 2026-08-20 (sesión 2 — limpieza del botón + ARQUITECTURA.md)
