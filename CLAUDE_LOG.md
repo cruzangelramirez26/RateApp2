@@ -90,7 +90,7 @@ del Modo Virtual viven en la tabla `config` — asi que lo natural es un
 es prerrequisito para cualquier migracion futura a Cloud Run o a algo con mas de
 una instancia, donde el problema **empeora** en vez de quedarse igual.
 
-Commits: `782220f` (ping), `65fe434` (log), `PENDIENTE` (fallback SPA).
+Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA).
 
 ---
 
