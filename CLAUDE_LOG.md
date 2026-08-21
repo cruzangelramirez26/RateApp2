@@ -13,6 +13,19 @@ Sin cambios de backend — `GET /playlists/distribution` ya expone el id de `cal
 
 **Seguimiento (misma sesión):** el link visible ahora usa el esquema `spotify:` en vez de `https://open.spotify.com`, para que abra la **app instalada** (desktop y móvil) en lugar del web player. Helpers nuevos `spotifyAppUri()` / `spotifyWebUrl()` en el mismo archivo. El link de app va **sin** `target="_blank"` a propósito: el protocol handler se dispara y la pestaña actual no se mueve (con `_blank` quedaría una pestaña en blanco). Junto a él queda un link chico `web ↗` con la URL https, por si la app no está instalada. Si el cliente de escritorio no acepta el `?highlight=` en el URI, basta con quitar el query param y queda `spotify:playlist:{id}`.
 
+**Seguimiento 2 (misma sesión): reproducir en contexto en vez de solo resaltar.**
+
+Backend:
+- `backend/spotify.py` — scope `user-read-playback-state` agregado (lo necesita `sp.devices()`). No cuesta re-login extra: el `.spotify_cache` se borra en cada redeploy de todos modos.
+- `backend/models.py` — modelo `PlayContextRequest` (`track_id`, `playlist_id` opcional → default `<3333>`, `shuffle_off=True`).
+- `backend/routes/tracks.py` — `POST /tracks/player/play-in-context`: apaga shuffle, luego `start_playback(context_uri="spotify:playlist:{id}", offset={"uri": "spotify:track:{tid}"})`. Al reproducir con contexto de playlist, lo que sigue es la siguiente canción de `<3333>` y no el radio de Spotify. Helper `_resolve_device_id()`: si el primer intento falla con `NO_ACTIVE_DEVICE` (típico cuando Spotify está abierto pero idle), lista dispositivos, prefiere el activo o toma el primero, y reintenta con `device_id` explícito. Si no hay ninguno, devuelve 400 con mensaje legible en español. Reintenta el `shuffle(False)` después de arrancar, porque sin contexto activo Spotify a veces ignora el toggle.
+
+Frontend:
+- `frontend/src/utils/api.js` — `playInContext(trackId, playlistId, shuffleOff)`.
+- `frontend/src/pages/PendingPage.jsx` — botón primario `▶ Reproducir en <3333` en la canción focal, con estado `playing` para evitar dobles clics y toast con el `detail` del backend cuando falla. Los links pasaron a secundarios: `abrir app ↗` (esquema `spotify:`) y `web ↗`.
+
+Verificación: `npm install` corrido en esta laptop (antes no había `node_modules`), `npm run build` pasa (1582 módulos, 6.95s). Backend verificado importando `routes.tracks` — las 5 rutas de player registradas, el modelo instancia con sus defaults y el scope nuevo aparece en `SCOPE`.
+
 Nota: el link solo *abre* la playlist, no reproduce, así que no dispara shuffle. Si el shuffle está prendido en Spotify y se le da play a mano, el orden sí se revuelve — queda anotado en `Mejoras.txt` un endpoint opcional de shuffle-off y el botón de "reproducir en contexto" vía `start_playback(context_uri=...)`.
 
 También se creó `Mejoras.txt` con el backlog acordado: (1) link/play contextual, (2) modo oscuro con toggle + preferencia del sistema, (3) reescritura del PiP como React real con barra de progreso y seek, (4) hosting que no se duerma, (5) apps nativas con Tauri (Windows) y Capacitor (Android).

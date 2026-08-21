@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Music, RefreshCw, PictureInPicture2, List, Square } from 'lucide-react';
+import { Music, RefreshCw, PictureInPicture2, List, Square, Play } from 'lucide-react';
 import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
@@ -122,6 +122,7 @@ export default function PendingPage() {
   const [skippedIds, setSkippedIds] = useState(new Set());
   const [viewMode, setViewMode] = useState('individual'); // 'individual' | 'lista'
   const [calificarId, setCalificarId] = useState(null);   // id de la playlist <3333
+  const [playing, setPlaying] = useState(false);          // request de play en vuelo
   const toast = useToast();
 
   const pipWindowRef = useRef(null);
@@ -205,6 +206,23 @@ export default function PendingPage() {
         prev.map(t => t.id === track.id ? { ...t, rating: track.rating } : t)
       );
       toast(`Error: ${err.message}`, 'error');
+    }
+  };
+
+  const handlePlayInContext = async (track) => {
+    if (!track || playing) return;
+    setPlaying(true);
+    try {
+      await api.playInContext(track.id, calificarId);
+      toast(`▶ ${track.name} en <3333`, 'success');
+    } catch (err) {
+      // El backend manda el motivo real (sin dispositivo / sin Premium)
+      const msg = String(err.message || '').replace(/^\d+:\s*/, '');
+      let detail = msg;
+      try { detail = JSON.parse(msg).detail || msg; } catch {}
+      toast(detail, 'error');
+    } finally {
+      setPlaying(false);
     }
   };
 
@@ -330,21 +348,33 @@ export default function PendingPage() {
               display: 'flex', alignItems: 'center', gap: '10px',
               marginTop: '10px', flexWrap: 'wrap',
             }}>
+              {/* Reproduce dentro de <3333> (shuffle off) vía API */}
+              <button
+                className="btn btn-sm"
+                onClick={() => handlePlayInContext(currentTrack)}
+                disabled={playing}
+                title="Reproducir dentro de <3333, con shuffle apagado"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  color: 'var(--accent)', borderColor: 'var(--accent)',
+                  fontWeight: 600, opacity: playing ? 0.5 : 1,
+                }}
+              >
+                <Play size={13} />
+                {calificarId ? 'Reproducir en <3333' : 'Reproducir'}
+              </button>
+
               {/* App instalada — sin target="_blank": el protocol handler
                   se dispara y la pestaña actual no se mueve */}
               <a
                 href={spotifyAppUri(currentTrack.id, calificarId)}
+                title="Abrir la app de Spotify en esta canción"
                 style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  color: 'var(--accent)', fontSize: '0.82rem', fontWeight: 600,
-                  textDecoration: 'none',
+                  color: 'var(--text-secondary)', fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono)', textDecoration: 'none',
                 }}
               >
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: 'var(--accent)', display: 'inline-block',
-                }} />
-                {calificarId ? 'Abrir en <3333' : 'Abrir en Spotify'}
+                abrir app ↗
               </a>
 
               {/* Respaldo: web player, por si la app no está instalada */}

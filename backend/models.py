@@ -70,3 +70,10 @@ class AplusApplyRequest(BaseModel):
 class MigrateRequest(BaseModel):
     track_ids: list[str]
     to_cuatrimestre: str
+
+
+class PlayContextRequest(BaseModel):
+    """Reproducir un track DENTRO del contexto de una playlist."""
+    track_id: str
+    playlist_id: Optional[str] = None   # default: <3333>
+    shuffle_off: bool = True            # apaga shuffle para respetar el orden

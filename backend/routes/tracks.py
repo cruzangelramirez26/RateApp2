@@ -8,7 +8,10 @@ import database
 import spotify
 import config
 import utils
-from models import RateRequest, TrackOut, StatsOut, AplusApplyRequest, MigrateRequest
+from models import (
+    RateRequest, TrackOut, StatsOut, AplusApplyRequest, MigrateRequest,
+    PlayContextRequest,
+)
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
 
@@ -111,6 +114,78 @@ def player_play():
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True}
+
+
+def _resolve_device_id(sp) -> Optional[str]:
+    """
+    Devuelve un device_id usable. Spotify rechaza start_playback con
+    NO_ACTIVE_DEVICE cuando la app está abierta pero idle; pasarle el device
+    explícitamente lo revive. Prefiere el activo, si no el primero disponible.
+    """
+    try:
+        devices = (sp.devices() or {}).get("devices") or []
+    except Exception:
+        return None
+    if not devices:
+        return None
+    for d in devices:
+        if d.get("is_active"):
+            return d.get("id")
+    return devices[0].get("id")
+
+
+@router.post("/player/play-in-context")
+def player_play_in_context(req: PlayContextRequest):
+    """
+    Reproduce un track DENTRO de una playlist (por default <3333>), no aislado.
+    Así lo que sigue es la siguiente canción de la playlist y no el radio de
+    Spotify. Apaga shuffle antes, salvo que se pida lo contrario.
+    Requiere Premium y un dispositivo disponible.
+    """
+    sp = spotify.get_client()
+    playlist_id = req.playlist_id or config.CALIFICAR_PLAYLIST_ID
+    context_uri = f"spotify:playlist:{playlist_id}"
+    offset = {"uri": f"spotify:track:{req.track_id}"}
+
+    if req.shuffle_off:
+        # No es crítico: si falla (sin dispositivo, sin Premium) igual seguimos.
+        try:
+            sp.shuffle(False)
+        except Exception:
+            pass
+
+    def _start(device_id=None):
+        sp.start_playback(device_id=device_id, context_uri=context_uri, offset=offset)
+
+    try:
+        _start()
+    except Exception as first_err:
+        device_id = _resolve_device_id(sp)
+        if not device_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No hay ningún dispositivo de Spotify disponible. "
+                       "Abre Spotify en la compu o el celular y vuelve a intentar.",
+            )
+        try:
+            _start(device_id)
+        except Exception as second_err:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Spotify rechazó la reproducción: {second_err} "
+                       f"(primer intento: {first_err}). "
+                       f"Requiere Spotify Premium.",
+            )
+
+    # Reintenta apagar shuffle ya con reproducción activa — antes de tener
+    # contexto, Spotify a veces ignora el toggle.
+    if req.shuffle_off:
+        try:
+            sp.shuffle(False)
+        except Exception:
+            pass
+
+    return {"ok": True, "playlist_id": playlist_id, "track_id": req.track_id}
 
 
 @router.post("/player/next")
