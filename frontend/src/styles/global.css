@@ -918,6 +918,17 @@ body {
   margin-top: 2px;
 }
 
+/* Fila de acciones de la canción focal. Sigue la alineación del texto:
+   centrada en móvil, a la izquierda en desktop. */
+.pending-track-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .pending-rating-row {
   display: flex;
   gap: 6px;
@@ -1042,6 +1053,10 @@ body {
   .pending-track-info {
     margin-top: 20px;
     text-align: left;
+  }
+
+  .pending-track-actions {
+    justify-content: flex-start;
   }
 
   .pending-track-name {

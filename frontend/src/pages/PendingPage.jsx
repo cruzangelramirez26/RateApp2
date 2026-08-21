@@ -13,23 +13,6 @@ const RATING_COLORS = {
   'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
 };
 
-// ── Deep links a Spotify ──────────────────────────────────────────
-// El esquema `spotify:` lo intercepta la app instalada (desktop y móvil);
-// `https://open.spotify.com` se queda en el web player en desktop.
-// El link visible apunta a la app y se deja un respaldo "web".
-
-function spotifyAppUri(trackId, playlistId) {
-  return playlistId
-    ? `spotify:playlist:${playlistId}?highlight=spotify:track:${trackId}`
-    : `spotify:track:${trackId}`;
-}
-
-function spotifyWebUrl(trackId, playlistId) {
-  return playlistId
-    ? `https://open.spotify.com/playlist/${playlistId}?highlight=spotify:track:${trackId}`
-    : `https://open.spotify.com/track/${trackId}`;
-}
-
 // ── PiP (light theme) ─────────────────────────────────────────────
 
 function escapeHtml(s) {
@@ -344,10 +327,7 @@ export default function PendingPage() {
             {currentTrack.album && (
               <div className="pending-track-album">{currentTrack.album}</div>
             )}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              marginTop: '10px', flexWrap: 'wrap',
-            }}>
+            <div className="pending-track-actions">
               {/* Reproduce dentro de <3333> (shuffle off) vía API */}
               <button
                 className="btn btn-sm"
@@ -363,33 +343,6 @@ export default function PendingPage() {
                 <Play size={13} />
                 {calificarId ? 'Reproducir en <3333' : 'Reproducir'}
               </button>
-
-              {/* App instalada — sin target="_blank": el protocol handler
-                  se dispara y la pestaña actual no se mueve */}
-              <a
-                href={spotifyAppUri(currentTrack.id, calificarId)}
-                title="Abrir la app de Spotify en esta canción"
-                style={{
-                  color: 'var(--text-secondary)', fontSize: '0.75rem',
-                  fontFamily: 'var(--font-mono)', textDecoration: 'none',
-                }}
-              >
-                abrir app ↗
-              </a>
-
-              {/* Respaldo: web player, por si la app no está instalada */}
-              <a
-                href={spotifyWebUrl(currentTrack.id, calificarId)}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Abrir en el web player"
-                style={{
-                  color: 'var(--text-muted)', fontSize: '0.72rem',
-                  fontFamily: 'var(--font-mono)', textDecoration: 'none',
-                }}
-              >
-                web ↗
-              </a>
             </div>
           </div>
 

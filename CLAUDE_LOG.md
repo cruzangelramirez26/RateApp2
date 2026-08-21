@@ -2,6 +2,25 @@
 
 ---
 
+## 2026-08-20 (sesión 2 — limpieza del botón + ARQUITECTURA.md)
+
+**Máquina de trabajo: PC `AngelPC`** (la otra es la laptop). En la PC sí hay toolchain: se corrió `npm install` — antes no existía `frontend/node_modules` — así que ya se verifica con `npm run build` de verdad, y el backend se puede importar en Python para validar rutas y modelos.
+
+**Frontend:**
+- `frontend/src/pages/PendingPage.jsx` — se quitaron los links `abrir app ↗` y `web ↗`: queda solo el botón `▶ Reproducir en <3333`, que es el que hace el trabajo. Se borraron los helpers `spotifyAppUri()` / `spotifyWebUrl()` que quedaron sin uso. El `<div>` con estilos inline se reemplazó por la clase `pending-track-actions`.
+- `frontend/src/styles/global.css` — nueva clase `.pending-track-actions`: `justify-content: center` por default (móvil) y `flex-start` en el bloque de `min-width: 768px`, siguiendo la misma lógica que `.pending-track-info`, que ya alternaba `text-align` center/left. Así el botón queda centrado en móvil y alineado a la izquierda en desktop.
+
+**Documentación:**
+- `ARQUITECTURA.md` (nuevo) — documento completo: diagrama de la arquitectura, stack con versiones, árbol de archivos, modelo de dominio (TOP_SET, cuatrimestres, playlists fijas, distinción actual/histórica), esquema de las dos tablas y por qué existe `config`, integración con Spotify (OAuth, scopes, peculiaridades del wrapper), los 7 flujos principales con `rate_track` desglosado, configuración y despliegue, patrones del frontend, mapa completo de la API, y una tabla de deuda técnica ordenada por impacto.
+- `.env.example` — el comentario decía `# MySQL (AWS RDS)` y es **falso**: no hay nada en AWS. Corregido. El host real solo existe en las env vars de Render y su hostname va a delatar el proveedor.
+- `CLAUDE.md` — enlace a `ARQUITECTURA.md`, y corregida la fila de la tabla de `rate_track` que decía que con B/C+/C la canción "se queda en cuatri". El código no hace eso: `C` se **elimina** del cuatrimestre y `B`/`C+` se **agregan** si la canción es del cuatrimestre actual.
+
+Verificación: `npm run build` OK (1582 módulos, 3.15s).
+
+Commit: `PENDIENTE`.
+
+---
+
 ## 2026-08-20 (sesión link contextual a <3333>)
 
 **Feature: el link "Open in Spotify" de la canción focal de Pending ahora abre la playlist `<3333>` posicionada en esa canción, no la página aislada del track**

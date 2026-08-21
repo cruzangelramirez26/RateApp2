@@ -2,6 +2,8 @@
 
 @README.md
 
+Arquitectura completa: [`ARQUITECTURA.md`](ARQUITECTURA.md) — stack, modelo de dominio, esquema de DB, flujos, mapa de la API y deuda técnica.
+
 ## Reglas de trabajo
 
 - Nunca hacer nada sin explicar primero qué entendí y qué voy a hacer
@@ -59,7 +61,7 @@ Si no cumple ninguna → es **histórica**.
 
 | Situación | → TOP_SET (B+/A/A+) | → B/C+/C | → D |
 |-----------|---------------------|-----------|-----|
-| Canción actual | Agrega a cuatri actual + MMG + Galería + like | Sale de MMG + Galería + unlike (se queda en cuatri) | Sale de cuatri + MMG + Galería + unlike |
+| Canción actual | Agrega a cuatri actual + MMG + Galería + like | Sale de MMG + Galería + unlike. **B y C+ se agregan al cuatri actual; C se elimina del cuatri** | Sale de cuatri + MMG + Galería + unlike |
 | Canción histórica | Agrega a cuatri **actual** + MMG + Galería + like + pone override | Solo sale de MMG + Galería + unlike (cuatri histórico intocable) | Sale de cuatri actual si estaba + MMG + Galería + unlike (cuatri histórico intocable) |
 
 ### Playlists históricas = INTOCABLES
