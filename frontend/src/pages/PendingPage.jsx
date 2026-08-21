@@ -2,16 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Music, RefreshCw, PictureInPicture2, List, Square, Play } from 'lucide-react';
 import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
+import { useTheme } from '../hooks/useTheme';
+import { pipThemeCss, ratingColor, ratingDim } from '../utils/theme';
 import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
 
 const RATINGS = ['D', 'C', 'C+', 'B', 'B+', 'A', 'A+'];
-const RATING_COLORS = {
-  'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a',
-  'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
-};
 
 // ── PiP (light theme) ─────────────────────────────────────────────
 
@@ -27,44 +25,44 @@ function renderPiPContent(pip, queue, index) {
   if (!track) {
     pip.document.body.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-        height:100%;color:#1a1a1a;gap:10px;font-family:system-ui;background:#f5f4f0">
+        height:100%;color:var(--text-primary);gap:10px;font-family:system-ui;background:var(--bg-deep)">
         <div style="font-size:2.5rem">🎉</div>
         <div style="font-size:0.95rem;font-weight:600">¡Todas calificadas!</div>
-        <div style="font-size:0.75rem;color:#9ca3af">Puedes cerrar esta ventana</div>
+        <div style="font-size:0.75rem;color:var(--text-muted)">Puedes cerrar esta ventana</div>
       </div>`;
     return;
   }
 
   const btns = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'].map(r => {
-    const c = RATING_COLORS[r];
+    const c = ratingColor(r);
     const active = track.rating === r;
     return `<button onclick="window.__pipRate('${r}')"
-      style="padding:5px 10px;border:1.5px solid ${active ? c : 'rgba(0,0,0,0.1)'};
+      style="padding:5px 10px;border:1.5px solid ${active ? c : 'var(--border-medium)'};
       border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:700;
       font-family:'Space Mono',monospace;
-      background:${active ? `${c}20` : 'transparent'};
-      color:${active ? c : '#9ca3af'};transition:all 0.15s;"
+      background:${active ? ratingDim(r) : 'transparent'};
+      color:${active ? c : 'var(--text-muted)'};transition:all 0.15s;"
       onmouseover="this.style.borderColor='${c}';this.style.color='${c}'"
-      onmouseout="this.style.borderColor='${active ? c : 'rgba(0,0,0,0.1)'}';this.style.color='${active ? c : '#9ca3af'}'">
+      onmouseout="this.style.borderColor='${active ? c : 'var(--border-medium)'}';this.style.color='${active ? c : 'var(--text-muted)'}'">
       ${r}</button>`;
   }).join('');
 
   pip.document.body.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;padding:14px 12px 12px;gap:9px;
-      background:#f5f4f0;min-height:100%;box-sizing:border-box;
-      font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;">
+      background:var(--bg-deep);min-height:100%;box-sizing:border-box;
+      font-family:'DM Sans',system-ui,sans-serif;color:var(--text-primary);">
 
       <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-        <span style="font-size:0.68rem;color:#9ca3af;font-family:'Space Mono',monospace;
+        <span style="font-size:0.68rem;color:var(--text-muted);font-family:'Space Mono',monospace;
           letter-spacing:0.05em">&lt;3333&gt;</span>
-        <span style="font-size:0.68rem;color:#9ca3af;font-family:'Space Mono',monospace">
+        <span style="font-size:0.68rem;color:var(--text-muted);font-family:'Space Mono',monospace">
           ${index + 1}&nbsp;/&nbsp;${queue.length}</span>
       </div>
 
       ${track.image
         ? `<img src="${escapeHtml(track.image)}" style="width:130px;height:130px;object-fit:cover;
-            border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.14)" />`
-        : `<div style="width:130px;height:130px;border-radius:10px;background:#eeede9;
+            border-radius:10px;box-shadow:var(--shadow-md)" />`
+        : `<div style="width:130px;height:130px;border-radius:10px;background:var(--bg-surface);
             display:flex;align-items:center;justify-content:center;font-size:2rem">🎵</div>`
       }
 
@@ -73,7 +71,7 @@ function renderPiPContent(pip, queue, index) {
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">
           ${escapeHtml(track.name)}
         </div>
-        <div style="color:#6b7280;font-size:0.78rem;white-space:nowrap;overflow:hidden;
+        <div style="color:var(--text-secondary);font-size:0.78rem;white-space:nowrap;overflow:hidden;
           text-overflow:ellipsis;padding:0 4px">
           ${escapeHtml(track.artist)}
         </div>
@@ -84,11 +82,11 @@ function renderPiPContent(pip, queue, index) {
       </div>
 
       <button onclick="window.__pipSkip()"
-        style="background:transparent;border:1.5px solid rgba(0,0,0,0.08);color:#9ca3af;
+        style="background:transparent;border:1.5px solid var(--border-subtle);color:var(--text-muted);
         padding:4px 14px;border-radius:8px;cursor:pointer;font-size:0.72rem;
         font-family:'DM Sans',system-ui;transition:all 0.15s;margin-top:2px"
-        onmouseover="this.style.borderColor='rgba(0,0,0,0.18)';this.style.color='#6b7280'"
-        onmouseout="this.style.borderColor='rgba(0,0,0,0.08)';this.style.color='#9ca3af'">
+        onmouseover="this.style.borderColor='var(--border-accent)';this.style.color='var(--text-secondary)'"
+        onmouseout="this.style.borderColor='var(--border-subtle)';this.style.color='var(--text-muted)'">
         saltar →
       </button>
     </div>`;
@@ -107,8 +105,10 @@ export default function PendingPage() {
   const [calificarId, setCalificarId] = useState(null);   // id de la playlist <3333
   const [playing, setPlaying] = useState(false);          // request de play en vuelo
   const toast = useToast();
+  const { theme } = useTheme();
 
   const pipWindowRef = useRef(null);
+  const pipStyleRef = useRef(null);
   const pipQueueRef = useRef([]);
   const pipIndexRef = useRef(0);
   const tracksRef = useRef([]);
@@ -146,6 +146,15 @@ export default function PendingPage() {
       }
     };
   }, []);
+
+  // El PiP es otro documento: al cambiar de tema hay que reescribirle los
+  // tokens y volver a dibujar, porque su HTML se genera con strings.
+  useEffect(() => {
+    const pip = pipWindowRef.current;
+    if (!isPiPOpen || !pip || pip.closed) return;
+    if (pipStyleRef.current) pipStyleRef.current.textContent = pipThemeCss();
+    renderPiPContent(pip, pipQueueRef.current, pipIndexRef.current);
+  }, [theme, isPiPOpen]);
 
   // Keyboard shortcuts for individual view
   useEffect(() => {
@@ -243,6 +252,7 @@ export default function PendingPage() {
     if (pipWindowRef.current && !pipWindowRef.current.closed) {
       pipWindowRef.current.close();
       pipWindowRef.current = null;
+      pipStyleRef.current = null;
       setIsPiPOpen(false);
       return;
     }
@@ -256,10 +266,11 @@ export default function PendingPage() {
       height: 460,
       disallowReturnToOpener: false,
     });
-    // Set light background before first render to avoid dark flash
+    // Tokens del tema antes del primer render, para que no destelle
     const styleEl = pip.document.createElement('style');
-    styleEl.textContent = 'html,body{margin:0;padding:0;background:#f5f4f0;height:100%;}';
+    styleEl.textContent = pipThemeCss();
     pip.document.head.appendChild(styleEl);
+    pipStyleRef.current = styleEl;
     pipQueueRef.current = unrated;
     pipIndexRef.current = 0;
     pip.__pipRate = (rating) => {
@@ -274,6 +285,7 @@ export default function PendingPage() {
     setIsPiPOpen(true);
     pip.addEventListener('pagehide', () => {
       pipWindowRef.current = null;
+      pipStyleRef.current = null;
       setIsPiPOpen(false);
     });
   };

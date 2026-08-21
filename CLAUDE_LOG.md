@@ -2,6 +2,37 @@
 
 ---
 
+## 2026-08-20 (sesion 3 - modo oscuro)
+
+**Maquina: PC `AngelPC`.**
+
+**Feature: tema claro / oscuro con toggle y opcion de seguir al sistema.**
+
+Sin cambios de backend.
+
+**Arquitectura del tema:**
+- `frontend/src/utils/theme.js` (nuevo) — el modo que elige el usuario (`light` | `dark` | `system`) se guarda en `localStorage` bajo `rateapp_theme`, pero lo que se escribe al DOM es siempre el tema **resuelto** en `documentElement[data-theme]`. Por eso `global.css` necesita un solo bloque `[data-theme="dark"]` y no duplica los tokens dentro de un `@media (prefers-color-scheme)`: un solo lugar que mantener.
+- `frontend/index.html` — script inline que fija `data-theme` y el `theme-color` **antes del primer paint**. Sin esto, abrir la app en oscuro destella blanco mientras carga el bundle. Duplica a proposito la logica minima de `theme.js`.
+- `frontend/src/hooks/useTheme.jsx` (nuevo) — `ThemeProvider` + `useTheme()`. En modo `system` escucha `matchMedia('(prefers-color-scheme: dark)')` y cambia en vivo. Emite `rateapp:themechange` en `window` para quien viva fuera de React.
+- `frontend/src/App.jsx` — `ThemeProvider` envuelve tambien el gate de carga y el `LoginPage`, no solo la app autenticada.
+
+**Tokens:**
+- `frontend/src/styles/global.css` — `:root` gana `--bg-bar` / `--bg-bar-strong` (barras traslucidas), `--on-accent`, y tres tokens por rating: `-dim` (fondo), `-soft` (borde) y `-glow`. Existen para que el JS no tenga que concatenar alpha en hex (`${color}18` y `${color}44` desaparecieron). Los 23 colores hardcodeados que quedaban en el CSS pasaron a tokens; los unicos valores absolutos que sobreviven estan **dentro** de las definiciones de tokens, como debe ser.
+- Bloque `:root[data-theme="dark"]`: fondo `#121110`, cards `#1c1a17`, texto `#f0ede6`, bordes en blanco translucido, sombras mas profundas y `color-scheme: dark`. Los 7 colores de rating se aclararon — el que mas lo necesitaba era `D` (`#88555c` casi desaparecia sobre fondo oscuro, ahora `#c98b93`).
+
+**Los PiP tambien siguen el tema.** Un documento de Picture-in-Picture es un documento aparte: no hereda las custom properties del principal. `pipThemeCss()` lee los tokens ya resueltos con `getComputedStyle` y los inyecta como un `:root` propio en la ventana del PiP, asi que el HTML del PiP (que se genera con strings) puede usar `var(--...)` igual que el resto de la app. Al cambiar de tema se reescribe esa hoja y se vuelve a dibujar: `NavBar` agrega `theme` a las dependencias de su efecto de sincronizacion y `PendingPage` tiene un efecto nuevo para lo mismo.
+
+**Ratings sin hex en JSX.** Se borraron los 5 mapas `RATING_COLORS` duplicados (NavBar, PendingPage, LibraryPage, StatsPage, ToolsPage) y se reemplazaron por `ratingColor()` / `ratingDim()` / `ratingSoft()` de `theme.js`, que devuelven referencias `var(...)`. Los estilos inline de React ahora cambian con el tema sin JS extra. Esto tambien mata la deuda #9 de `ARQUITECTURA.md` (colores duplicados entre CSS y JS).
+
+**UI del toggle:**
+- `frontend/src/components/ThemeToggle.jsx` (nuevo) — dos variantes. `icon`: boton chico en el footer del sidebar que rota claro -> oscuro -> sistema (desktop). `segmented`: los tres modos visibles, en una tarjeta nueva "Apariencia" al inicio de Herramientas — esa es la via en movil, donde la tab bar ya esta llena con 5 items.
+
+**Verificacion (esta vez de verdad, con navegador):** `npm run build` OK. Ademas se levanto un backend de mentiras en `:8000` (solo en el scratchpad, no toca el repo) para poder renderizar las vistas autenticadas en local, y se recorrieron `/`, `/tools`, `/library`, `/recent` y `/dashboard` en oscuro buscando elementos que siguieran pintados con valores del tema claro: **cero fugas**. Se comprobo que el script anti-parpadeo resuelve `system` -> `dark` antes del primer paint, que elegir `light` explicitamente le gana a la preferencia oscura del SO, que el toggle cicla y persiste (`dark/system` -> `light/light` -> `dark/dark`), y que `pipThemeCss()` emite valores oscuros u claros segun el tema. Lo unico que **no** se pudo probar es una ventana de PiP real: el navegador embebido no las abre, asi que el PiP hay que verlo a ojo tras el deploy.
+
+Commit: `PENDIENTE`.
+
+---
+
 ## 2026-08-20 (sesión 2 — limpieza del botón + ARQUITECTURA.md)
 
 **Máquina de trabajo: PC `AngelPC`** (la otra es la laptop). En la PC sí hay toolchain: se corrió `npm install` — antes no existía `frontend/node_modules` — así que ya se verifica con `npm run build` de verdad, y el backend se puede importar en Python para validar rutas y modelos.

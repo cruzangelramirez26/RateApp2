@@ -30,10 +30,37 @@
   --rating-c:      #4488aa;
   --rating-d:      #88555c;
 
+  /* Cada rating tiene 3 tokens mas: -dim (fondo), -soft (borde), -glow.
+     Existen para que el JS no tenga que concatenar alpha en hex. */
+  --rating-a-plus-dim: rgba(245, 197, 66, 0.12);
+  --rating-a-dim:      rgba(232, 168, 62, 0.12);
+  --rating-b-plus-dim: rgba(110, 207, 138, 0.12);
+  --rating-b-dim:      rgba(74, 171, 106, 0.12);
+  --rating-c-plus-dim: rgba(91, 168, 212, 0.12);
+  --rating-c-dim:      rgba(68, 136, 170, 0.12);
+  --rating-d-dim:      rgba(136, 85, 92, 0.12);
+
+  --rating-a-plus-soft: rgba(245, 197, 66, 0.28);
+  --rating-a-soft:      rgba(232, 168, 62, 0.28);
+  --rating-b-plus-soft: rgba(110, 207, 138, 0.28);
+  --rating-b-soft:      rgba(74, 171, 106, 0.28);
+  --rating-c-plus-soft: rgba(91, 168, 212, 0.28);
+  --rating-c-soft:      rgba(68, 136, 170, 0.28);
+  --rating-d-soft:      rgba(136, 85, 92, 0.28);
+
+  --rating-a-plus-glow: rgba(245, 197, 66, 0.2);
+  --rating-a-glow:      rgba(232, 168, 62, 0.2);
+  --rating-b-plus-glow: rgba(110, 207, 138, 0.2);
+
+  /* Barras traslucidas (tab bar, mini-bar de Now Playing) */
+  --bg-bar:        rgba(255, 255, 255, 0.95);
+  --bg-bar-strong: rgba(255, 255, 255, 0.97);
+
   /* Accent — Spotify green */
   --accent:     #1DB954;
   --accent-dim: rgba(29, 185, 84, 0.10);
   --accent-glow: rgba(29, 185, 84, 0.22);
+  --on-accent:  #ffffff;
 
   /* Spotify green (alias) */
   --spotify:     #1db954;
@@ -57,6 +84,72 @@
   /* Transitions */
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  color-scheme: light;
+}
+
+/* -- Tema oscuro -------------------------------------
+   `data-theme` lo escribe siempre JS: el script inline de index.html antes
+   del primer paint, y despues el hook useTheme. Cuando el modo es "sistema"
+   el hook resuelve el valor real, asi que no hace falta duplicar este bloque
+   dentro de un @media (prefers-color-scheme): un solo lugar que mantener.
+   Aqui solo se redefinen tokens - ninguna regla de layout vive en este bloque. */
+:root[data-theme="dark"] {
+  --bg-deep:        #121110;
+  --bg-surface:     #232019;
+  --bg-card:        #1c1a17;
+  --bg-card-hover:  #232019;
+  --bg-elevated:    #2a2620;
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-accent: rgba(255, 255, 255, 0.22);
+
+  --text-primary:   #f0ede6;
+  --text-secondary: #a9a49a;
+  --text-muted:     #7c766c;
+
+  --bg-bar:        rgba(18, 17, 16, 0.92);
+  --bg-bar-strong: rgba(18, 17, 16, 0.96);
+
+  /* Ratings aclarados: los del tema claro se apagan sobre fondo oscuro.
+     El que mas lo necesitaba era D (#88555c casi desaparecia). */
+  --rating-a-plus: #f7d267;
+  --rating-a:      #f2b45a;
+  --rating-b-plus: #7bdb98;
+  --rating-b:      #5cc27f;
+  --rating-c-plus: #6ec2ea;
+  --rating-c:      #57a8c9;
+  --rating-d:      #c98b93;
+
+  --rating-a-plus-dim: rgba(247, 210, 103, 0.16);
+  --rating-a-dim:      rgba(242, 180, 90, 0.16);
+  --rating-b-plus-dim: rgba(123, 219, 152, 0.16);
+  --rating-b-dim:      rgba(92, 194, 127, 0.16);
+  --rating-c-plus-dim: rgba(110, 194, 234, 0.16);
+  --rating-c-dim:      rgba(87, 168, 201, 0.16);
+  --rating-d-dim:      rgba(201, 139, 147, 0.16);
+
+  --rating-a-plus-soft: rgba(247, 210, 103, 0.4);
+  --rating-a-soft:      rgba(242, 180, 90, 0.4);
+  --rating-b-plus-soft: rgba(123, 219, 152, 0.4);
+  --rating-b-soft:      rgba(92, 194, 127, 0.4);
+  --rating-c-plus-soft: rgba(110, 194, 234, 0.4);
+  --rating-c-soft:      rgba(87, 168, 201, 0.4);
+  --rating-d-soft:      rgba(201, 139, 147, 0.4);
+
+  --rating-a-plus-glow: rgba(247, 210, 103, 0.26);
+  --rating-a-glow:      rgba(242, 180, 90, 0.26);
+  --rating-b-plus-glow: rgba(123, 219, 152, 0.26);
+
+  --accent-dim:  rgba(29, 185, 84, 0.16);
+  --accent-glow: rgba(29, 185, 84, 0.3);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+
+  color-scheme: dark;
 }
 
 /* ── Reset ────────────────────────────────────────── */
@@ -163,7 +256,7 @@ body {
   padding: 10px 18px;
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  background: #ffffff;
+  background: var(--bg-card);
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 0.9rem;
@@ -218,7 +311,7 @@ body {
   padding: 0 10px;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border-medium);
-  background: #ffffff;
+  background: var(--bg-card);
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 0.78rem;
@@ -237,47 +330,47 @@ body {
 .rating-btn[data-active="true"][data-rating="A+"] {
   border-color: var(--rating-a-plus);
   color: var(--rating-a-plus);
-  background: rgba(245, 197, 66, 0.12);
-  box-shadow: 0 0 12px rgba(245, 197, 66, 0.2);
+  background: var(--rating-a-plus-dim);
+  box-shadow: 0 0 12px var(--rating-a-plus-glow);
 }
 .rating-btn[data-active="true"][data-rating="A"] {
   border-color: var(--rating-a);
   color: var(--rating-a);
-  background: rgba(232, 168, 62, 0.12);
-  box-shadow: 0 0 12px rgba(232, 168, 62, 0.2);
+  background: var(--rating-a-dim);
+  box-shadow: 0 0 12px var(--rating-a-glow);
 }
 .rating-btn[data-active="true"][data-rating="B+"] {
   border-color: var(--rating-b-plus);
   color: var(--rating-b-plus);
-  background: rgba(110, 207, 138, 0.12);
-  box-shadow: 0 0 12px rgba(110, 207, 138, 0.2);
+  background: var(--rating-b-plus-dim);
+  box-shadow: 0 0 12px var(--rating-b-plus-glow);
 }
 .rating-btn[data-active="true"][data-rating="B"] {
   border-color: var(--rating-b);
   color: var(--rating-b);
-  background: rgba(74, 171, 106, 0.12);
+  background: var(--rating-b-dim);
 }
 .rating-btn[data-active="true"][data-rating="C+"] {
   border-color: var(--rating-c-plus);
   color: var(--rating-c-plus);
-  background: rgba(91, 168, 212, 0.12);
+  background: var(--rating-c-plus-dim);
 }
 .rating-btn[data-active="true"][data-rating="C"] {
   border-color: var(--rating-c);
   color: var(--rating-c);
-  background: rgba(68, 136, 170, 0.12);
+  background: var(--rating-c-dim);
 }
 .rating-btn[data-active="true"][data-rating="D"] {
   border-color: var(--rating-d);
   color: var(--rating-d);
-  background: rgba(136, 85, 92, 0.12);
+  background: var(--rating-d-dim);
 }
 
 /* ── Input ────────────────────────────────────────── */
 .input {
   width: 100%;
   padding: 10px 14px;
-  background: #ffffff;
+  background: var(--bg-card);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   color: var(--text-primary);
@@ -303,7 +396,7 @@ body {
   left: 0;
   right: 0;
   z-index: 50;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--bg-bar);
   border-top: 1px solid var(--border-subtle);
   display: flex;
   padding: 6px 8px;
@@ -354,7 +447,7 @@ body {
   left: 0;
   right: 0;
   z-index: 45;
-  background: rgba(255, 255, 255, 0.97);
+  background: var(--bg-bar-strong);
   border-top: 1px solid var(--border-subtle);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -436,7 +529,7 @@ body {
 .np-mobile-panel-btn {
   padding: 7px 14px;
   border-radius: 8px;
-  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border: 1.5px solid var(--border-medium);
   background: transparent;
   font-size: 0.79rem;
   font-weight: 700;
@@ -539,7 +632,7 @@ body {
 .toast {
   pointer-events: auto;
   padding: 12px 18px;
-  background: #ffffff;
+  background: var(--bg-card);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   font-size: 0.88rem;
@@ -659,7 +752,7 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    background: #ffffff;
+    background: var(--bg-card);
     border-right: 1px solid var(--border-subtle);
     z-index: 40;
     padding: 24px 0 20px;
@@ -679,7 +772,7 @@ body {
     width: 32px;
     height: 32px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-family: var(--font-mono);
     font-size: 0.7rem;
     font-weight: 700;
@@ -731,7 +824,7 @@ body {
   .sidebar-nav-badge {
     margin-left: auto;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-size: 0.68rem;
     font-weight: 700;
     font-family: var(--font-mono);
@@ -766,6 +859,17 @@ body {
     border-radius: 50%;
     background: var(--accent);
     flex-shrink: 0;
+  }
+
+  .sidebar-footer-status {
+    justify-content: space-between;
+  }
+
+  .sidebar-footer-status-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
   }
 
   .now-playing-widget {
@@ -968,7 +1072,7 @@ body {
 
 /* UP NEXT panel */
 .upnext-panel {
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   padding: 20px;
@@ -1190,7 +1294,7 @@ body {
 }
 
 .stats-filter-tab.active {
-  background: #ffffff;
+  background: var(--bg-card);
   color: var(--text-primary);
   font-weight: 600;
   box-shadow: var(--shadow-sm);
@@ -1217,7 +1321,7 @@ body {
 }
 
 .stats-metric-card {
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: var(--radius-md);
   padding: 16px 18px;
   box-shadow: var(--shadow-md);
@@ -1294,4 +1398,59 @@ body {
   .stats-metric-value {
     font-size: 1.6rem;
   }
+}
+
+/* ── Tema claro / oscuro ──────────────────────────── */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out);
+}
+
+.theme-toggle-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme-segmented {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.theme-segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out);
+}
+
+.theme-segmented-btn:hover {
+  border-color: var(--border-accent);
+  color: var(--text-primary);
+}
+
+.theme-segmented-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
 }

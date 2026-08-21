@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Search, Music, MoreHorizontal } from 'lucide-react';
 import { api } from '../utils/api';
+import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
 import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -16,10 +17,6 @@ const QUICK_PLAYLISTS = [
 ];
 
 const RATING_ORDER = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
-const RATING_COLORS = {
-  'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a',
-  'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
-};
 const YEAR_NAMES = {
   2025: { perla: 'Savia', miel: 'Lirio', latte: 'Marea' },
   2026: { perla: 'Perla', miel: 'Miel', latte: 'Latte' },
@@ -260,7 +257,7 @@ export default function LibraryPage() {
             fontSize: '0.78rem', fontWeight: 600,
             border: '1px solid var(--border-subtle)',
             background: activeChip === key ? 'var(--accent)' : 'var(--bg-card)',
-            color: activeChip === key ? '#fff' : 'var(--text-muted)',
+            color: activeChip === key ? 'var(--on-accent)' : 'var(--text-muted)',
             cursor: 'pointer', transition: 'all 0.15s',
           }}>
             {label}
@@ -364,9 +361,9 @@ export default function LibraryPage() {
                             fontSize: '0.75rem',
                             fontWeight: 700,
                             fontFamily: 'var(--font-mono)',
-                            color: RATING_COLORS[t.rating] || 'var(--text-muted)',
-                            background: `${RATING_COLORS[t.rating]}18` || 'transparent',
-                            border: `1px solid ${RATING_COLORS[t.rating]}44` || 'transparent',
+                            color: ratingColor(t.rating) || 'var(--text-muted)',
+                            background: ratingDim(t.rating) || 'transparent',
+                            border: `1px solid ${ratingSoft(t.rating) || 'transparent'}`,
                           }}>
                             {t.rating}
                           </span>
@@ -391,7 +388,7 @@ export default function LibraryPage() {
                         {isMenuOpen && (
                           <div style={{
                             position: 'absolute', right: 0, top: '100%', zIndex: 20,
-                            background: '#fff', borderRadius: 'var(--radius-md)',
+                            background: 'var(--bg-card)', borderRadius: 'var(--radius-md)',
                             boxShadow: 'var(--shadow-lg)',
                             border: '1px solid var(--border-subtle)',
                             minWidth: 170, overflow: 'hidden',
@@ -435,15 +432,15 @@ export default function LibraryPage() {
                                     onClick={() => handleRate({ ...t, id: tid }, r)}
                                     style={{
                                       padding: '4px 9px',
-                                      border: `1.5px solid ${t.rating === r ? RATING_COLORS[r] : 'rgba(0,0,0,0.1)'}`,
+                                      border: `1.5px solid ${t.rating === r ? ratingColor(r) : 'var(--border-medium)'}`,
                                       borderRadius: '7px', cursor: 'pointer',
                                       fontSize: '0.75rem', fontWeight: 700,
                                       fontFamily: 'var(--font-mono)',
-                                      background: t.rating === r ? `${RATING_COLORS[r]}18` : 'transparent',
-                                      color: t.rating === r ? RATING_COLORS[r] : 'var(--text-muted)',
+                                      background: t.rating === r ? ratingDim(r) : 'transparent',
+                                      color: t.rating === r ? ratingColor(r) : 'var(--text-muted)',
                                     }}
-                                    onMouseEnter={e => { e.currentTarget.style.borderColor = RATING_COLORS[r]; e.currentTarget.style.color = RATING_COLORS[r]; }}
-                                    onMouseLeave={e => { e.currentTarget.style.borderColor = t.rating === r ? RATING_COLORS[r] : 'rgba(0,0,0,0.1)'; e.currentTarget.style.color = t.rating === r ? RATING_COLORS[r] : 'var(--text-muted)'; }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = ratingColor(r); e.currentTarget.style.color = ratingColor(r); }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = t.rating === r ? ratingColor(r) : 'var(--border-medium)'; e.currentTarget.style.color = t.rating === r ? ratingColor(r) : 'var(--text-muted)'; }}
                                   >
                                     {r}
                                   </button>

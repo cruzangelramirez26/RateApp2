@@ -1,12 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical } from 'lucide-react';
+import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon } from 'lucide-react';
 import { api } from '../utils/api';
+import ThemeToggle from '../components/ThemeToggle';
+import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
 import { useToast } from '../hooks/useToast';
 
-const RATING_COLORS = {
-  'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a', 'B': '#4aab6a',
-  'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
-};
 const RATING_ORDER_MAP = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
 const CUATRI_DISPLAY = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
 const REORDER_RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C'];
@@ -209,6 +207,22 @@ export default function ToolsPage() {
         <div className="page-title">Herramientas</div>
       </div>
 
+      {/* -- Apariencia ------------------------------------------------------ */}
+      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
+        <div style={{
+          fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
+          letterSpacing: '0.06em', fontWeight: 600, marginBottom: '12px',
+          fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          <SunMoon size={14} />
+          Apariencia
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
+          "Sistema" sigue la preferencia de tu teléfono o compu y cambia solo.
+        </p>
+        <ThemeToggle variant="segmented" />
+      </div>
+
       {/* ── Modo Virtual ────────────────────────────────────────────────────── */}
       <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
         <div style={{
@@ -220,7 +234,7 @@ export default function ToolsPage() {
           Modo Virtual
           {virtualStatus?.active && (
             <span style={{
-              background: 'rgba(110, 207, 138, 0.15)', color: 'var(--rating-b-plus)',
+              background: 'var(--rating-b-plus-dim)', color: 'var(--rating-b-plus)',
               padding: '2px 8px', borderRadius: '20px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)',
             }}>
               ACTIVO — {virtualStatus.cuatri?.toUpperCase()}
@@ -322,11 +336,11 @@ export default function ToolsPage() {
                 borderBottom: i < simulateChanges.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                 fontSize: '0.8rem',
               }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: RATING_COLORS[ch.old] ?? 'var(--text-muted)', minWidth: '26px' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: ratingColor(ch.old) ?? 'var(--text-muted)', minWidth: '26px' }}>
                   {ch.old}
                 </span>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>→</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: RATING_COLORS[ch.new] ?? 'var(--text-muted)', minWidth: '26px' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: ratingColor(ch.new) ?? 'var(--text-muted)', minWidth: '26px' }}>
                   {ch.new}
                 </span>
                 <span style={{ color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -374,7 +388,7 @@ export default function ToolsPage() {
               {CUATRI_DISPLAY[reorderData.cuatri] ?? reorderData.cuatri?.toUpperCase()}
               {reorderPendingChanges > 0 && (
                 <span style={{
-                  marginLeft: '10px', background: 'rgba(110, 207, 138, 0.15)',
+                  marginLeft: '10px', background: 'var(--rating-b-plus-dim)',
                   color: 'var(--rating-b-plus)', padding: '2px 8px', borderRadius: '12px',
                 }}>
                   {reorderPendingChanges} calificación(es) por cambiar
@@ -395,15 +409,15 @@ export default function ToolsPage() {
                       style={{
                         display: 'flex', alignItems: 'center', gap: '6px',
                         padding: '4px 8px',
-                        background: `${RATING_COLORS[rating]}18`,
+                        background: ratingDim(rating),
                         borderRadius: '6px 6px 0 0',
-                        borderLeft: `3px solid ${RATING_COLORS[rating]}`,
+                        borderLeft: `3px solid ${ratingColor(rating)}`,
                         borderTop: dragOver?.rating === rating && dragOver?.index === 0 && block.length === 0
                           ? `2px solid var(--accent)` : '2px solid transparent',
                       }}>
                       <span style={{
                         fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.75rem',
-                        color: RATING_COLORS[rating], minWidth: '28px',
+                        color: ratingColor(rating), minWidth: '28px',
                       }}>
                         {rating}
                       </span>
@@ -416,7 +430,7 @@ export default function ToolsPage() {
                     <div style={{
                       background: 'var(--bg-surface)',
                       borderRadius: '0 0 6px 6px',
-                      borderLeft: `3px solid ${RATING_COLORS[rating]}40`,
+                      borderLeft: `3px solid ${ratingSoft(rating)}`,
                     }}>
                       {block.length === 0 ? (
                         <div
@@ -457,7 +471,7 @@ export default function ToolsPage() {
                               {t.rating !== rating && (
                                 <span style={{
                                   fontFamily: 'var(--font-mono)', fontSize: '0.65rem',
-                                  color: RATING_COLORS[t.rating] ?? 'var(--text-muted)',
+                                  color: ratingColor(t.rating) ?? 'var(--text-muted)',
                                   textDecoration: 'line-through', flexShrink: 0,
                                 }}>
                                   {t.rating}
@@ -530,7 +544,7 @@ export default function ToolsPage() {
           A+ Instantáneos
           {aplusStatus?.active && (
             <span style={{
-              background: 'rgba(245, 197, 66, 0.15)', color: 'var(--rating-a-plus)',
+              background: 'var(--rating-a-plus-dim)', color: 'var(--rating-a-plus)',
               padding: '2px 8px', borderRadius: '20px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)',
             }}>
               ACTIVO
@@ -608,7 +622,7 @@ export default function ToolsPage() {
           {aplusCandidates.length > 0 && (
             <button
               className="btn btn-sm"
-              style={{ background: 'rgba(245, 197, 66, 0.12)', borderColor: 'var(--rating-a-plus)', color: 'var(--rating-a-plus)' }}
+              style={{ background: 'var(--rating-a-plus-dim)', borderColor: 'var(--rating-a-plus)', color: 'var(--rating-a-plus)' }}
               onClick={() => doAction('aplus-apply', async () => {
                 const res = await api.aplusApply(Array.from(selectedAplusIds));
                 setAplusCandidates([]);
@@ -743,7 +757,7 @@ export default function ToolsPage() {
                   />
                   <span style={{
                     fontFamily: 'var(--font-mono)', fontSize: '0.72rem', fontWeight: 700,
-                    color: RATING_COLORS[c.rating] ?? 'var(--text-muted)',
+                    color: ratingColor(c.rating) ?? 'var(--text-muted)',
                     minWidth: '26px', flexShrink: 0,
                   }}>
                     {c.rating}
@@ -852,7 +866,7 @@ export default function ToolsPage() {
             ))}
             <button
               className="btn btn-sm"
-              style={{ color: '#f5c542' }}
+              style={{ color: 'var(--rating-a-plus)' }}
               onClick={() => doAction('rebuild-anual', async () => {
                 const res = await api.rebuildAnual();
                 return res.message;

@@ -2,12 +2,11 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ListMusic, Clock, Library, Wrench, BarChart3, PictureInPicture2 } from 'lucide-react';
 import { api } from '../utils/api';
+import ThemeToggle from './ThemeToggle';
+import { useTheme } from '../hooks/useTheme';
+import { pipThemeCss, ratingColor, ratingDim } from '../utils/theme';
 
 const RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
-const RATING_COLORS = {
-  'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a',
-  'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
-};
 
 const NAV_LINKS = [
   { to: '/',          end: true,  icon: ListMusic, label: 'Pending' },
@@ -57,10 +56,10 @@ function escapeHtml(s) {
 
 function ctrlBtn(icon, fn) {
   return `<button onclick="window.${fn}()"
-    style="padding:4px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;
-    cursor:pointer;font-size:0.85rem;background:transparent;color:#9ca3af;transition:all 0.15s;"
-    onmouseover="this.style.borderColor='#1db954';this.style.color='#1db954'"
-    onmouseout="this.style.borderColor='rgba(0,0,0,0.1)';this.style.color='#9ca3af'">
+    style="padding:4px 10px;border:1px solid var(--border-medium);border-radius:6px;
+    cursor:pointer;font-size:0.85rem;background:transparent;color:var(--text-muted);transition:all 0.15s;"
+    onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+    onmouseout="this.style.borderColor='var(--border-medium)';this.style.color='var(--text-muted)'">
     ${icon}
   </button>`;
 }
@@ -69,9 +68,9 @@ function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
   if (!track) {
     pip.document.body.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-        height:100%;color:#1a1a1a;gap:10px;font-family:system-ui;background:#f5f4f0">
+        height:100%;color:var(--text-primary);gap:10px;font-family:system-ui;background:var(--bg-deep)">
         <div style="font-size:1.8rem">🎵</div>
-        <div style="font-size:0.82rem;color:#9ca3af">Nada reproduciendo</div>
+        <div style="font-size:0.82rem;color:var(--text-muted)">Nada reproduciendo</div>
       </div>`;
     return;
   }
@@ -79,27 +78,27 @@ function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
   const toggleBtn = `
     <button onclick="window.__npToggleLayout()"
       title="${layout === 'vertical' ? 'Vista horizontal' : 'Vista vertical'}"
-      style="padding:3px 6px;border:1px solid rgba(0,0,0,0.12);border-radius:5px;
-      cursor:pointer;font-size:0.72rem;background:transparent;color:#9ca3af;
+      style="padding:3px 6px;border:1px solid var(--border-medium);border-radius:5px;
+      cursor:pointer;font-size:0.72rem;background:transparent;color:var(--text-muted);
       transition:all 0.15s;line-height:1;"
-      onmouseover="this.style.borderColor='#1db954';this.style.color='#1db954'"
-      onmouseout="this.style.borderColor='rgba(0,0,0,0.12)';this.style.color='#9ca3af'">
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseout="this.style.borderColor='var(--border-medium)';this.style.color='var(--text-muted)'">
       ${layout === 'vertical' ? '↔' : '↕'}
     </button>`;
 
   const ratingBtns = RATINGS.map(r => {
-    const c = RATING_COLORS[r];
+    const c = ratingColor(r);
     const active = track.rating === r;
     const pad = layout === 'horizontal' ? '3px 7px' : '5px 10px';
     const fs  = layout === 'horizontal' ? '0.72rem' : '0.78rem';
     return `<button onclick="window.__npRate('${r}')"
-      style="padding:${pad};border:1.5px solid ${active ? c : 'rgba(0,0,0,0.1)'};
+      style="padding:${pad};border:1.5px solid ${active ? c : 'var(--border-medium)'};
       border-radius:7px;cursor:pointer;font-size:${fs};font-weight:700;
       font-family:'Space Mono',monospace;
-      background:${active ? `${c}20` : 'transparent'};
-      color:${active ? c : '#9ca3af'};transition:all 0.15s;"
+      background:${active ? ratingDim(r) : 'transparent'};
+      color:${active ? c : 'var(--text-muted)'};transition:all 0.15s;"
       onmouseover="this.style.borderColor='${c}';this.style.color='${c}'"
-      onmouseout="this.style.borderColor='${active ? c : 'rgba(0,0,0,0.1)'}';this.style.color='${active ? c : '#9ca3af'}'">
+      onmouseout="this.style.borderColor='${active ? c : 'var(--border-medium)'}';this.style.color='${active ? c : 'var(--text-muted)'}'">
       ${r}</button>`;
   }).join('');
 
@@ -107,15 +106,15 @@ function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
   const imgRadius = layout === 'horizontal' ? 8 : 10;
   const imgHtml = track.image
     ? `<img src="${escapeHtml(track.image)}" style="width:${imgSize}px;height:${imgSize}px;object-fit:cover;
-        border-radius:${imgRadius}px;box-shadow:0 4px 16px rgba(0,0,0,0.14);flex-shrink:0" />`
-    : `<div style="width:${imgSize}px;height:${imgSize}px;border-radius:${imgRadius}px;background:#eeede9;
+        border-radius:${imgRadius}px;box-shadow:var(--shadow-md);flex-shrink:0" />`
+    : `<div style="width:${imgSize}px;height:${imgSize}px;border-radius:${imgRadius}px;background:var(--bg-surface);
         display:flex;align-items:center;justify-content:center;font-size:${layout==='horizontal'?'1.5':'2'}rem;flex-shrink:0">🎵</div>`;
 
   if (layout === 'horizontal') {
     pip.document.body.innerHTML = `
-      <div style="display:flex;flex-direction:column;height:100%;background:#f5f4f0;
+      <div style="display:flex;flex-direction:column;height:100%;background:var(--bg-deep);
         padding:10px 12px;gap:8px;box-sizing:border-box;
-        font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;">
+        font-family:'DM Sans',system-ui,sans-serif;color:var(--text-primary);">
 
         <div style="display:flex;gap:10px;align-items:center;flex:1;min-height:0">
           ${imgHtml}
@@ -124,7 +123,7 @@ function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
               white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
               ${escapeHtml(track.name)}
             </div>
-            <div style="color:#6b7280;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            <div style="color:var(--text-secondary);font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
               ${escapeHtml(track.artist)}
             </div>
             <div style="display:flex;gap:5px;align-items:center;margin-top:4px">
@@ -135,7 +134,7 @@ function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
           </div>
           <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0">
             ${track.rating
-              ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;color:${RATING_COLORS[track.rating]}">${track.rating}</span>`
+              ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;color:${ratingColor(track.rating)}">${track.rating}</span>`
               : ''}
             ${toggleBtn}
           </div>
@@ -148,17 +147,17 @@ function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
   } else {
     pip.document.body.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;padding:14px 12px 12px;gap:9px;
-        background:#f5f4f0;min-height:100%;box-sizing:border-box;
-        font-family:'DM Sans',system-ui,sans-serif;color:#1a1a1a;">
+        background:var(--bg-deep);min-height:100%;box-sizing:border-box;
+        font-family:'DM Sans',system-ui,sans-serif;color:var(--text-primary);">
 
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-          <span style="font-size:0.65rem;color:#9ca3af;font-family:'Space Mono',monospace;
+          <span style="font-size:0.65rem;color:var(--text-muted);font-family:'Space Mono',monospace;
             letter-spacing:0.05em">now playing</span>
           <div style="display:flex;align-items:center;gap:6px">
             ${track.rating
               ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;
-                  color:${RATING_COLORS[track.rating]}">${track.rating}</span>`
-              : `<span style="font-size:0.65rem;color:#c4c4c4;font-family:'Space Mono',monospace">sin calificar</span>`}
+                  color:${ratingColor(track.rating)}">${track.rating}</span>`
+              : `<span style="font-size:0.65rem;color:var(--text-muted);font-family:'Space Mono',monospace">sin calificar</span>`}
             ${toggleBtn}
           </div>
         </div>
@@ -170,7 +169,7 @@ function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">
             ${escapeHtml(track.name)}
           </div>
-          <div style="color:#6b7280;font-size:0.76rem;white-space:nowrap;overflow:hidden;
+          <div style="color:var(--text-secondary);font-size:0.76rem;white-space:nowrap;overflow:hidden;
             text-overflow:ellipsis;padding:0 4px">
             ${escapeHtml(track.artist)}
           </div>
@@ -196,8 +195,10 @@ export default function NavBar() {
   const [isPiPOpen, setIsPiPOpen] = useState(false);
   const [showRatingPanel, setShowRatingPanel] = useState(false);
   const [pipLayout, setPipLayout] = useState('vertical');
+  const { theme } = useTheme();
 
   const pipWindowRef = useRef(null);
+  const pipStyleRef = useRef(null);
   const nowPlayingRef = useRef(null);
   const isPlayingRef = useRef(false);
   const pipLayoutRef = useRef('vertical');
@@ -327,6 +328,8 @@ export default function NavBar() {
   useEffect(() => {
     const pip = pipWindowRef.current;
     if (isPiPOpen && pip && !pip.closed) {
+      // El PiP es otro documento: hay que reescribirle los tokens al cambiar de tema
+      if (pipStyleRef.current) pipStyleRef.current.textContent = pipThemeCss();
       if (appliedLayoutRef.current !== pipLayout) {
         const [w, h] = pipSizeFor(pipLayout);
         try { pip.resizeTo(w, h); } catch {}
@@ -335,7 +338,7 @@ export default function NavBar() {
       renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current, pipLayout);
       rewirePiP(pip);
     }
-  }, [nowPlaying, isPlaying, isPiPOpen, pipLayout, rewirePiP]);
+  }, [nowPlaying, isPlaying, isPiPOpen, pipLayout, theme, rewirePiP]);
 
   const openPiP = async () => {
     if (!('documentPictureInPicture' in window)) return;
@@ -350,6 +353,7 @@ export default function NavBar() {
       );
       openPip.close();
       pipWindowRef.current = null;
+      pipStyleRef.current = null;
       appliedLayoutRef.current = null;
       setIsPiPOpen(false);
       return;
@@ -364,8 +368,9 @@ export default function NavBar() {
       });
 
       const styleEl = pip.document.createElement('style');
-      styleEl.textContent = 'html,body{margin:0;padding:0;background:#f5f4f0;height:100%;}';
+      styleEl.textContent = pipThemeCss();
       pip.document.head.appendChild(styleEl);
+      pipStyleRef.current = styleEl;
 
       rewirePiP(pip);
       renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current, pipLayoutRef.current);
@@ -395,6 +400,7 @@ export default function NavBar() {
           pip.outerHeight || pip.innerHeight,
         );
         pipWindowRef.current = null;
+        pipStyleRef.current = null;
         appliedLayoutRef.current = null;
         setIsPiPOpen(false);
       });
@@ -428,7 +434,7 @@ export default function NavBar() {
             {nowPlaying.rating && (
               <span
                 className="np-mobile-bar-rating"
-                style={{ color: RATING_COLORS[nowPlaying.rating] }}
+                style={{ color: ratingColor(nowPlaying.rating) }}
               >
                 {nowPlaying.rating}
               </span>
@@ -441,7 +447,7 @@ export default function NavBar() {
               <div className="np-mobile-panel-label">calificar</div>
               <div className="np-mobile-panel-btns">
                 {RATINGS.map(r => {
-                  const c = RATING_COLORS[r];
+                  const c = ratingColor(r);
                   const active = nowPlaying.rating === r;
                   return (
                     <button
@@ -450,7 +456,7 @@ export default function NavBar() {
                       style={{
                         borderColor: active ? c : undefined,
                         color: active ? c : undefined,
-                        background: active ? `${c}20` : undefined,
+                        background: active ? ratingDim(r) : undefined,
                       }}
                       onClick={() => handleRate(r)}
                     >
@@ -485,8 +491,11 @@ export default function NavBar() {
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-status">
-            <span className="sidebar-footer-dot" />
-            <span>{nowPlaying ? 'now playing' : 'Connected'}</span>
+            <span className="sidebar-footer-status-left">
+              <span className="sidebar-footer-dot" />
+              <span>{nowPlaying ? 'now playing' : 'Connected'}</span>
+            </span>
+            <ThemeToggle />
           </div>
           {nowPlaying && (
             <div className="now-playing-widget">
@@ -499,7 +508,7 @@ export default function NavBar() {
               </div>
               <div className="now-playing-actions">
                 {nowPlaying.rating && (
-                  <span className="now-playing-rating" style={{ color: RATING_COLORS[nowPlaying.rating] }}>
+                  <span className="now-playing-rating" style={{ color: ratingColor(nowPlaying.rating) }}>
                     {nowPlaying.rating}
                   </span>
                 )}

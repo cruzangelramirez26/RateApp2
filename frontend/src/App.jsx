@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { api } from './utils/api';
 import { preloadCache } from './utils/preloadCache';
 import { ToastProvider } from './hooks/useToast';
+import { ThemeProvider } from './hooks/useTheme';
 import NavBar from './components/NavBar';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
@@ -38,43 +39,51 @@ export default function App() {
 
   if (auth === null) {
     return (
-      <div style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-deep)',
-      }}>
+      <ThemeProvider>
         <div style={{
-          fontSize: '2.5rem',
-          animation: 'pulse-glow 1.5s ease-in-out infinite',
+          minHeight: '100dvh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--bg-deep)',
         }}>
-          🎵
+          <div style={{
+            fontSize: '2.5rem',
+            animation: 'pulse-glow 1.5s ease-in-out infinite',
+          }}>
+            🎵
+          </div>
         </div>
-      </div>
+      </ThemeProvider>
     );
   }
 
   if (!auth) {
-    return <LoginPage />;
+    return (
+      <ThemeProvider>
+        <LoginPage />
+      </ThemeProvider>
+    );
   }
 
   return (
-    <ToastProvider>
-      <BrowserRouter>
-        <div className="app-layout">
-          <NavBar />
-          <div className="main-content">
-            <Routes>
-              <Route path="/" element={<PendingPage />} />
-              <Route path="/library" element={<LibraryPage />} />
-              <Route path="/recent" element={<RecentPage />} />
-              <Route path="/tools" element={<ToolsPage />} />
-              <Route path="/dashboard" element={<StatsPage />} />
-            </Routes>
+    <ThemeProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <div className="app-layout">
+            <NavBar />
+            <div className="main-content">
+              <Routes>
+                <Route path="/" element={<PendingPage />} />
+                <Route path="/library" element={<LibraryPage />} />
+                <Route path="/recent" element={<RecentPage />} />
+                <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/dashboard" element={<StatsPage />} />
+              </Routes>
+            </div>
           </div>
-        </div>
-      </BrowserRouter>
-    </ToastProvider>
+        </BrowserRouter>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }

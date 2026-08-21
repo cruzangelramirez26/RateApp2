@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
+import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
 import { useToast } from '../hooks/useToast';
 
-const RATING_COLORS = {
-  'A+': '#f5c542', 'A': '#e8a83e', 'B+': '#6ecf8a',
-  'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
-};
 const RATING_ORDER = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
 const CUATRI_LABEL = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
 const CUATRI_DATE  = { perla: 'Ene–Abr', miel: 'May–Ago', latte: 'Sep–Dic' };
@@ -24,7 +21,7 @@ function getCuatriMeta(year, cuatri) {
   const key = `${year}-${cuatri}`;
   return CUATRI_META[key] || {
     label: CUATRI_LABEL[cuatri] || cuatri,
-    color: '#9ca3af',
+    color: 'var(--text-muted)',
     img: null,
   };
 }
@@ -145,13 +142,13 @@ export default function StatsPage() {
           label="Promedio"
           value={modeRating}
           sub="rating más frecuente"
-          color={RATING_COLORS[modeRating]}
+          color={ratingColor(modeRating)}
         />
         <MetricCard
           label="Tier A"
           value={aTierCount}
           sub={`${aTierPct}% del total`}
-          color={RATING_COLORS['A']}
+          color={ratingColor('A')}
         />
         <MetricCard
           label="Skip Rate"
@@ -178,14 +175,14 @@ export default function StatsPage() {
                 <div key={r} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{
                     fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 700,
-                    color: RATING_COLORS[r], width: '28px', textAlign: 'right',
+                    color: ratingColor(r), width: '28px', textAlign: 'right',
                   }}>{r}</span>
                   <div style={{
                     flex: 1, height: '24px', background: 'var(--bg-surface)',
                     borderRadius: '6px', overflow: 'hidden', position: 'relative',
                   }}>
                     <div style={{
-                      width: `${pct}%`, height: '100%', background: RATING_COLORS[r],
+                      width: `${pct}%`, height: '100%', background: ratingColor(r),
                       opacity: 0.3, borderRadius: '6px', transition: 'width 0.6s var(--ease-out)',
                     }} />
                     <span style={{
@@ -228,9 +225,9 @@ export default function StatsPage() {
                   {top_rating && (
                     <span style={{
                       fontSize: '0.68rem', fontWeight: 700, fontFamily: 'var(--font-mono)',
-                      color: RATING_COLORS[top_rating],
-                      background: `${RATING_COLORS[top_rating]}18`,
-                      border: `1px solid ${RATING_COLORS[top_rating]}44`,
+                      color: ratingColor(top_rating),
+                      background: ratingDim(top_rating),
+                      border: `1px solid ${ratingSoft(top_rating)}`,
                       padding: '1px 6px', borderRadius: '4px',
                     }}>{top_rating}</span>
                   )}
@@ -289,7 +286,7 @@ export default function StatsPage() {
                       {top_rating && (
                         <span style={{
                           fontSize: '0.68rem', fontWeight: 700, fontFamily: 'var(--font-mono)',
-                          color: RATING_COLORS[top_rating],
+                          color: ratingColor(top_rating),
                         }}>{top_rating}</span>
                       )}
                     </div>

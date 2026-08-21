@@ -15,6 +15,23 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Tema antes del primer paint: sin esto, abrir la app en oscuro
+         destella blanco mientras carga el bundle. Duplica a proposito la
+         logica minima de src/utils/theme.js. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('rateapp_theme');
+          if (m !== 'light' && m !== 'dark') m = 'system';
+          var dark = m === 'dark' || (m === 'system' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var t = dark ? 'dark' : 'light';
+          document.documentElement.dataset.theme = t;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#121110' : '#f5f4f0');
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

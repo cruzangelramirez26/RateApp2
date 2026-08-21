@@ -18,14 +18,21 @@
 - [ ] Pendiente/opcional: mismo link contextual en LibraryPage (chips de playlist)
       y en el PiP de Pending.
 
-## 2. Modo oscuro
-- Decisión: toggle manual + seguir preferencia del sistema por default,
-  persistido en localStorage.
-- Trabajo: bloque [data-theme="dark"] en global.css; migrar los ~23 colores
-  hardcodeados de global.css y ~52 de JSX a tokens; toggle en sidebar (desktop)
-  y en tab bar / mini-bar (móvil); inyectar los tokens al documento del PiP;
-  actualizar <meta name="theme-color"> dinámicamente.
-- Ajustar contraste de colores de rating en oscuro (D #88555c casi desaparece).
+## 2. Modo oscuro  [HECHO 2026-08-20]
+- [x] Bloque [data-theme="dark"] en global.css. `data-theme` lo escribe siempre
+      JS (script inline en index.html antes del primer paint + hook useTheme),
+      así que no hace falta duplicar tokens dentro de un @media.
+- [x] Los ~23 colores hardcodeados del CSS y los 5 mapas RATING_COLORS del JSX
+      pasaron a tokens. Nuevos: --bg-bar, --on-accent y -dim/-soft/-glow por rating.
+- [x] Toggle: botón de icono en el sidebar (desktop, cicla claro→oscuro→sistema)
+      y control segmentado en una tarjeta "Apariencia" al inicio de Herramientas
+      (esa es la vía en móvil, la tab bar ya está llena).
+- [x] Los PiP siguen el tema: pipThemeCss() inyecta los tokens resueltos en el
+      documento del PiP, que es aparte y no los hereda.
+- [x] <meta name="theme-color"> se actualiza al cambiar de tema.
+- [x] Ratings aclarados en oscuro (D pasó de #88555c a #c98b93).
+- [ ] Falta verlo a ojo: una ventana de PiP real (el navegador de pruebas no
+      las abre).
 
 ## 3. PiP rehecho (la pieza grande)
 Problema de fondo: los dos PiP (NavBar.jsx y PendingPage.jsx) se dibujan con
