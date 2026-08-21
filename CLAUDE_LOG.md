@@ -151,7 +151,7 @@ que preocupaba antes, porque al ser ventana rodante nunca se vacia de golpe.
 Anotado en `Mejoras.txt` con lo que falta antes de volver a preguntar: cuantas
 canciones tiene A+ hoy y cuantas Galeria Anual.
 
-Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `PEND2` (pausa).
+Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `58fb493` (pausa).
 
 ---
 
