@@ -17,7 +17,7 @@
 
 Verificación: `npm run build` OK (1582 módulos, 3.15s).
 
-Commit: `PENDIENTE`.
+Commit: `6bf17b1`.
 
 ---
 
