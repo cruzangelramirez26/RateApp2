@@ -2,6 +2,77 @@
 
 ---
 
+## 2026-08-21 (sesion ping anti-sleep + diagnostico del 404)
+
+**Maquina: PC `AngelPC`.**
+
+Sin cambios de codigo de la app. Un workflow de CI nuevo y documentacion.
+
+**Lo que se pidio y lo que se hizo.** Angel reporto dos molestias juntas: que
+Render free se duerme, y que "a veces hago refresh y sale esto, se reinicia toda
+la app", con captura de `{"detail":"Not Found"}` en `/recent`. Resultaron ser dos
+problemas independientes y el segundo **no** es lo que parecia.
+
+**El 404 no es la app reiniciandose.** Se comprobo con el server despierto
+(`/health` en 245 ms) recorriendo las rutas del SPA en el deploy vivo:
+
+```
+/            200
+/recent      404
+/library     404
+/tools       404
+/dashboard   404
+```
+
+Causa: `backend/main.py` monta `StaticFiles(directory=static_dir, html=True)` en
+`"/"`. Con `html=True`, StaticFiles sirve `index.html` para `/` y para carpetas
+que existan en disco — nada mas. `/recent` no es archivo ni carpeta, asi que cae
+al 404 de FastAPI en JSON crudo. El `BrowserRouter` de React resuelve esas rutas
+del lado del cliente, y de ahi la asimetria: navegar dentro de la app funciona,
+refrescar o pegar la URL no. Es permanente y no lo arregla ni el ping ni migrar
+de hosting.
+
+**Angel eligio no arreglarlo en esta sesion** (se le pregunto dos veces, con el
+diagnostico ya en la mesa; solo quiso el ping). Queda documentado como `## 4b` en
+`Mejoras.txt` con la causa y el fix propuesto: fallback a `index.html` cuando el
+path no matcheo ningun router y no trae extension de archivo — la condicion de
+"sin extension" es la que evita que un `/assets/foo.js` inexistente devuelva
+`index.html` en vez de un 404 real.
+
+**El ping (esto si se hizo).** `.github/workflows/keep-awake.yml` (nuevo) le pega
+a `/health` cada 10 min via `cron: '*/10 * * * *'`, con `workflow_dispatch` para
+dispararlo a mano. Se eligio sobre pagar Render ($7/mes) o migrar a Fly.io
+(~$2-3/mes) porque es $0 y no toca el codigo de la app. El `curl` lleva
+`--max-time 90` y `--retry 3 --retry-delay 15 --retry-all-errors` a proposito: el
+momento en que el ping mas importa es justo un arranque frio de 30-60s, tras un
+redeploy o si se perdio el ping anterior. Se probo el comando exacto contra el
+deploy vivo (200) y se valido que el YAML parsea.
+
+**Numero corregido en `Mejoras.txt`:** la nota decia que 24/7 consume "~730 de
+las 750 horas/mes". Son **744** en un mes de 31 dias, o sea 6 h de margen, no 20
+— y solo si es el UNICO servicio free de la cuenta. Por eso el workflow trae
+comentado un cron recortado (`*/10 13-23,0-7 * * *`, que es 7:00-1:00 hora Mexico
+centro) para cuando haga falta holgura.
+
+**Dos limitaciones que hay que tener presentes**, ambas anotadas en el YAML:
+GitHub deshabilita los workflows programados tras 60 dias sin actividad en el
+repo (avisa por correo), y el cron de Actions en runners gratis se atrasa
+seguido, asi que algun ping puede llegar tarde o perderse. Si eso pasa de mas,
+cron-job.org es mas puntual para este trabajo.
+
+**Deuda que quedo senalada, sin tocar.** `backend/spotify.py:29` usa
+`cache_path=".spotify_cache"`, un archivo en disco, y el filesystem de Render es
+efimero: cada reinicio o redeploy obliga a re-loguearse en Spotify. El patron
+para arreglarlo ya existe dos veces en el proyecto — `aplus_cutoff` y el estado
+del Modo Virtual viven en la tabla `config` — asi que lo natural es un
+`CacheHandler` de spotipy que lea y escriba ahi. Importa mas de lo que parece:
+es prerrequisito para cualquier migracion futura a Cloud Run o a algo con mas de
+una instancia, donde el problema **empeora** en vez de quedarse igual.
+
+Commit: `782220f`.
+
+---
+
 ## 2026-08-20 (sesion 3 - modo oscuro)
 
 **Maquina: PC `AngelPC`.**
