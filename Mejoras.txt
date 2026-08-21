@@ -5,14 +5,16 @@
 - [x] Link de la canción focal de Pending → abre la playlist <3333 posicionada en
       esa canción (open.spotify.com/playlist/{id}?highlight=spotify:track:{tid})
       en vez de la página aislada del track.
-- [ ] Pendiente/opcional: botón "▶ Reproducir en <3333" vía API
-      (start_playback con context_uri = playlist + offset = track). Reproduce DENTRO
-      del contexto de la playlist, así lo que sigue es la siguiente de <3333> y no
-      el radio de Spotify. Requiere Premium + dispositivo activo. Scope ya existe.
-- [ ] Pendiente/opcional: apagar shuffle desde la app (PUT /me/player/shuffle?state=false).
-      El link NO reproduce nada, así que no dispara shuffle; pero si el shuffle está
-      prendido en Spotify y le das play manualmente, el orden sí se revuelve.
-      Un botón/endpoint de "shuffle off" lo resolvería de raíz.
+- [x] Link apunta al esquema spotify: para que abra la APP instalada (desktop y
+      móvil) en vez del web player. Link secundario "web" como respaldo.
+- [x] Botón "▶ Reproducir en <3333" vía API (POST /tracks/player/play-in-context):
+      start_playback con context_uri = playlist + offset = track. Reproduce DENTRO
+      del contexto, así lo que sigue es la siguiente de <3333> y no el radio.
+      Fallback de device_id cuando Spotify está abierto pero idle.
+      Requiere Premium. Scope user-read-playback-state agregado.
+- [x] Shuffle se apaga automáticamente antes de reproducir (sp.shuffle(False)),
+      y se reintenta después de arrancar porque sin contexto activo Spotify
+      a veces ignora el toggle.
 - [ ] Pendiente/opcional: mismo link contextual en LibraryPage (chips de playlist)
       y en el PiP de Pending.
 
