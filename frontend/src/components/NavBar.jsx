@@ -217,19 +217,27 @@ export default function NavBar() {
   }, []);
 
   const fetchNowPlaying = useCallback(async () => {
+    // Spotify deja de reportar (204 vacio en /me/player) en cuanto el dispositivo
+    // se vuelve inactivo tras la pausa. Antes eso vaciaba el widget y parecia que
+    // no habia nada sonando; ahora el ultimo track conocido se queda, marcado
+    // como pausado, hasta que suene otra cosa o se recargue la pagina.
+    //
+    // Un error de red cae al mismo camino a proposito: un 500 pasajero tampoco
+    // tiene por que borrar la barra.
     try {
       const data = await api.getNowPlaying();
-      const track = data.track;
-      setNowPlaying(track);
-      setIsPlaying(data.is_playing);
-      nowPlayingRef.current = track;
-      isPlayingRef.current = data.is_playing;
+      if (data.track) {
+        setNowPlaying(data.track);
+        setIsPlaying(data.is_playing);
+        nowPlayingRef.current = data.track;
+        isPlayingRef.current = data.is_playing;
+        return;
+      }
     } catch {
-      setNowPlaying(null);
-      setIsPlaying(false);
-      nowPlayingRef.current = null;
-      isPlayingRef.current = false;
+      // mismo tratamiento que "Spotify no reporta nada"
     }
+    setIsPlaying(false);
+    isPlayingRef.current = false;
   }, []);
 
   useEffect(() => {

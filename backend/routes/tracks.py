@@ -61,7 +61,22 @@ def get_pending_tracks():
 def get_now_playing():
     """Return the track currently playing or paused on Spotify, with DB rating."""
     sp = spotify.get_client()
-    result = sp.current_user_playing_track()
+
+    # current_playback() pega a /me/player y sigue reportando el track cuando
+    # esta en pausa; current_user_playing_track() pega a /me/player/currently-playing,
+    # que devuelve 204 vacio en cuanto el dispositivo se vuelve inactivo tras la
+    # pausa. Se intenta el primero y se cae al segundo por si acaso.
+    result = None
+    try:
+        result = sp.current_playback()
+    except Exception:
+        result = None
+    if not result or not result.get("item"):
+        try:
+            result = sp.current_user_playing_track()
+        except Exception:
+            result = None
+
     if not result:
         return {"is_playing": False, "track": None}
 
@@ -108,11 +123,28 @@ def player_pause():
 
 @router.post("/player/play")
 def player_play():
+    """
+    Reanuda la reproduccion. Reintenta con device_id explicito porque Spotify
+    rechaza start_playback con NO_ACTIVE_DEVICE cuando la app esta abierta pero
+    idle — que es exactamente el estado en el que queda tras un rato en pausa,
+    y por lo tanto el caso mas probable de este boton.
+    """
     sp = spotify.get_client()
     try:
         sp.start_playback()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return {"ok": True}
+    except Exception as first_error:
+        device_id = _resolve_device_id(sp)
+        if not device_id:
+            raise HTTPException(
+                status_code=400,
+                detail="No hay ningun dispositivo de Spotify disponible. Abre "
+                       "Spotify en alguna parte y vuelve a intentar.",
+            )
+        try:
+            sp.start_playback(device_id=device_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail=str(first_error))
     return {"ok": True}
 
 

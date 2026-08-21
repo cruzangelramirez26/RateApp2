@@ -168,12 +168,28 @@ mundos: Galería Anual con el orden nuevo (es la que se escucha) y las playlists
 de cuatrimestre en orden puro de rating (son el registro del período). No hay que
 elegir uno global.
 
-PENDIENTE DE ANGEL:
-- [ ] ¿Qué playlist es la que scrollea: Galería Anual o la del cuatrimestre?
-      De eso depende dónde se aplica el cambio.
-- [ ] ¿El bloque de novedades es "el cuatrimestre actual" o "los últimos N
-      meses"? Lo primero es más consistente con el resto de la app; lo segundo
-      evita que el 1 de enero el bloque quede vacío de golpe.
+DECIDIDO POR ANGEL (2026-08-21) — la ventana de "novedad":
+- [x] NO es el cuatrimestre ni una ventana global. Es una ventana por playlist,
+      proporcional a lo que esa playlist dura:
+        playlists de cuatrimestre (duran 4 meses)  -> ventana de 2 meses
+        Galeria Anual            (dura 12 meses)   -> ventana de 4 meses
+      Razon textual de Angel: "por el simple hecho de que las playlists duran".
+      O sea, "reciente" no es un absoluto: es la rebanada de adelante de la vida
+      de la propia playlist (la mitad en las de cuatri, un tercio en la anual).
+      Esto ademas resuelve solo el filo del 1 de enero que preocupaba antes: al
+      ser ventana rodante y no el cuatrimestre, nunca se vacia de golpe.
+      Implicacion: `_order_playlist` necesita recibir los meses de ventana como
+      parametro, no una constante global.
+
+ABIERTO — Angel dijo "espera, hay que plantearlo bien" (2026-08-21):
+- [ ] A que playlists se les aplica. NO preguntar de nuevo con opciones sueltas:
+      lo que falta es el planteamiento, no la respuesta. Antes de volver a
+      preguntar hay que tener sobre la mesa, por playlist: para que sirve (se
+      escucha vs es registro del periodo), cuantas canciones tiene hoy, y cuanto
+      scroll implica eso de verdad. Sin esos numeros la pregunta es abstracta y
+      por eso no se pudo contestar.
+- [ ] Dato que falta y decide casi todo: cuantas canciones tiene hoy A+, y
+      cuantas tiene Galeria Anual. Se puede sacar de la DB sin tocar Spotify.
 
 ## Decisiones chicas sin resolver
 - [ ] `frontend/package-lock.json` existe en la PC desde el `npm install` del

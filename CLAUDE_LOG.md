@@ -90,7 +90,68 @@ del Modo Virtual viven en la tabla `config` — asi que lo natural es un
 es prerrequisito para cualquier migracion futura a Cloud Run o a algo con mas de
 una instancia, donde el problema **empeora** en vez de quedarse igual.
 
-Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA).
+**Bug fix: la cancion pausada ya no desaparece del widget.**
+
+Angel: "no me gusta que le pongo pausa a la cancion y ya sale que no estoy
+escuchando nada en la app, minimo que se quede esa que esta en pausa".
+
+Ojo con el changelog: la entrada del 2026-05-12 dice que esto ya se habia
+arreglado ("ahora retorna el track aunque este pausado"). El backend si lo hacia
+bien; el bug seguia por dos razones encadenadas que no estaban documentadas.
+
+1. `sp.current_user_playing_track()` pega a `/me/player/currently-playing`, y
+   Spotify responde **204 vacio** cuando el dispositivo se vuelve inactivo — que
+   es justo lo que pasa un rato despues de darle pausa. El backend devolvia
+   `track: null` correctamente: Spotify ya no le contaba nada.
+2. `fetchNowPlaying` en `NavBar.jsx` hacia `setNowPlaying(null)` con eso, y el
+   widget se renderiza detras de `{nowPlaying && ...}`, asi que desaparecia.
+
+Arreglado en las dos capas, porque cualquiera sola se queda corta:
+- `backend/routes/tracks.py` — `get_now_playing` ahora intenta primero
+  `sp.current_playback()` (`/me/player`), que sigue reportando el track pausado
+  bastante mas tiempo, y cae a `current_user_playing_track()` si viene vacio o
+  revienta. El scope `user-read-playback-state` ya estaba desde la sesion del
+  play-in-context, asi que no hace falta re-login.
+- `frontend/src/components/NavBar.jsx` — `fetchNowPlaying` ya no borra el ultimo
+  track conocido cuando la API no reporta nada: solo lo marca como pausado. Un
+  error de red cae al mismo camino a proposito, porque un 500 pasajero tampoco
+  tiene por que vaciar la barra. Comportamiento elegido por Angel: se queda
+  "hasta que le de play o escoja otra".
+
+**Efecto secundario que hubo que atender.** `player_play` llamaba a
+`sp.start_playback()` sin device. Antes daba igual, porque el widget desaparecia
+y no habia boton que apretar; con el fix el ▶ queda visible justo en el estado de
+dispositivo idle, que es donde Spotify contesta `NO_ACTIVE_DEVICE`. Se le cableo
+el `_resolve_device_id()` que ya existia y solo usaba `play-in-context`: si el
+primer intento falla, resuelve el dispositivo (prefiere el activo, si no el
+primero) y reintenta; si no hay ninguno, 400 con mensaje legible en espanol.
+
+Verificado con 9 casos y el cliente de Spotify stubeado (sin red ni MySQL):
+pausado devuelve el track, sonando devuelve `is_playing=True`, el fallback a
+currently-playing entra tanto si `/me/player` viene vacio como si lanza
+excepcion, sin nada devuelve `track: None`; y en play, el camino feliz usa una
+sola llamada sin device, el idle reintenta con el device **activo** (no el
+primero de la lista), sin activo toma el primero, y sin dispositivos levanta 400.
+`npm run build` OK.
+
+**Nota:** los cuatro handlers del player en el frontend tragan el error con
+`catch {}`, asi que si el play falla no hay feedback visual. Es de antes y no se
+toco, pero ahora es mas alcanzable.
+
+**Sobre el orden por rating (seccion 6 del backlog): no se toco codigo.** Angel
+dijo "espera, hay que plantearlo bien" cuando se le pregunto a que playlist
+aplicarlo, asi que quedo abierto a proposito. Lo que si quedo decidido es la
+ventana de "novedad", y es mejor que las tres opciones que se le ofrecieron: no
+es global ni el cuatrimestre, es **por playlist y proporcional a lo que la
+playlist dura** — 2 meses en las de cuatrimestre (que duran 4) y 4 meses en la
+Galeria Anual (que dura 12). Su razon: "por el simple hecho de que las playlists
+duran". Eso implica que `_order_playlist` tiene que recibir los meses de ventana
+como parametro y no una constante global, y de paso mata el filo del 1 de enero
+que preocupaba antes, porque al ser ventana rodante nunca se vacia de golpe.
+Anotado en `Mejoras.txt` con lo que falta antes de volver a preguntar: cuantas
+canciones tiene A+ hoy y cuantas Galeria Anual.
+
+Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `PEND2` (pausa).
 
 ---
 
