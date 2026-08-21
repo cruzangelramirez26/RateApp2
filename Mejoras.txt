@@ -56,9 +56,16 @@ pierde hover/foco, imposible animar.
 
 ## 4. Hosting que no se duerma
 Render free duerme el servicio tras ~15 min sin tráfico (arranque frío 30–60s).
-- [ ] Paso 1 (recomendado, ~15 min, $0): ping externo cada ~10 min
-      (cron-job.org o GitHub Actions) a un endpoint de health. Un servicio despierto
-      24/7 consume ~730 de las 750 horas/mes gratis: entra justo.
+- [x] Paso 1 HECHO (2026-08-21): ping externo con GitHub Actions.
+      `.github/workflows/keep-awake.yml` le pega a /health cada 10 min. Elegido
+      sobre pagar porque es $0 y no toca el codigo de la app.
+      Corregido el numero: 24/7 son 744 h en un mes de 31 dias, no 730 — o sea
+      6 h de margen sobre las 750, y solo si es el UNICO servicio free de la
+      cuenta. El workflow trae comentado un cron recortado (7:00-1:00 hora
+      Mexico) si hace falta mas holgura.
+      Dos limitaciones conocidas: GitHub deshabilita el cron tras 60 dias sin
+      actividad en el repo, y el cron de Actions en runners gratis se atrasa
+      seguido. Si se pierden pings de mas, mover a cron-job.org.
 - [ ] Paso 2 (si se quiere definitivo): Google Cloud Run. Ya hay Dockerfile.
       Escala a cero pero arranque frío 1–3s. Free tier holgado para 1 usuario.
 - [ ] Alternativa: Oracle Cloud Always Free (VM ARM) — nunca duerme, pero
@@ -73,6 +80,25 @@ Render free duerme el servicio tras ~15 min sin tráfico (arranque frío 30–60
       así que la latencia se multiplica por el número de queries de cada acción.
       Si no coincide, recrear el servicio en Virginia.
 
+## 4b. BUG: 404 al refrescar en cualquier ruta que no sea /
+
+Diagnosticado 2026-08-21. NO es que Render se este durmiendo — se confirmo con
+el server despierto: / da 200 y /recent, /library, /tools y /dashboard dan los
+cuatro 404 con {"detail":"Not Found"}.
+
+Causa: `main.py` monta `StaticFiles(directory=static_dir, html=True)` en "/".
+Con html=True, StaticFiles sirve index.html solo para "/" y para carpetas que
+existan en disco. `/recent` no es archivo ni carpeta, asi que devuelve 404 de
+FastAPI en JSON crudo. El BrowserRouter de React maneja esas rutas del lado del
+cliente, por eso navegar dentro de la app si funciona y refrescar no.
+
+Se reproduce igual en cualquier hosting: no lo arregla el ping ni migrar.
+
+- [ ] Fallback SPA: si el path no matcheo ningun router y no trae extension de
+      archivo, devolver index.html. La condicion de "sin extension" importa para
+      que un /assets/foo.js inexistente siga dando 404 real y no index.html.
+      Angel decidio no hacerlo en la sesion del 2026-08-21 (solo quiso el ping).
+
 ## 5. Apps nativas
 - [ ] Windows con Tauri v2 (instalador ~8MB, WebView2). Ganancia real: ventana
       always-on-top nativa que REEMPLAZA el PiP, tray icon, autostart, teclas
@@ -83,6 +109,50 @@ Render free duerme el servicio tras ~15 min sin tráfico (arranque frío 30–60
   así que el punto 4 no desaparece.
 - BLOQUEO ACTUAL: frontend/node_modules no está instalado en esta laptop; sin Node
   no se puede compilar ni verificar nada de esto.
+
+## 6. El bloque A+ se sobresatura con el tiempo  [EN EL RADAR — sin solucion elegida]
+Planteado por Angel el 2026-08-21. No hay decision todavia, solo queda registrado.
+
+PROBLEMA: el rating es absoluto y permanente, pero las ganas de escuchar algo no.
+A+ solo crece: nada sale nunca. Al cabo de anios el bloque se llena de canciones
+viejas y una cancion nueva calificada A -- que hoy apetece mas que media A+ --
+nunca compite, porque vive en otro bloque mas abajo. Consecuencia: A+ deja de
+ser "lo que quiero oir" y se vuelve un archivo historico.
+
+Lo que NO es: no es que las calificaciones esten mal. La A esta bien puesta y la
+A+ vieja tambien lo estaba cuando se puso. El rating mide calidad percibida;
+lo que falta es una dimension de recencia / apetito.
+
+DIRECCIONES POSIBLES (ninguna acordada, hay que discutirlas):
+- a) Recencia como segunda dimension, no como rating. La cola de reproduccion
+     ordena por rating Y por antiguedad, no solo por rating. Una A de este
+     cuatrimestre puede caer antes que una A+ de hace tres anios. Ventaja: no
+     toca los ratings ni las playlists existentes. Costo: hay que decidir la
+     formula del peso y donde vive (una playlist nueva o el orden de A+).
+- b) Playlist "Rotacion" / "En vivo": conjunto acotado (p. ej. 50-80 canciones)
+     que mezcla TOP_SET reciente con A+ historicas que rotan. Es la que se
+     escucha a diario; A+ completa queda como galeria. Costo: hay que definir
+     como entra y como sale una cancion de la rotacion.
+- c) Decaimiento / revalidacion: una A+ que ya tiene X tiempo entra a una cola
+     de "reconfirmar". Se re-escucha y se decide si sigue siendo A+. Es el mismo
+     mecanismo de Pending pero para lo ya calificado. Ventaja: mantiene A+
+     honesto. Costo: es trabajo manual recurrente, puede sentirse tarea.
+- d) A+ por epoca: el bloque se subdivide (A+ 2024, A+ 2025, A+ 2026) y se
+     escucha por epoca. Barato de implementar -- ya existe added_at y
+     cuatrimestre_override. Costo: no resuelve el mezclado, solo lo separa.
+- e) Cupo duro en A+: si el bloque pasa de N canciones, para meter una hay que
+     bajar otra. Fuerza que A+ sea siempre "el top N real". Costo: es la mas
+     dolorosa emocionalmente y la mas invasiva sobre datos existentes.
+
+PREGUNTAS PARA ANGEL ANTES DE CODEAR NADA:
+- Cuando dices "ya no las termino escuchando": el problema es el ORDEN en que
+  suenan o el TAMANIO del bloque? Si fuera solo el orden, (a) lo arregla sin
+  tocar nada mas.
+- Quieres que A+ siga siendo el registro historico completo (entonces la
+  solucion es una playlist/orden aparte, (a) o (b)), o quieres que A+ sea
+  siempre "lo que realmente quiero oir hoy" (entonces es (c) o (e))?
+- Cuantas canciones tiene A+ hoy? De eso depende si esto es urgente o si
+  todavia hay margen.
 
 ## Decisiones chicas sin resolver
 - [ ] `frontend/package-lock.json` existe en la PC desde el `npm install` del
