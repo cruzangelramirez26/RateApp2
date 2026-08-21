@@ -2,6 +2,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import os
 
@@ -54,6 +55,33 @@ def health():
     return {"status": "ok"}
 
 
+class SPAStaticFiles(StaticFiles):
+    """StaticFiles con fallback a index.html para las rutas del BrowserRouter.
+
+    StaticFiles(html=True) sirve index.html solo para "/" y para carpetas que
+    existan en disco, asi que refrescar en /recent caia al 404 de FastAPI aunque
+    React si sepa resolver esa ruta del lado del cliente.
+
+    El fallback aplica solo a paths sin extension de archivo. Sin esa condicion,
+    un /assets/foo.js inexistente devolveria index.html con status 200 y el error
+    real (un asset que no se copio al build) quedaria escondido detras de un
+    "Unexpected token '<'" en la consola del navegador.
+
+    Solo se atrapa el 404: los 405 que StaticFiles levanta para metodos que no
+    son GET/HEAD siguen saliendo tal cual.
+    """
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and not os.path.splitext(path)[1]:
+                return await super().get_response("index.html", scope)
+            raise
+
+
+# Va al final a proposito: los routers se registran antes, y Starlette resuelve
+# en orden de registro, asi que /tracks/... gana contra este catch-all.
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(static_dir):
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    app.mount("/", SPAStaticFiles(directory=static_dir, html=True), name="static")

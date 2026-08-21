@@ -32,12 +32,33 @@ del lado del cliente, y de ahi la asimetria: navegar dentro de la app funciona,
 refrescar o pegar la URL no. Es permanente y no lo arregla ni el ping ni migrar
 de hosting.
 
-**Angel eligio no arreglarlo en esta sesion** (se le pregunto dos veces, con el
-diagnostico ya en la mesa; solo quiso el ping). Queda documentado como `## 4b` en
-`Mejoras.txt` con la causa y el fix propuesto: fallback a `index.html` cuando el
-path no matcheo ningun router y no trae extension de archivo — la condicion de
-"sin extension" es la que evita que un `/assets/foo.js` inexistente devuelva
-`index.html` en vez de un 404 real.
+**Arreglado (Angel lo pidio despues, en la misma sesion).** `SPAStaticFiles` en
+`backend/main.py` subclasea `StaticFiles` y atrapa el 404 de `get_response` para
+devolver `index.html`.
+
+La condicion de "sin extension de archivo" es la parte que importa. Sin ella, un
+`/assets/foo.js` inexistente devolveria `index.html` con status 200 y el error
+real — un asset que no se copio al build — quedaria escondido detras de un
+`Unexpected token '<'` en la consola del navegador, que es de las cosas mas
+molestas de rastrear. Con la condicion, ese caso sigue dando 404 honesto.
+
+Solo se atrapa el 404 a proposito: StaticFiles tambien levanta 405 para metodos
+que no son GET/HEAD, y ese debe seguir saliendo tal cual (un `POST /recent` no
+tiene por que recibir HTML). El mount va al final del archivo porque Starlette
+resuelve en orden de registro: los routers se registran antes y por eso
+`/tracks/...` le gana al catch-all.
+
+**Verificacion con el build real de Vite**, no con un fixture: se corrio
+`npm run build`, se copio `dist` a `backend/static` y se probaron 15 casos con
+`TestClient` (instanciado sin `with`, para que no corra el lifespan y no pida
+MySQL). Las 5 rutas del router devuelven el SPA real — se comprobo que traen
+`<div id="root">` y la referencia al bundle, no solo que dan 200. Los assets
+reales conservan su content-type (`application/javascript`, `text/css`,
+`image/svg+xml`, `application/json`, `image/jpeg`). Tres assets inexistentes dan
+404 y se verifico que NO traen el root del SPA. `/health` sigue siendo JSON del
+router y `POST /recent` sigue dando 405. `backend/static` se borro despues: no
+existia antes y esta en `.gitignore`, pero sin `.dockerignore` engordaria el
+contexto de build.
 
 **El ping (esto si se hizo).** `.github/workflows/keep-awake.yml` (nuevo) le pega
 a `/health` cada 10 min via `cron: '*/10 * * * *'`, con `workflow_dispatch` para
@@ -69,7 +90,7 @@ del Modo Virtual viven en la tabla `config` — asi que lo natural es un
 es prerrequisito para cualquier migracion futura a Cloud Run o a algo con mas de
 una instancia, donde el problema **empeora** en vez de quedarse igual.
 
-Commit: `782220f`.
+Commits: `782220f` (ping), `65fe434` (log), `PENDIENTE` (fallback SPA).
 
 ---
 

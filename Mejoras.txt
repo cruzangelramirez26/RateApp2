@@ -94,10 +94,16 @@ cliente, por eso navegar dentro de la app si funciona y refrescar no.
 
 Se reproduce igual en cualquier hosting: no lo arregla el ping ni migrar.
 
-- [ ] Fallback SPA: si el path no matcheo ningun router y no trae extension de
-      archivo, devolver index.html. La condicion de "sin extension" importa para
-      que un /assets/foo.js inexistente siga dando 404 real y no index.html.
-      Angel decidio no hacerlo en la sesion del 2026-08-21 (solo quiso el ping).
+- [x] RESUELTO 2026-08-21, commit en la misma sesion. `SPAStaticFiles` en
+      `backend/main.py` subclasea StaticFiles y atrapa el 404 de `get_response`
+      para devolver index.html. El fallback aplica SOLO a paths sin extension de
+      archivo: asi un /assets/foo.js inexistente sigue dando 404 real y no
+      index.html con status 200 (que esconderia un asset faltante detras de un
+      "Unexpected token '<'" en la consola). Solo se atrapa el 404, asi que los
+      405 de StaticFiles para metodos que no son GET/HEAD siguen saliendo igual.
+      Verificado con el build real de Vite: las 5 rutas del router sirven el SPA,
+      los assets reales conservan su content-type, tres assets inexistentes dan
+      404, /health sigue siendo JSON del router y POST /recent sigue dando 405.
 
 ## 5. Apps nativas
 - [ ] Windows con Tauri v2 (instalador ~8MB, WebView2). Ganancia real: ventana
@@ -110,49 +116,64 @@ Se reproduce igual en cualquier hosting: no lo arregla el ping ni migrar.
 - BLOQUEO ACTUAL: frontend/node_modules no está instalado en esta laptop; sin Node
   no se puede compilar ni verificar nada de esto.
 
-## 6. El bloque A+ se sobresatura con el tiempo  [EN EL RADAR — sin solucion elegida]
-Planteado por Angel el 2026-08-21. No hay decision todavia, solo queda registrado.
+## 6. El orden por rating puro entierra las canciones nuevas  [EN EL RADAR]
+Planteado por Angel el 2026-08-21. Diagnóstico cerrado, solución por decidir.
 
-PROBLEMA: el rating es absoluto y permanente, pero las ganas de escuchar algo no.
-A+ solo crece: nada sale nunca. Al cabo de anios el bloque se llena de canciones
-viejas y una cancion nueva calificada A -- que hoy apetece mas que media A+ --
-nunca compite, porque vive en otro bloque mas abajo. Consecuencia: A+ deja de
-ser "lo que quiero oir" y se vuelve un archivo historico.
+SÍNTOMA: entra a la playlist con ganas de oír una A nueva y tiene que scrollear
+demasiado para encontrarla, porque primero pasa por TODAS las A+ de la historia.
+Las A+ viejas "pesan" más que una A nueva aunque hoy tenga más ganas de la A.
 
-Lo que NO es: no es que las calificaciones esten mal. La A esta bien puesta y la
-A+ vieja tambien lo estaba cuando se puso. El rating mide calidad percibida;
-lo que falta es una dimension de recencia / apetito.
+CAUSA EXACTA (confirmada en código): backend/routes/tracks.py:527 ordena con
+    sort_values(by=["rating_order", "added_at_dt"], ascending=[False, False])
+`rating_order` es llave DURA y primaria, así que ninguna A puede quedar por
+encima de ninguna A+, sin importar la antigüedad. La fecha solo desempata
+DENTRO del mismo rating. Mismo patrón en playlists.py:78 y :150.
 
-DIRECCIONES POSIBLES (ninguna acordada, hay que discutirlas):
-- a) Recencia como segunda dimension, no como rating. La cola de reproduccion
-     ordena por rating Y por antiguedad, no solo por rating. Una A de este
-     cuatrimestre puede caer antes que una A+ de hace tres anios. Ventaja: no
-     toca los ratings ni las playlists existentes. Costo: hay que decidir la
-     formula del peso y donde vive (una playlist nueva o el orden de A+).
-- b) Playlist "Rotacion" / "En vivo": conjunto acotado (p. ej. 50-80 canciones)
-     que mezcla TOP_SET reciente con A+ historicas que rotan. Es la que se
-     escucha a diario; A+ completa queda como galeria. Costo: hay que definir
-     como entra y como sale una cancion de la rotacion.
-- c) Decaimiento / revalidacion: una A+ que ya tiene X tiempo entra a una cola
-     de "reconfirmar". Se re-escucha y se decide si sigue siendo A+. Es el mismo
-     mecanismo de Pending pero para lo ya calificado. Ventaja: mantiene A+
-     honesto. Costo: es trabajo manual recurrente, puede sentirse tarea.
-- d) A+ por epoca: el bloque se subdivide (A+ 2024, A+ 2025, A+ 2026) y se
-     escucha por epoca. Barato de implementar -- ya existe added_at y
-     cuatrimestre_override. Costo: no resuelve el mezclado, solo lo separa.
-- e) Cupo duro en A+: si el bloque pasa de N canciones, para meter una hay que
-     bajar otra. Fuerza que A+ sea siempre "el top N real". Costo: es la mas
-     dolorosa emocionalmente y la mas invasiva sobre datos existentes.
+NO ES un problema de calificaciones ni de tamaño del bloque: es que al orden le
+falta una dimensión. El rating mide calidad; falta recencia / apetito.
 
-PREGUNTAS PARA ANGEL ANTES DE CODEAR NADA:
-- Cuando dices "ya no las termino escuchando": el problema es el ORDEN en que
-  suenan o el TAMANIO del bloque? Si fuera solo el orden, (a) lo arregla sin
-  tocar nada mas.
-- Quieres que A+ siga siendo el registro historico completo (entonces la
-  solucion es una playlist/orden aparte, (a) o (b)), o quieres que A+ sea
-  siempre "lo que realmente quiero oir hoy" (entonces es (c) o (e))?
-- Cuantas canciones tiene A+ hoy? De eso depende si esto es urgente o si
-  todavia hay margen.
+REVERSIBILIDAD (importante, esto era el conflicto de Angel): el orden en Spotify
+NO es un dato, es un derivado. `_order_playlist` lo reconstruye desde cero cada
+vez leyendo rating + added_at de la DB, y `replace_playlist` lo reescribe. Nada
+del orden vive en Spotify. Cambiar el criterio es reversible al 100%: se revierte
+el sort y se vuelve a ordenar. No se pierde nada permanente.
+
+PROPUESTA EN DOS PASOS (acordar antes de codear):
+
+- [ ] Paso 1 — BLOQUE DE NOVEDADES ARRIBA. Una llave de orden más, cero números
+      que calibrar:
+        sort_values(["es_reciente", "rating_order", "added_at_dt"],
+                    ascending=[False, False, False])
+      Arriba el TOP_SET del cuatrimestre actual en su orden puro de rating;
+      debajo, todo lo histórico en el orden de siempre. Resuelve el scroll de
+      raíz: lo nuevo queda en pantalla al abrir. No inventa magia, es el mismo
+      orden partido en dos bloques. ESTE VA PRIMERO.
+
+- [ ] Paso 2 (solo si el corte del bloque se siente arbitrario) — SCORE CON
+      DECAIMIENTO. Convierte el escalón en rampa:
+        score = rating_order + MAX_LIFT * 0.5 ** (meses_edad / VIDA_MEDIA)
+      Dos perillas con significado físico: cuántos escalones de rating puede
+      levantar la novedad, y en cuántos meses se apaga esa ventaja.
+      Con MAX_LIFT=1.3 y VIDA_MEDIA=10 meses:
+        A nueva          = 5 + 1.30 = 6.30
+        A+ de 10 meses   = 6 + 0.65 = 6.65  -> gana la A+ (bien)
+        A+ de 20 meses   = 6 + 0.33 = 6.33  -> empate técnico
+        A+ de 3 años     = 6 + 0.11 = 6.11  -> gana la A nueva (es lo que pide)
+      Guarda pendiente: revisar si conviene topar el lift a un escalón para que
+      un B+ recién calificado no se trepe arriba de una A del año pasado.
+
+DÓNDE APLICARLO: `_order_playlist` ya recibe `min_rating_order` por playlist, así
+que puede recibir también el modo de orden. Eso permite lo mejor de los dos
+mundos: Galería Anual con el orden nuevo (es la que se escucha) y las playlists
+de cuatrimestre en orden puro de rating (son el registro del período). No hay que
+elegir uno global.
+
+PENDIENTE DE ANGEL:
+- [ ] ¿Qué playlist es la que scrollea: Galería Anual o la del cuatrimestre?
+      De eso depende dónde se aplica el cambio.
+- [ ] ¿El bloque de novedades es "el cuatrimestre actual" o "los últimos N
+      meses"? Lo primero es más consistente con el resto de la app; lo segundo
+      evita que el 1 de enero el bloque quede vacío de golpe.
 
 ## Decisiones chicas sin resolver
 - [ ] `frontend/package-lock.json` existe en la PC desde el `npm install` del
