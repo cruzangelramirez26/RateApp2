@@ -17,7 +17,7 @@ También se creó `Mejoras.txt` con el backlog acordado: (1) link/play contextua
 
 Verificación: `frontend/node_modules` sigue sin instalar en esta laptop, así que no hubo `vite build`. Se validó con parse de esbuild (`PendingPage.jsx`, `NavBar.jsx`, `App.jsx` → OK) y revisión de diff.
 
-Commit: `2bcef67` → desplegado en Render.
+Commit: `a1d236d` → desplegado en Render.
 
 ---
 
