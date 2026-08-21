@@ -220,13 +220,30 @@ DOS COSAS QUE ROMPEN LA HIPOTESIS ORIGINAL ("las A+ viejitas estorban"):
    A+ por cada A (1.6 a 2.4). En 2026 das 5 a 7. En perla 2026, 6 de cada 10
    canciones calificadas fueron A+.
 
-HIPOTESIS A VERIFICAR ANTES DE DEGRADAR NADA: el salto de perla 2026 (167 A+ en
-un cuatrimestre, contra 56-105 en los de 2025) coincide con el periodo en que
-existia ya el flujo "A+ Instantaneo", que aplica A+ en bloque a los Me Gusta.
-Si esas 167 salieron de un bulk y no de escuchar cancion por cancion, entonces
-el bloque no refleja tu criterio y esas son las candidatas naturales a revisar
-— muy distinto a pedirte que degrades canciones que si juzgaste una por una.
-Se puede comprobar cruzando `added_at` con la fecha del `aplus_cutoff`.
+CAUSA, DICHA POR ANGEL (2026-08-21) — descarta la hipotesis del A+ Instantaneo:
+
+  "me malacostumbre a ponerlas en a+ solo porque las queria mero arriba"
+
+O sea el A+ inflado NO fue un bulk ni un cambio de criterio: era un WORKAROUND
+del propio bug del orden. A+ era la unica palanca que existia para subir una
+cancion, asi que la uso como boton de "ponme esto arriba". Eso explica por que
+el salto es de 2026 y por que el ratio A+/A se va a 7.
+
+Dos consecuencias, y las dos son buenas noticias:
+
+1. La densidad deberia dejar de crecer sola. Con el bloque de novedades ya no
+   hace falta inflar el rating para tener algo arriba: el incentivo desaparecio.
+   Antes de planear cualquier cupo, conviene esperar un cuatrimestre y volver a
+   medir el ratio A+/A. Si baja a los ~2 de 2025, el problema se cierra solo y
+   6b se reduce a limpiar lo historico.
+
+2. Lo historico es MUCHO menos doloroso de lo que parecia. No hay que pedirle a
+   Angel que degrade canciones que juzgo A+ una por una: hay que deshacer un
+   workaround que el mismo identifica como mala costumbre. Son categorias
+   distintas y la conversacion es otra.
+
+NO volver a plantear 6b como "cupo duro" ni como "revalidacion dolorosa". El
+encuadre correcto es: cuales A+ se pusieron para subirlas y no porque fueran A+.
 
 TECHO DEL PASO 1, para que quede claro que 6b no es opcional a largo plazo:
 - hoy:                              primera A en la posicion 226
@@ -241,7 +258,10 @@ ESCENARIOS DE CUPO (nadie los ha elegido, son para dimensionar el dolor):
    A+ al 20%             ->  242 A+,  bajan 242
    A+ al 25%             ->  302 A+,  bajan 182
    cupo de 40 por cuatri ->  200 A+,  bajan 284
-   solo hacia adelante   ->  bajan 0, pero las 484 de hoy no se tocan
+   solo hacia adelante   ->  bajan 0, y con el incentivo ya muerto puede que
+                             baste. ESTE es el primero a probar ahora, no el
+                             ultimo recurso: medir el ratio A+/A del proximo
+                             cuatrimestre antes de tocar nada historico.
 
 - [ ] PENDIENTE DE ANGEL: verificar primero la hipotesis del A+ Instantaneo.
       Si se confirma, el "cupo" deja de ser una decision dolorosa y se vuelve
