@@ -13,6 +13,23 @@ const RATING_COLORS = {
   'B': '#4aab6a', 'C+': '#5ba8d4', 'C': '#4488aa', 'D': '#88555c',
 };
 
+// ── Deep links a Spotify ──────────────────────────────────────────
+// El esquema `spotify:` lo intercepta la app instalada (desktop y móvil);
+// `https://open.spotify.com` se queda en el web player en desktop.
+// El link visible apunta a la app y se deja un respaldo "web".
+
+function spotifyAppUri(trackId, playlistId) {
+  return playlistId
+    ? `spotify:playlist:${playlistId}?highlight=spotify:track:${trackId}`
+    : `spotify:track:${trackId}`;
+}
+
+function spotifyWebUrl(trackId, playlistId) {
+  return playlistId
+    ? `https://open.spotify.com/playlist/${playlistId}?highlight=spotify:track:${trackId}`
+    : `https://open.spotify.com/track/${trackId}`;
+}
+
 // ── PiP (light theme) ─────────────────────────────────────────────
 
 function escapeHtml(s) {
@@ -309,24 +326,41 @@ export default function PendingPage() {
             {currentTrack.album && (
               <div className="pending-track-album">{currentTrack.album}</div>
             )}
-            <a
-              href={calificarId
-                ? `https://open.spotify.com/playlist/${calificarId}?highlight=spotify:track:${currentTrack.id}`
-                : `https://open.spotify.com/track/${currentTrack.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px',
-                color: 'var(--accent)', fontSize: '0.82rem', fontWeight: 600,
-                marginTop: '10px', textDecoration: 'none',
-              }}
-            >
-              <span style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: 'var(--accent)', display: 'inline-block',
-              }} />
-              {calificarId ? 'Abrir en <3333' : 'Open in Spotify'}
-            </a>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              marginTop: '10px', flexWrap: 'wrap',
+            }}>
+              {/* App instalada — sin target="_blank": el protocol handler
+                  se dispara y la pestaña actual no se mueve */}
+              <a
+                href={spotifyAppUri(currentTrack.id, calificarId)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  color: 'var(--accent)', fontSize: '0.82rem', fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: 'var(--accent)', display: 'inline-block',
+                }} />
+                {calificarId ? 'Abrir en <3333' : 'Abrir en Spotify'}
+              </a>
+
+              {/* Respaldo: web player, por si la app no está instalada */}
+              <a
+                href={spotifyWebUrl(currentTrack.id, calificarId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir en el web player"
+                style={{
+                  color: 'var(--text-muted)', fontSize: '0.72rem',
+                  fontFamily: 'var(--font-mono)', textDecoration: 'none',
+                }}
+              >
+                web ↗
+              </a>
+            </div>
           </div>
 
           <div className="pending-rating-row">
