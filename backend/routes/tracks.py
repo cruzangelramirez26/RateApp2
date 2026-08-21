@@ -1,6 +1,6 @@
 """Track rating and listing routes."""
 from fastapi import APIRouter, HTTPException, Query
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 import pandas as pd
 
@@ -532,10 +532,71 @@ def get_playlist_tracks_with_ratings(playlist_id: str):
     return tracks
 
 
-def _order_playlist(sp, playlist_id: str, min_rating_order: Optional[int] = None):
+def _novedad_dias(playlist_id: str) -> Optional[int]:
+    """
+    Ventana de "novedad" que le toca a esta playlist, o None para orden puro de
+    rating (el de siempre).
+
+    Se deriva del playlist_id a proposito, y no se pasa en cada llamada: asi los
+    6 puntos que llaman a _order_playlist la heredan sin tocarlos, incluido el
+    endpoint genérico POST /playlists/order/{id} que usan los botones "Ordenar"
+    de Herramientas. Si se pasara a mano, apretar ese boton desharia el orden.
+
+    Las playlists de cuatrimestres pasados caen a None solas, que es justo la
+    regla de que las historicas son intocables.
+    """
+    pl = config.DISTRIBUTION_PLAYLISTS
+    if playlist_id and playlist_id == pl.get("anual"):
+        return config.NOVEDAD_DIAS_ANUAL
+    cuatri_actual = utils.get_cuatrimestre(utils.now_utc())
+    if playlist_id and playlist_id == pl.get(cuatri_actual):
+        return config.NOVEDAD_DIAS_CUATRI
+    return None
+
+
+def aplicar_novedad(df_in, playlist_id: str, novedad_dias="auto"):
+    """
+    Marca la columna `es_novedad` en df_in y devuelve (sort_by, sort_asc).
+
+    Vive aparte porque hay DOS lugares que ordenan la Galeria Anual:
+    _order_playlist y rebuild_anual (que tenia su propio sort duplicado). Si el
+    criterio estuviera copiado, apretar "Reconstruir Galeria" en Herramientas
+    desharia el bloque de novedades y el bug volveria de forma intermitente,
+    que es la peor forma de que vuelva.
+
+    Espera que df_in ya tenga `rating_order` y `added_at_dt`.
+    """
+    if novedad_dias == "auto":
+        novedad_dias = _novedad_dias(playlist_id)
+
+    if not novedad_dias:
+        return ["rating_order", "added_at_dt"], [False, False]
+
+    # added_at es DATETIME de MySQL (sin zona) y los dos llamadores lo parsean
+    # SIN utc=True, o sea tz-naive. El corte tiene que ser naive tambien:
+    # comparar naive contra aware lanza TypeError en pandas.
+    corte = utils.now_utc().replace(tzinfo=None) - timedelta(days=novedad_dias)
+    es_top = df_in["rating_order"] >= config.RATING_ORDER["B+"]
+    # NaT >= corte da False, asi que las fechas ilegibles no suben.
+    df_in["es_novedad"] = es_top & (df_in["added_at_dt"] >= corte)
+    return ["es_novedad", "rating_order", "added_at_dt"], [False, False, False]
+
+
+def _order_playlist(sp, playlist_id: str, min_rating_order: Optional[int] = None,
+                    novedad_dias="auto"):
     """
     Reorder a playlist: rating desc, then date desc. Excludes D.
     Unrated tracks go to the end.
+
+    Si la playlist tiene ventana de novedad (ver _novedad_dias), se anteponen
+    las de TOP_SET calificadas dentro de la ventana. El resultado son dos
+    bloques, cada uno en el orden clasico de rating + fecha:
+
+        1. novedades  — TOP_SET reciente (A+, luego A, luego B+)
+        2. el resto   — TOP_SET historico, luego B, C+ ...
+
+    B, C+ y C nunca entran al bloque 1, aunque sean recientisimas: subirlas
+    arriba de una A+ seria peor que el problema que esto arregla.
     """
     current_ids = spotify.get_playlist_track_ids(sp, playlist_id)
     if not current_ids:
@@ -556,9 +617,11 @@ def _order_playlist(sp, playlist_id: str, min_rating_order: Optional[int] = None
     if min_rating_order is not None:
         df_in = df_in[df_in["rating_order"] >= min_rating_order]
 
+    sort_by, sort_asc = aplicar_novedad(df_in, playlist_id, novedad_dias)
+
     df_sorted = df_in.sort_values(
-        by=["rating_order", "added_at_dt"],
-        ascending=[False, False],
+        by=sort_by,
+        ascending=sort_asc,
         na_position="last",
     )
     rated_ids = df_sorted["track_id"].tolist()

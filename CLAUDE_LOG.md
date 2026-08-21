@@ -151,7 +151,101 @@ que preocupaba antes, porque al ser ventana rodante nunca se vacia de golpe.
 Anotado en `Mejoras.txt` con lo que falta antes de volver a preguntar: cuantas
 canciones tiene A+ hoy y cuantas Galeria Anual.
 
-Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `58fb493` (pausa).
+**Feature: bloque de novedades arriba (paso 1 de la seccion 6 del backlog).**
+
+Angel abrio la sesion pidiendo "quisiera ver esa posibilidad" y, cuando se le
+pregunto a que playlist aplicarlo, contesto "espera, hay que plantearlo bien".
+Asi que primero se saco el dato que faltaba, y ahi cambio el diagnostico.
+
+**Los numeros de la DB** (`GET /tracks/stats`, que solo toca MySQL y por eso se
+pudo consultar sin token de Spotify). Los 5 periodos suman exacto al global en
+los 7 ratings, y `count` resulta ser el total sin D:
+
+```
+periodo       no-D     A+   %A+    A   A+ por cada A
+perla 2025     170     56   33%   28       2.0
+miel  2025     362    105   29%   65       1.6
+latte 2025     268     98   37%   41       2.4
+perla 2026     280    167   60%   24       7.0
+miel  2026     130     58   45%   12       4.8
+GLOBAL        1210    484   40%  170       2.8
+```
+
+Galeria Anual 2026 = TOP_SET del ano = 225 A+ + 36 A + 34 B+ = 295 canciones.
+La primera A estaba en la **posicion 226**. El scroll que reportaba, confirmado.
+
+**Lo que los numeros desmienten.** La hipotesis era "las A+ muy viejitas pesan
+mas que una A nueva". Falso por dos lados: no hay nada anterior a 2025 (las
+"viejitas" tienen ano y medio como maximo) y **225 de las 484 A+ son de este
+ano**. Las A+ que tapan una A nueva son, en su mayoria, igual de recientes que
+la A — asi que ninguna formula de recencia las mueve. Y A+ no se saturo con los
+anos: se saturo de golpe en 2026, donde el ratio A+ por A salta de 1.6-2.4 a
+5-7. En perla 2026, 6 de cada 10 canciones calificadas fueron A+.
+
+Eso quedo en `Mejoras.txt` como seccion **6b**, con una hipotesis que hay que
+verificar antes de degradar nada: el salto de perla 2026 coincide con el periodo
+del flujo "A+ Instantaneo", que aplica A+ en bloque a los Me Gusta. Si esas 167
+salieron de un bulk y no de escuchar una por una, el arreglo es limpiar un bulk
+mal aplicado y no pedirle a Angel que degrade canciones que si juzgo.
+
+**Las reglas que eligio, que son mejores que las opciones que se le ofrecieron.**
+La ventana de "novedad" no es global ni es el cuatrimestre: es **por playlist y
+proporcional a lo que la playlist dura** — 45 dias (mes y medio) en la del
+cuatrimestre, que dura 4 meses, y 90 dias (tres meses) en la Galeria Anual, que
+dura 12. Su razon: "por el simple hecho de que las playlists duran". De paso mata
+el filo del 1 de enero, porque al ser ventana rodante nunca se vacia de golpe.
+Reviso a la baja sus propios numeros iniciales (venia de 2 y 4 meses).
+
+Y una regla que agrego el: **solo TOP_SET puede subir**. "No quisiera que las c+
+y c se queden arriba de esas". B tambien queda fuera por la misma logica; se le
+aviso que lo estaba asumiendo, porque el solo nombro C+ y C.
+
+**Implementacion.** `config.NOVEDAD_DIAS_CUATRI` / `NOVEDAD_DIAS_ANUAL`, mas
+`_novedad_dias(playlist_id)` y `aplicar_novedad(df, playlist_id)` en
+`routes/tracks.py`. El sort pasa de dos llaves a tres:
+
+```python
+["es_novedad", "rating_order", "added_at_dt"], ascending=[False, False, False]
+```
+
+Dos decisiones de diseno que evitaron bugs:
+
+La ventana **se deriva del `playlist_id`** y no se pasa en cada llamada. Asi los
+6 puntos que llaman a `_order_playlist` la heredan sin tocarlos — incluido
+`POST /playlists/order/{id}`, que es el de los botones "Ordenar" de
+Herramientas. Si se hubiera pasado a mano, apretar ese boton habria deshecho el
+orden. Y las playlists de cuatrimestres pasados caen a `None` solas, que es
+exactamente la regla de que las historicas son intocables.
+
+`rebuild_anual` en `playlists.py` tenia su **propio sort duplicado** y no usaba
+`_order_playlist`, asi que "Reconstruir Galeria" tambien habria deshecho el
+orden — de forma intermitente, que es la peor manera de que un bug vuelva. Se
+extrajo el criterio a `aplicar_novedad` y ahora los dos lo comparten.
+
+Detalle que habria roto en produccion: `added_at` es `DATETIME` de MySQL (sin
+zona) y los dos llamadores lo parsean **sin** `utc=True`, o sea tz-naive.
+`utils.now_utc()` es tz-aware, y comparar naive contra aware lanza `TypeError`
+en pandas. El corte se construye con `.replace(tzinfo=None)`.
+
+**Verificacion: 17 casos, todo stubeado (sin red ni MySQL).** `_novedad_dias`
+devuelve 90 para anual, 45 para miel (el cuatri actual, porque hoy es agosto),
+`None` para perla (historica) y `None` para una playlist desconocida. En Galeria
+Anual la A nueva queda **arriba** de la A+ vieja; en perla sigue **debajo**, o
+sea el comportamiento de siempre quedo intacto. En el cuatri actual, ni la C+ ni
+la B recien calificadas se trepan arriba de la A+ vieja. Una cancion de 60 dias
+es novedad en anual (90d) pero no en cuatri (45d), asi que la diferencia de
+ventana se nota de verdad. Una fecha ilegible no revienta y no sube (NaT >= corte
+da False). Y `rebuild_anual` produce el mismo orden que `_order_playlist`.
+
+**Efecto:** la primera A en Galeria Anual pasa de la posicion 226 a ~47. El techo
+del paso 1 es ese ~47, porque dentro de la propia ventana siguen habiendo ~46 A+
+sobre 12 A; bajarlo mas es trabajo de 6b, no de calibrar la ventana.
+
+**Nota operativa:** el orden nuevo no se aplica solo. Entra cuando algo dispara
+un reorder — calificar una cancion, o los botones de Herramientas. Angel puede
+forzarlo con "Ordenar" / "Reconstruir Galeria".
+
+Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `58fb493` (pausa), `PEND3` (orden).
 
 ---
 

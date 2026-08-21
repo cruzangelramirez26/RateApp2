@@ -116,7 +116,7 @@ Se reproduce igual en cualquier hosting: no lo arregla el ping ni migrar.
 - BLOQUEO ACTUAL: frontend/node_modules no está instalado en esta laptop; sin Node
   no se puede compilar ni verificar nada de esto.
 
-## 6. El orden por rating puro entierra las canciones nuevas  [EN EL RADAR]
+## 6. El orden por rating puro entierra las canciones nuevas  [PASO 1 HECHO 2026-08-21]
 Planteado por Angel el 2026-08-21. Diagnóstico cerrado, solución por decidir.
 
 SÍNTOMA: entra a la playlist con ganas de oír una A nueva y tiene que scrollear
@@ -168,28 +168,87 @@ mundos: Galería Anual con el orden nuevo (es la que se escucha) y las playlists
 de cuatrimestre en orden puro de rating (son el registro del período). No hay que
 elegir uno global.
 
-DECIDIDO POR ANGEL (2026-08-21) — la ventana de "novedad":
-- [x] NO es el cuatrimestre ni una ventana global. Es una ventana por playlist,
-      proporcional a lo que esa playlist dura:
-        playlists de cuatrimestre (duran 4 meses)  -> ventana de 2 meses
-        Galeria Anual            (dura 12 meses)   -> ventana de 4 meses
-      Razon textual de Angel: "por el simple hecho de que las playlists duran".
-      O sea, "reciente" no es un absoluto: es la rebanada de adelante de la vida
-      de la propia playlist (la mitad en las de cuatri, un tercio en la anual).
-      Esto ademas resuelve solo el filo del 1 de enero que preocupaba antes: al
-      ser ventana rodante y no el cuatrimestre, nunca se vacia de golpe.
-      Implicacion: `_order_playlist` necesita recibir los meses de ventana como
-      parametro, no una constante global.
+PASO 1 IMPLEMENTADO (2026-08-21). Bloque de novedades arriba.
 
-ABIERTO — Angel dijo "espera, hay que plantearlo bien" (2026-08-21):
-- [ ] A que playlists se les aplica. NO preguntar de nuevo con opciones sueltas:
-      lo que falta es el planteamiento, no la respuesta. Antes de volver a
-      preguntar hay que tener sobre la mesa, por playlist: para que sirve (se
-      escucha vs es registro del periodo), cuantas canciones tiene hoy, y cuanto
-      scroll implica eso de verdad. Sin esos numeros la pregunta es abstracta y
-      por eso no se pudo contestar.
-- [ ] Dato que falta y decide casi todo: cuantas canciones tiene hoy A+, y
-      cuantas tiene Galeria Anual. Se puede sacar de la DB sin tocar Spotify.
+Reglas finales, decididas por Angel:
+- Ventana POR PLAYLIST, proporcional a lo que la playlist dura:
+      cuatrimestre actual (dura 4 meses) -> 45 dias (mes y medio)
+      Galeria Anual       (dura 12 meses) -> 90 dias (tres meses)
+  Razon textual: "por el simple hecho de que las playlists duran". Al ser
+  ventana rodante y no el cuatrimestre, nunca se vacia de golpe el 1 de enero.
+- SOLO TOP_SET (B+/A/A+) puede subir al bloque de novedades. Angel: "no
+  quisiera que las c+ y c se queden arriba de esas". B tambien queda fuera, por
+  la misma logica (se le aviso).
+- Playlists de cuatrimestres pasados: intocables, orden puro de rating. Sale
+  gratis porque la ventana se deriva del playlist_id.
+
+Implementacion: `config.NOVEDAD_DIAS_CUATRI` / `NOVEDAD_DIAS_ANUAL`,
+`_novedad_dias(playlist_id)` y `aplicar_novedad(df, playlist_id)` en
+`backend/routes/tracks.py`. La ventana se deriva del playlist_id y NO se pasa en
+cada llamada, para que los 6 puntos que llaman a `_order_playlist` la hereden
+solos — incluido `POST /playlists/order/{id}`, el de los botones "Ordenar" de
+Herramientas, que si no habria deshecho el orden al apretarlo.
+
+`rebuild_anual` en `playlists.py` tenia su PROPIO sort duplicado y por eso
+"Reconstruir Galeria" tambien lo habria deshecho. Ahora los dos llaman a
+`aplicar_novedad`, un solo criterio.
+
+Efecto medido en Galeria Anual: la primera A pasa de la posicion 226 a ~47.
+
+
+## 6b. La densidad de A+ (esto es la causa de fondo)  [ANALISIS, sin decidir]
+
+Numeros reales de la DB al 2026-08-21 (GET /tracks/stats; los 5 periodos suman
+exacto al global en los 7 ratings, y `count` resulta ser el total sin D):
+
+periodo       no-D     A+   %A+    A   A+ por cada A
+perla 2025     170     56   33%   28       2.0
+miel  2025     362    105   29%   65       1.6
+latte 2025     268     98   37%   41       2.4
+perla 2026     280    167   60%   24       7.0
+miel  2026     130     58   45%   12       4.8
+GLOBAL        1210    484   40%  170       2.8
+
+DOS COSAS QUE ROMPEN LA HIPOTESIS ORIGINAL ("las A+ viejitas estorban"):
+
+1. No hay nada anterior a 2025. Las A+ "muy viejitas" tienen ano y medio como
+   maximo. Y 225 de las 484 (47%) son de ESTE ano. Las A+ que tapan una A nueva
+   son, en su mayoria, igual de recientes que la A — por eso ninguna formula de
+   recencia las va a mover.
+
+2. A+ no se saturo con los anos: se saturo de golpe en 2026. En 2025 dabas ~2
+   A+ por cada A (1.6 a 2.4). En 2026 das 5 a 7. En perla 2026, 6 de cada 10
+   canciones calificadas fueron A+.
+
+HIPOTESIS A VERIFICAR ANTES DE DEGRADAR NADA: el salto de perla 2026 (167 A+ en
+un cuatrimestre, contra 56-105 en los de 2025) coincide con el periodo en que
+existia ya el flujo "A+ Instantaneo", que aplica A+ en bloque a los Me Gusta.
+Si esas 167 salieron de un bulk y no de escuchar cancion por cancion, entonces
+el bloque no refleja tu criterio y esas son las candidatas naturales a revisar
+— muy distinto a pedirte que degrades canciones que si juzgaste una por una.
+Se puede comprobar cruzando `added_at` con la fecha del `aplus_cutoff`.
+
+TECHO DEL PASO 1, para que quede claro que 6b no es opcional a largo plazo:
+- hoy:                              primera A en la posicion 226
+- con el bloque de novedades:       ~47
+- si A+ bajara del 45% al 15% en la ventana:  ~16
+El paso 1 quita 179 posiciones. La densidad quitaria 31 mas, pero sobre todo
+evita que el problema se reconstruya solo en unos meses.
+
+ESCENARIOS DE CUPO (nadie los ha elegido, son para dimensionar el dolor):
+   A+ al 10% de lo no-D  ->  121 A+,  bajan 363
+   A+ al 15%             ->  182 A+,  bajan 302
+   A+ al 20%             ->  242 A+,  bajan 242
+   A+ al 25%             ->  302 A+,  bajan 182
+   cupo de 40 por cuatri ->  200 A+,  bajan 284
+   solo hacia adelante   ->  bajan 0, pero las 484 de hoy no se tocan
+
+- [ ] PENDIENTE DE ANGEL: verificar primero la hipotesis del A+ Instantaneo.
+      Si se confirma, el "cupo" deja de ser una decision dolorosa y se vuelve
+      una limpieza de un bulk mal aplicado.
+- [ ] Dato que falta: no hay endpoint que liste tracks desde la DB sin token de
+      Spotify, asi que no se pudo sacar CUALES A+ son candidatas. /tracks/stats
+      solo da agregados.
 
 ## Decisiones chicas sin resolver
 - [ ] `frontend/package-lock.json` existe en la PC desde el `npm install` del

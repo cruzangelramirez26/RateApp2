@@ -31,6 +31,18 @@ DISTRIBUTION_PLAYLISTS = {
     "marea_archivo": os.getenv("PL_MAREA_ARCHIVO", "2VvxQF4XrjpkDo4QmNRjTQ"),
 }
 
+# Orden "novedades arriba" (ver Mejoras.txt seccion 6)
+#
+# Una cancion de TOP_SET calificada dentro de esta ventana se ordena ENCIMA de
+# todo lo historico, en vez de quedar sepultada bajo cientos de A+ viejas. La
+# ventana es por playlist y proporcional a lo que la playlist dura: las de
+# cuatrimestre viven 4 meses, la Galeria Anual vive 12.
+#
+# Solo TOP_SET puede subir. Una C+ o una B recien calificada NO se trepa arriba
+# de una A+ vieja: eso seria peor que el problema original.
+NOVEDAD_DIAS_CUATRI = 45   # mes y medio
+NOVEDAD_DIAS_ANUAL = 90    # tres meses
+
 # Rating system
 RATINGS = ["A+", "A", "B+", "B", "C+", "C", "D"]
 RATING_ORDER = {"D": 0, "C": 1, "C+": 2, "B": 3, "B+": 4, "A": 5, "A+": 6}

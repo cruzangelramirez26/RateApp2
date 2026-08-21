@@ -75,9 +75,13 @@ def rebuild_anual():
         (df["rating_order"] >= top_set_min) &
         (df["added_at_dt"].dt.year == current_year)
     ].copy()
+    # Mismo criterio que _order_playlist, no una copia: si aqui se ordenara por
+    # rating puro, apretar "Reconstruir Galeria" desharia el bloque de novedades.
+    from routes.tracks import aplicar_novedad
+    sort_by, sort_asc = aplicar_novedad(df_top, anual_id)
     df_top = df_top.sort_values(
-        ["rating_order", "added_at_dt"],
-        ascending=[False, False],
+        sort_by,
+        ascending=sort_asc,
         na_position="last",
     )
 
