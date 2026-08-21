@@ -245,7 +245,7 @@ sobre 12 A; bajarlo mas es trabajo de 6b, no de calibrar la ventana.
 un reorder — calificar una cancion, o los botones de Herramientas. Angel puede
 forzarlo con "Ordenar" / "Reconstruir Galeria".
 
-Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `58fb493` (pausa), `PEND3` (orden).
+Commits: `782220f` (ping), `65fe434` (log), `d3b7a93` (fallback SPA), `58fb493` (pausa), `efd71e1` (orden).
 
 ---
 
