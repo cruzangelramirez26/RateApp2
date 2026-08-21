@@ -29,7 +29,7 @@ Sin cambios de backend.
 
 **Verificacion (esta vez de verdad, con navegador):** `npm run build` OK. Ademas se levanto un backend de mentiras en `:8000` (solo en el scratchpad, no toca el repo) para poder renderizar las vistas autenticadas en local, y se recorrieron `/`, `/tools`, `/library`, `/recent` y `/dashboard` en oscuro buscando elementos que siguieran pintados con valores del tema claro: **cero fugas**. Se comprobo que el script anti-parpadeo resuelve `system` -> `dark` antes del primer paint, que elegir `light` explicitamente le gana a la preferencia oscura del SO, que el toggle cicla y persiste (`dark/system` -> `light/light` -> `dark/dark`), y que `pipThemeCss()` emite valores oscuros u claros segun el tema. Lo unico que **no** se pudo probar es una ventana de PiP real: el navegador embebido no las abre, asi que el PiP hay que verlo a ojo tras el deploy.
 
-Commit: `PENDIENTE`.
+Commit: `cd1d37d`.
 
 ---
 
