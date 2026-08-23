@@ -1,0 +1,51 @@
+# El contexto de build son 151 MB sin esto, y casi nada de eso entra a la
+# imagen. Importa mas en Cloud Build (que sube el contexto por red) que en
+# Render, pero en los dos casos es tiempo de build regalado.
+
+# Dependencias: el Dockerfile corre `npm install` dentro del contenedor.
+# Que node_modules NO entre al contexto no es solo por peso: el Dockerfile
+# hace `COPY frontend/ ./` DESPUES del npm install, asi que un node_modules
+# de Windows pisaria el de Linux recien instalado y `npm run build` tronaria
+# con los binarios nativos de rollup/esbuild equivocados.
+node_modules/
+**/node_modules/
+__pycache__/
+**/__pycache__/
+*.pyc
+.venv/
+env/
+
+# Artefactos de build: los genera el Dockerfile.
+frontend/dist/
+backend/static/
+
+# Secretos: que jamas terminen en una capa de la imagen.
+.env
+.env.*
+!.env.example
+.spotify_cache
+
+# Historia de git — 13 MB que la imagen no usa.
+.git/
+.gitignore
+.github/
+
+# Fuentes de assets. Las portadas que la app sirve ya viven en
+# frontend/public/portadas; recursos/ es el original de donde se copiaron.
+recursos/
+frontend/design/
+
+# Documentacion y notas.
+*.md
+Mejoras.txt
+
+# Herramientas y configs que no participan del build.
+.claude/
+.vscode/
+.idea/
+docker-compose.yml
+railway.json
+
+# Basura del SO.
+.DS_Store
+Thumbs.db

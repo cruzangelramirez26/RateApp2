@@ -285,6 +285,16 @@ ESCENARIOS DE CUPO (nadie los ha elegido, son para dimensionar el dolor):
       solo da agregados.
 
 ## Decisiones chicas sin resolver
+- [ ] Las portadas de `frontend/public/portadas/` pesan 11 MB entre las seis, y
+      se muestran como miniaturas en las tarjetas de Stats. `Perla.jpg` sola son
+      5 MB. Redimensionarlas a ~1200px de ancho las dejaria en cientos de KB sin
+      perder nada visible. Detectado 2026-08-22 al medir el contexto de build.
+- [ ] `.dockerignore` creado 2026-08-22 (el contexto pasaba de 143 MB a 11 MB).
+      Ojo: ademas del peso, evita un bug latente — el Dockerfile hace
+      `COPY frontend/ ./` DESPUES del `npm install`, asi que un node_modules de
+      Windows en el contexto pisaria el de Linux y `npm run build` tronaria con
+      los binarios nativos de rollup equivocados. En Render no pasaba porque
+      node_modules esta en .gitignore y el build sale del repo.
 - [ ] `frontend/package-lock.json` existe en la PC desde el `npm install` del
       2026-08-20 pero NO está versionado. Versionarlo congela versiones y hace
       los builds de Render reproducibles (el Dockerfile ya lo copia si existe:
