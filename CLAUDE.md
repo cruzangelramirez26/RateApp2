@@ -17,7 +17,7 @@ Arquitectura completa: [`ARQUITECTURA.md`](ARQUITECTURA.md) — stack, modelo de
 - **El backend SIEMPRE corre en Render. No preguntar dónde corre.**
 - Cualquier archivo escrito en disco desaparece al reiniciar — **toda persistencia va a MySQL**
 - Después de cada cambio: `git add` archivos modificados → `git commit` → `git push origin HEAD:main`
-- Render redespliega automáticamente al detectar el push. El token `.spotify_cache` se borra en cada redeploy — el usuario re-autentica desde la app.
+- Render redespliega automáticamente al detectar el push. El token de Spotify vive en MySQL (tabla `config`, clave `spotify_token`), así que **la sesión sobrevive al redeploy**. Solo hay que re-loguear cuando se agrega un scope nuevo, y en ese caso `validate_token` lo fuerza solo.
 
 ## Base de datos MySQL
 

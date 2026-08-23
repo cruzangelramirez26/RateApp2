@@ -110,6 +110,15 @@ def set_config(key: str, value: str):
         cur.close()
 
 
+def delete_config(key: str):
+    """Remove a config row. No-op if the key doesn't exist."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM config WHERE `key` = %s", (key,))
+        conn.commit()
+        cur.close()
+
+
 def load_all() -> pd.DataFrame:
     """Return all tracks as a DataFrame."""
     with get_conn() as conn:

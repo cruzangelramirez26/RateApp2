@@ -183,8 +183,9 @@ Un simple `key`/`value` de texto. Es la respuesta a un problema concreto: **el f
 
 - `aplus_cutoff` — el corte del flujo A+ Instantáneo
 - el estado del Modo Virtual (serializado)
+- `spotify_token` — el token de OAuth de Spotify (JSON serializado)
 
-**Corolario de arquitectura: nada que deba sobrevivir un reinicio puede escribirse a disco.** La única excepción tolerada es `.spotify_cache`, y precisamente por eso hay que re-autenticar después de cada deploy.
+**Corolario de arquitectura: nada que deba sobrevivir un reinicio puede escribirse a disco.** Ya no hay excepciones: el token de Spotify era la última y desde 2026-08-23 vive en `config`.
 
 ### Acceso
 
@@ -202,7 +203,11 @@ Tres cosas que conviene saber del proveedor:
 
 ### 7.1 OAuth
 
-`SpotifyOAuth` de spotipy con `cache_path=".spotify_cache"` y `open_browser=False`. Flujo: `GET /auth/login` redirige a Spotify → Spotify regresa a `/callback` (registrado así en el Dashboard de Spotify, por eso `main.py` expone `/callback` además del `/auth/callback` del router) → se intercambia el code → redirige a `FRONTEND_URL`. `get_client()` refresca el token si está vencido. `POST /auth/logout` borra el archivo de cache y resetea los singletons.
+`SpotifyOAuth` de spotipy con `cache_handler=MySQLCacheHandler()` y `open_browser=False`. Flujo: `GET /auth/login` redirige a Spotify → Spotify regresa a `/callback` (registrado así en el Dashboard de Spotify, por eso `main.py` expone `/callback` además del `/auth/callback` del router) → se intercambia el code → redirige a `FRONTEND_URL`. `POST /auth/logout` borra la fila `spotify_token` de `config` y resetea los singletons.
+
+**El token vive en MySQL, no en disco.** `MySQLCacheHandler` (en `spotify.py`) subclasea el `CacheHandler` de spotipy y lee/escribe la clave `spotify_token` de la tabla `config`. Guarda una copia en memoria para no pegarle a TiDB en cada request: la DB solo se lee cuando el proceso todavía no tiene token. Si MySQL falla, la lectura devuelve `None` (o sea "no autenticado", que es honesto) y la escritura solo registra el error sin relanzar — un fallo al guardar no debe tumbar una petición que ya funcionaba; lo peor que pasa es volver al comportamiento viejo de perder el token al reiniciar.
+
+`get_client()` usa `am.validate_token(...)`, que refresca el token vencido **y** lo descarta si le faltan scopes. Ver 7.2.
 
 ### 7.2 Scopes vigentes
 
@@ -213,7 +218,9 @@ user-modify-playback-state user-read-playback-state
 user-read-recently-played
 ```
 
-Agregar un scope obliga a re-autenticar. **En este proyecto eso es gratis**: como `.spotify_cache` se borra en cada redeploy, Angel re-autentica de todos modos.
+Agregar un scope obliga a re-autenticar, y **desde que el token vive en MySQL ya no es gratis**: antes el redeploy borraba `.spotify_cache` y el re-login pasaba solo, así que un scope nuevo se activaba sin que nadie hiciera nada. Ahora el token sobrevive al redeploy y un token viejo sin el scope nuevo seguiría siendo válido para todo lo demás.
+
+Por eso `get_client()` pasa por `validate_token`, que compara los scopes guardados contra `SCOPE` y devuelve `None` si falta alguno. El efecto es que agregar un scope manda a Angel a re-loguear **a propósito**, en vez de que la función nueva falle en silencio.
 
 ### 7.3 Peculiaridades que el wrapper resuelve
 
@@ -314,7 +321,7 @@ git add … → git commit → git push origin HEAD:main
         ↓
 Render detecta el push → build del Dockerfile → deploy
         ↓
-.spotify_cache se pierde → Angel re-autentica desde la app
+la sesión de Spotify sobrevive (el token está en MySQL)
 ```
 
 ### Desarrollo local
@@ -372,7 +379,7 @@ En dev el frontend corre en `:5173` y el proxy de Vite manda `/auth`, `/tracks`,
 | GET | `/auth/login` | redirige a Spotify |
 | GET | `/auth/callback` · `/callback` | intercambia el code |
 | GET | `/auth/status` | `{authenticated, user}` |
-| POST | `/auth/logout` | borra el cache del token |
+| POST | `/auth/logout` | borra el token de MySQL |
 
 ### `/tracks`
 | Método | Ruta | |

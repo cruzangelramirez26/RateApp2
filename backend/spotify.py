@@ -1,11 +1,15 @@
 """
 Spotify API wrapper — handles OAuth and all playlist operations.
-Uses a file-based token cache so auth persists across restarts.
+The OAuth token lives in MySQL (table `config`), not on disk: Render's
+filesystem is ephemeral and a file cache dies on every redeploy.
 """
+import json
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.cache_handler import CacheHandler
 import pandas as pd
 import config
+import database
 
 SCOPE = (
     "playlist-read-private playlist-modify-public playlist-modify-private "
@@ -13,6 +17,60 @@ SCOPE = (
     "user-modify-playback-state user-read-playback-state "
     "user-read-recently-played"
 )
+
+TOKEN_KEY = "spotify_token"
+
+
+class MySQLCacheHandler(CacheHandler):
+    """Store the OAuth token in the `config` table instead of a file.
+
+    Same pattern already used by `aplus_cutoff` and the virtual-mode state:
+    anything written to disk on Render disappears on the next redeploy, and
+    losing the token means re-authenticating from the app every time.
+
+    Keeps an in-process copy so the hot path doesn't hit TiDB on every
+    request — the DB is only read when this process has no token yet.
+    """
+
+    def __init__(self):
+        self._memo = None
+
+    def get_cached_token(self):
+        if self._memo is not None:
+            return self._memo
+        try:
+            raw = database.get_config(TOKEN_KEY)
+        except Exception as e:
+            print(f"[spotify] no se pudo leer el token de MySQL: {e}")
+            return None
+        if not raw:
+            return None
+        try:
+            self._memo = json.loads(raw)
+        except ValueError as e:
+            print(f"[spotify] token ilegible en MySQL, se ignora: {e}")
+            return None
+        return self._memo
+
+    def save_token_to_cache(self, token_info):
+        self._memo = token_info
+        try:
+            database.set_config(TOKEN_KEY, json.dumps(token_info))
+        except Exception as e:
+            # A proposito no se relanza: el token en memoria sigue sirviendo
+            # para esta instancia, asi que un fallo de escritura no tumba una
+            # peticion que de otro modo funcionaba. Lo unico que se pierde es
+            # que el token sobreviva al reinicio — el comportamiento viejo.
+            print(f"[spotify] no se pudo guardar el token en MySQL: {e}")
+
+    def clear(self):
+        """Forget the token, in memory and in the DB."""
+        self._memo = None
+        try:
+            database.delete_config(TOKEN_KEY)
+        except Exception as e:
+            print(f"[spotify] no se pudo borrar el token de MySQL: {e}")
+
 
 _auth_manager = None
 _client = None
@@ -26,7 +84,7 @@ def get_auth_manager() -> SpotifyOAuth:
             client_secret=config.SPOTIPY_CLIENT_SECRET,
             redirect_uri=config.SPOTIPY_REDIRECT_URI,
             scope=SCOPE,
-            cache_path=".spotify_cache",
+            cache_handler=MySQLCacheHandler(),
             open_browser=False,
         )
     return _auth_manager
@@ -36,13 +94,22 @@ def get_client() -> spotipy.Spotify:
     """Return an authenticated Spotify client."""
     global _client
     am = get_auth_manager()
-    token_info = am.cache_handler.get_cached_token()
-    if token_info and am.is_token_expired(token_info):
-        token_info = am.refresh_access_token(token_info["refresh_token"])
+    # validate_token refresca si expiro Y descarta el token si le faltan
+    # scopes. Lo segundo importa ahora que el token sobrevive a los
+    # redeploys: antes, agregar un scope se arreglaba solo porque el cache
+    # en disco se borraba; ahora hay que forzar el re-login a proposito.
+    token_info = am.validate_token(am.cache_handler.get_cached_token())
     if token_info:
         _client = spotipy.Spotify(auth=token_info["access_token"])
         return _client
     raise RuntimeError("Not authenticated — visit /auth/login first")
+
+
+def clear_token():
+    """Drop the stored token (logout)."""
+    global _client
+    get_auth_manager().cache_handler.clear()
+    _client = None
 
 
 def is_authenticated() -> bool:

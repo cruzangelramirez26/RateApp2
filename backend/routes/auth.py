@@ -46,12 +46,8 @@ def auth_status():
 
 @router.post("/logout")
 def logout():
-    """Clear Spotify token cache."""
-    import os
-    try:
-        os.remove(".spotify_cache")
-    except FileNotFoundError:
-        pass
+    """Clear the stored Spotify token."""
+    spotify.clear_token()
     spotify._client = None
     spotify._auth_manager = None
     return {"ok": True}
