@@ -319,10 +319,27 @@ No existe `.env` en ninguna de las dos máquinas de desarrollo: la configuració
 ```
 git add … → git commit → git push origin HEAD:main
         ↓
-Render detecta el push → build del Dockerfile → deploy
+Cloud Build detecta el push → build del Dockerfile → deploy en Cloud Run
         ↓
 la sesión de Spotify sobrevive (el token está en MySQL)
 ```
+
+**Desde 2026-08-22 la app corre en Google Cloud Run**, no en Render:
+
+| | Render (antes) | Cloud Run (ahora) |
+|---|---|---|
+| Región | Oregon (US West) | `us-east4` (Virginia del Norte) |
+| Distancia a TiDB (`us-east-1`, Virginia) | cruza el continente | mismo estado |
+| `GET /tracks/stats`, medido | 1.44 – 2.76 s | **0.25 – 0.29 s** |
+| Duerme | sí, a los 15 min; 30–60 s para despertar | escala a cero, arranque en segundos |
+| Servicio | `rateapp2` | `rateapp`, proyecto `rateapp-506404` |
+| URL | `rateapp2.onrender.com` | `rateapp-1043427819721.us-east4.run.app` |
+
+La región de un servicio es **inmutable** en los dos proveedores — en Render el campo Region ni siquiera tiene botón de editar. Por eso la elección de `us-east4` era el punto irreversible de la migración, y por eso se midió antes de crear nada.
+
+Config del servicio: memoria 1 GiB, CPU 1, min instancias 0, facturación *basada en solicitudes* (la CPU solo se cobra durante el request) y entorno de ejecución **primera generación**, que la propia consola describe como el de arranques en frío más rápidos.
+
+Render sigue encendido en paralelo contra la misma base de datos mientras se confirma la migración.
 
 ### Desarrollo local
 

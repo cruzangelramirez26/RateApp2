@@ -131,7 +131,112 @@ innecesario), 6b (densidad de A+: falta medir el ratio al cierre de Miel y el
 endpoint de solo lectura), las decisiones chicas (`package-lock.json` sin
 versionar, `railway.json` vestigio) y la Vista Play del chip `<3333>`.
 
-Commits: `e30339d` (token a MySQL), `bb74bc4` (log).
+**Migracion a Google Cloud Run (misma sesion, mas tarde).**
+
+Angel eligio "hosting primero, luego Tauri" cuando se le plantearon las
+opciones. La razon de fondo: una pagina web que tarda 40 s en cargar se siente
+lenta, pero una app instalada que se congela 40 s al abrir se siente **rota**,
+asi que arreglar el arranque en frio antes de empaquetar con Tauri.
+
+**El hallazgo que hizo que valiera doble.** Angel mando captura de los ajustes
+de Render: **Oregon (US West)**, con TiDB en Virginia. La deuda de region que
+estaba anotada desde hacia dos dias, confirmada. Y como la region de un
+servicio es inmutable en Render (el campo Region ni tiene boton de editar),
+migrar de hosting era la oportunidad de arreglarla **gratis**: basta elegir
+bien la region del servicio nuevo y no hay que mover la base de datos.
+
+Angel tenia el formulario abierto con **`northamerica-south1` (Mexico)**
+seleccionado, que era repetir el error al reves. Se le explico por que Mexico
+pierde: desde ahi cada request suyo ahorra ~40 ms, pero el servidor hace varias
+queries a TiDB por operacion — y `load_all()` jala la tabla completa — asi que
+el lado servidor-a-base domina. Se cambio a `us-east4`.
+
+**Medido despues, con los dos servidores despiertos y la misma DB:**
+
+```
+GET /tracks/stats     Cloud Run (Virginia)  0.25 0.29 0.27 0.25 0.26 s
+                      Render    (Oregon)    2.60 2.76 2.11 1.44 1.61 s
+```
+
+~8x, y mucho mas estable. Eso era lo que costaba el viaje Oregon-Virginia.
+
+**Configuracion del servicio** (`rateapp`, proyecto `rateapp-506404`): memoria
+1 GiB, CPU 1, min instancias 0, acceso publico, facturacion *basada en
+solicitudes* (CPU solo durante el request), y **entorno de ejecucion primera
+generacion**, que la consola misma describe como el de "inicios en frio mas
+rapidos" — no estaba en el plan, se encontro en el formulario y va justo al
+problema que se estaba resolviendo.
+
+**`.dockerignore` (nuevo).** El contexto de build eran 143 MB de los que la
+imagen usa 11. Ademas del peso evita un bug latente: el Dockerfile hace
+`COPY frontend/ ./` **despues** del `npm install`, asi que un `node_modules` de
+Windows en el contexto pisaria el de Linux y `npm run build` tronaria con los
+binarios nativos de rollup equivocados. En Render no pasaba porque
+`node_modules` esta en `.gitignore` y el build sale del repo. Verificado
+aplicando los patrones contra el arbol real, y confirmado en el log de Cloud
+Build en produccion: `Sending build context to Docker daemon 10.97MB`.
+
+**El primer build fallo, y no era el codigo.** Murio en `FETCHSOURCE`, antes de
+clonar:
+
+```
+Error 403: Permission 'developerconnect.gitRepositoryLinks.fetchReadToken' denied
+reason: "IAM_PERMISSION_DENIED"
+```
+
+La cuenta `1043427819721-compute@developer.gserviceaccount.com` (la default de
+Compute Engine, que es la que corre el build) no tenia
+`roles/developerconnect.readTokenAccessor`. Es un hueco conocido del flujo de
+Developer Connect: conecta GitHub pero no otorga el rol solo. Para cuando se
+reviso IAM el rol ya aparecia, asi que basto **reintentar** la compilacion: los
+4 pasos en verde en 2:35.
+
+**La prueba de fuego del token en MySQL.** Lo primero que devolvio el servicio
+nuevo:
+
+```
+GET /auth/status -> {"authenticated":true,"user":"Angel RG"}
+```
+
+Angel se logueo en **Render**, y un servidor nuevo en **otra nube** levanto la
+sesion sin un solo re-login. El cambio de la manana quedo validado de la unica
+forma que importa. Ademas confirma lo que decia el log del 2026-08-21: el token
+en disco era prerrequisito de cualquier migracion, no un detalle cosmetico.
+
+**Verificado en vivo:** `/health` 200; las 5 rutas del SPA (`/`, `/recent`,
+`/library`, `/tools`, `/dashboard`) devuelven 200 `text/html`, o sea el fix del
+404 al refrescar funciona igual en Cloud Run; un asset inexistente sigue dando
+404 honesto; `/tracks/stats` 200 con datos reales (1301 tracks, 484 A+, 170 A);
+`/playlists/distribution` 200, o sea Spotify responde.
+
+**Bug latente encontrado de paso: `MYSQL_PORT` no hace nada.** Angel lo copio a
+Cloud Run con valor 4000 (el puerto de TiDB), pero `config.py` no lo lee y
+`database.py:18-27` nunca pasa `port` al pool. Se probaron los dos puertos
+contra el host de TiDB y **3306 y 4000 estan ambos abiertos**, asi que el
+conector cae al 3306 por default y funciona de casualidad. Si TiDB cierra el
+3306 algun dia, revienta con un error confuso. Ofrecido el arreglo (3 lineas),
+sin respuesta todavia.
+
+**Nota de seguridad:** `MYSQL_PASSWORD` se ve en texto plano en la pantalla del
+servicio de Cloud Run y quedo en una captura. Recomendado moverla a Secret
+Manager con el boton "Crea una referencia a un Secret" que esta en la misma
+pestana de variables, y rotarla en TiDB. Pendiente de Angel.
+
+**Lo que falta de la migracion:**
+
+- [ ] Registrar `https://rateapp-1043427819721.us-east4.run.app/callback` en el
+      Spotify Developer Dashboard. Hoy no estorba porque el token viene de
+      MySQL y refrescarlo no usa el redirect_uri, pero el dia que Angel tenga
+      que re-loguear, sin esto truena.
+- [ ] Medir el arranque en frio REAL de Cloud Run. Los 0.25 s medidos son con
+      instancia tibia; hace falta dejarlo ~15 min sin trafico. Estimado por los
+      imports (~2.3 s solo `import main`): 3-5 s.
+- [ ] Apagar Render cuando la migracion se confirme. Hoy los dos corren contra
+      la misma base.
+- [ ] `MYSQL_PORT` y el secreto en Secret Manager (arriba).
+
+Commits: `e30339d` (token a MySQL), `bb74bc4` (log), `f69e8f4` (.dockerignore),
+`a1d61be` (backlog).
 
 ---
 

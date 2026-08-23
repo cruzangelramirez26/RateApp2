@@ -33,10 +33,17 @@ jobs:
     steps:
       - name: Ping /health
         run: |
+          # Desde 2026-08-22 la app vive en Cloud Run (us-east4). El ping ya no
+          # es critico como lo era en Render: Cloud Run escala a cero pero
+          # arranca en segundos, no en 30-60s. Se mantiene porque conserva una
+          # instancia tibia a costo ~cero — con facturacion basada en
+          # solicitudes la CPU solo se cobra durante el request, y 4,320 pings
+          # al mes no son nada contra los 2 millones del nivel gratuito.
+          #
           # --max-time 90 y los retries aguantan un arranque frio, que es justo
           # cuando el ping importa (tras un redeploy o si se perdio el anterior).
           curl --fail --silent --show-error \
                --max-time 90 \
                --retry 3 --retry-delay 15 --retry-all-errors \
                --write-out 'status=%{http_code} tiempo=%{time_total}s\n' \
-               https://rateapp2.onrender.com/health
+               https://rateapp-1043427819721.us-east4.run.app/health

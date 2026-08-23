@@ -13,11 +13,13 @@ Arquitectura completa: [`ARQUITECTURA.md`](ARQUITECTURA.md) — stack, modelo de
 
 ## Deploy
 
-- La app vive en **Render** (filesystem efímero) conectado a **GitHub** (`cruzangelramirez26/RateApp2`, rama `main`)
-- **El backend SIEMPRE corre en Render. No preguntar dónde corre.**
+- La app vive en **Google Cloud Run** (`rateapp`, región `us-east4`, proyecto `rateapp-506404`) conectado a **GitHub** (`cruzangelramirez26/RateApp2`, rama `main`) vía Developer Connect + Cloud Build
+- URL: `https://rateapp-1043427819721.us-east4.run.app`
+- **El backend SIEMPRE corre en la nube, nunca en local. No preguntar dónde corre.**
+- Render (`rateapp2.onrender.com`) sigue vivo en paralelo mientras se confirma la migración. Comparte la misma base de datos. Se apagará después.
 - Cualquier archivo escrito en disco desaparece al reiniciar — **toda persistencia va a MySQL**
 - Después de cada cambio: `git add` archivos modificados → `git commit` → `git push origin HEAD:main`
-- Render redespliega automáticamente al detectar el push. El token de Spotify vive en MySQL (tabla `config`, clave `spotify_token`), así que **la sesión sobrevive al redeploy**. Solo hay que re-loguear cuando se agrega un scope nuevo, y en ese caso `validate_token` lo fuerza solo.
+- Cloud Build compila y redespliega automáticamente al detectar el push (Render también, mientras siga encendido). El token de Spotify vive en MySQL (tabla `config`, clave `spotify_token`), así que **la sesión sobrevive al redeploy**. Solo hay que re-loguear cuando se agrega un scope nuevo, y en ese caso `validate_token` lo fuerza solo.
 
 ## Base de datos MySQL
 
