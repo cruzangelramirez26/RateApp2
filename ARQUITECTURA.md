@@ -185,7 +185,7 @@ Un simple `key`/`value` de texto. Es la respuesta a un problema concreto: **el f
 - el estado del Modo Virtual (serializado)
 - `spotify_token` — el token de OAuth de Spotify (JSON serializado)
 
-**Corolario de arquitectura: nada que deba sobrevivir un reinicio puede escribirse a disco.** Ya no hay excepciones: el token de Spotify era la última y desde 2026-08-23 vive en `config`.
+**Corolario de arquitectura: nada que deba sobrevivir un reinicio puede escribirse a disco.** Ya no hay excepciones: el token de Spotify era la última y desde 2026-08-22 vive en `config`.
 
 ### Acceso
 

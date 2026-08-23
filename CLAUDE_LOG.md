@@ -2,6 +2,119 @@
 
 ---
 
+## 2026-08-22 (sesion token de Spotify a MySQL)
+
+**Maquina: PC `AngelPC`.**
+
+Se cerro el pendiente #1 de la sesion anterior, que era el de mas valor.
+
+**Estado al abrir la sesion.** Working tree limpio, `HEAD` igual a
+`origin/main` en `7443c89`: nada de codigo desde ayer, los 4 pendientes
+intactos. Se reviso el deploy en vivo y salieron dos cosas.
+
+`/auth/status` devolvia `{"authenticated": false}` — la sesion de Spotify
+caida otra vez, o sea el pendiente #1 manifestandose en el momento. Y
+`/health` tardo **21 segundos** en responder: el server estaba dormido.
+
+**Hallazgo lateral: el ping no esta funcionando como se penso.** El workflow
+corre y da `success`, pero los intervalos reales no son de 10 minutos:
+
+```
+02:13  <- ultimo (eran las 02:54 UTC, 41 min de hueco)
+00:43  (90 min de hueco con el anterior)
+23:52
+23:36
+23:14
+```
+
+El retraso del cron de GitHub Actions que se anoto como advertencia ayer
+resulto peor de lo estimado: huecos de 40-90 min contra los 15 min que tarda
+Render en dormirse. El ping no alcanza. cron-job.org sigue siendo la
+alternativa anotada. **No se toco** — queda como pendiente.
+
+**El cambio: `MySQLCacheHandler`.**
+
+`backend/spotify.py` — clase nueva que subclasea el `CacheHandler` de spotipy
+y lee/escribe el token en la tabla `config` bajo la clave `spotify_token`. Es
+el mismo patron que ya usaban `aplus_cutoff` y el estado del Modo Virtual.
+`cache_path=".spotify_cache"` se reemplaza por `cache_handler=`.
+
+Guarda una copia en memoria a proposito: sin eso, cada request pegaria a TiDB
+en `us-east-1` solo para leer el token. La DB se lee unicamente cuando el
+proceso todavia no tiene ninguno.
+
+Manejo de fallos, y las dos ramas son deliberadamente distintas:
+- **Lectura** que falla devuelve `None`, que se traduce en "no autenticado".
+  Es honesto: si no se puede leer el token, no hay token.
+- **Escritura** que falla solo registra el error y **no relanza**. El token en
+  memoria sigue sirviendo para esa instancia, asi que un fallo al guardar no
+  debe tumbar una peticion que de otro modo funcionaba. Lo peor que pasa es
+  volver al comportamiento viejo: perder el token al reiniciar.
+
+`backend/database.py` — `delete_config(key)` nuevo, para el logout.
+
+`backend/routes/auth.py` — el logout borra la fila de MySQL via
+`spotify.clear_token()` en vez de `os.remove(".spotify_cache")`.
+
+**El hoyo que abria este cambio, y que hubo que tapar en el mismo commit.**
+
+`get_client()` hacia a mano el chequeo de expiracion. Se cambio a
+`am.validate_token(am.cache_handler.get_cached_token())`, que es la forma no
+deprecada y hace lo mismo **mas** una cosa: descarta el token si le faltan
+scopes.
+
+Eso no es cosmetico. Hasta ahora, cada scope nuevo que se agregaba se activaba
+solo, porque el redeploy borraba el `.spotify_cache` y Angel re-logueaba de
+todos modos — el bug tapaba el problema. Con el token viviendo en MySQL el
+token viejo sobrevive, y como sigue siendo valido para todo lo demas, la
+funcion nueva habria fallado **en silencio**. `validate_token` compara los
+scopes guardados contra `SCOPE` y devuelve `None` si falta alguno, asi que
+ahora agregar un scope manda a re-loguear a proposito.
+
+Ojo con el detalle de spotipy: `is_token_expired` y `_is_scope_subset` son
+`staticmethod` de `SpotifyAuthBase`. Importa al escribir stubs.
+
+**Verificacion: 18 casos, sin red y sin MySQL** (la capa de `database`
+stubeada en `sys.modules` antes de importar `spotify`, y un `SpotifyOAuth` de
+mentiras que usa el `validate_token` **real** de spotipy). Roundtrip de
+guardar y leer; un proceso nuevo lee el token de la DB, que es el caso del
+redeploy; el memo evita lecturas repetidas (5 llamadas, 0 reads extra); token
+ilegible y MySQL caido en lectura devuelven `None` sin reventar; MySQL caido
+en escritura no relanza y el token en memoria sigue sirviendo; el token
+expirado se refresca **y** el refrescado se persiste; a un token al que le
+falta un scope se le niega el cliente sin gastar un refresh inutil; y el
+logout borra la fila y deja de autenticar.
+
+Ademas se importo la app de verdad con `DeprecationWarning` elevado a error:
+`cache_handler` es `MySQLCacheHandler`, el atributo `cache_path` ya ni existe,
+los 9 scopes intactos, `get_authorize_url()` bien formada, las 4 rutas de auth
+registradas y las 43 del app importando.
+
+**Documentacion.** `ARQUITECTURA.md` §6 (nueva llave `spotify_token`, y el
+corolario de "nada a disco" ya sin excepciones), §7.1 (el handler completo, con
+las dos ramas de fallo), §7.2 (reescrito: agregar un scope **ya no es gratis**,
+y por que), el diagrama de deploy de §11 y la fila de `/auth/logout` en el mapa
+de la API. `CLAUDE.md` — la linea de Deploy decia que el token se borra en cada
+redeploy; ahora dice lo contrario, que es el punto.
+
+**PENDIENTES QUE QUEDAN:**
+
+- [ ] Confirmar en Spotify que el orden por novedad se ve bien. Ya no esta
+      bloqueado por el token: Angel entra, y en Herramientas aprieta
+      **"Ordenar Galeria Anual"** y **"Ordenar Miel"**. Sigue haciendo falta
+      un login mas (el token viejo murio antes de este cambio), pero deberia
+      ser el ultimo por redeploy.
+- [ ] Endpoint de solo lectura que liste tracks desde la DB sin token de
+      Spotify. Hoy `/tracks/stats` solo da agregados y por eso no se puede
+      saber **cuales** A+ son candidatas a revisar.
+- [ ] Medir el ratio A+/A al cierre de Miel, antes de tocar 6b.
+- [ ] El ping: los huecos reales del cron hacen que Render se duerma igual.
+      Evaluar cron-job.org.
+
+Commits: `e30339d` (token a MySQL).
+
+---
+
 ## 2026-08-21 (sesion ping anti-sleep + diagnostico del 404)
 
 **Maquina: PC `AngelPC`.**
