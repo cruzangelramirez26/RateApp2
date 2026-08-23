@@ -224,10 +224,12 @@ pestana de variables, y rotarla en TiDB. Pendiente de Angel.
 
 **Lo que falta de la migracion:**
 
-- [ ] Registrar `https://rateapp-1043427819721.us-east4.run.app/callback` en el
-      Spotify Developer Dashboard. Hoy no estorba porque el token viene de
-      MySQL y refrescarlo no usa el redirect_uri, pero el dia que Angel tenga
-      que re-loguear, sin esto truena.
+- [x] **Redirect URI registrado en Spotify — HECHO.** Angel lo puso al cierre
+      de la sesion. Verificado sin necesidad de loguearse: `/auth/login` manda
+      `redirect_uri=https://rateapp-1043427819721.us-east4.run.app/callback` y
+      Spotify devuelve su pantalla de login normal en lugar de
+      `INVALID_CLIENT: Invalid redirect URI`, que es lo que saldria si no
+      estuviera dado de alta. Los 9 scopes van intactos.
 - [ ] Medir el arranque en frio REAL de Cloud Run. Los 0.25 s medidos son con
       instancia tibia; hace falta dejarlo ~15 min sin trafico. Estimado por los
       imports (~2.3 s solo `import main`): 3-5 s.
@@ -235,8 +237,37 @@ pestana de variables, y rotarla en TiDB. Pendiente de Angel.
       la misma base.
 - [ ] `MYSQL_PORT` y el secreto en Secret Manager (arriba).
 
+**CIERRE DE SESION (2026-08-22).** Angel: "ya puse el url. guarda logs manana
+seguimos".
+
+Estado con el que queda la app: corriendo en Cloud Run `us-east4`, con la
+sesion de Spotify viva, el orden por novedad confirmado por el en Spotify, y
+Render encendido en paralelo contra la misma base como red de seguridad.
+
+**POR DONDE EMPEZAR MANANA**, en orden:
+
+1. **Medir el arranque en frio real de Cloud Run.** Es el unico numero que
+   quedo sin verificar y es el que justifica toda la migracion. Los 0.25 s
+   medidos son con instancia tibia. Hay que dejarlo ~15 min sin trafico —
+   ojo, el ping de GitHub Actions lo mantiene despierto, asi que hay que
+   desactivar el workflow un rato o medir justo antes de que entre un ping.
+   Estimado por los imports (~2.3 s solo `import main`): 3-5 s.
+2. **Seguir con la seccion 5 del backlog: Tauri.** Es lo que Angel eligio
+   despues del hosting, y el hosting ya quedo. Ojo con el encuadre acordado:
+   Tauri NO reemplaza el trabajo del reproductor, solo el `<PiPHost>`. El
+   backend de progreso/seek y el componente `<PlayerPanel>` se necesitan
+   igual — en Tauri sigue siendo React en un WebView, y el celular sigue
+   usando la version web.
+3. **Los dos pendientes chicos de Cloud Run**: mover `MYSQL_PASSWORD` a Secret
+   Manager (y rotarla en TiDB, porque salio en una captura), y decidir si se
+   apaga Render.
+4. **`MYSQL_PORT`**: el arreglo de 3 lineas quedo ofrecido dos veces y sin
+   respuesta. No es urgente — funciona porque TiDB tiene el 3306 abierto — pero
+   es una dependencia accidental sin documentar en el codigo (si esta en el
+   `.env.example`).
+
 Commits: `e30339d` (token a MySQL), `bb74bc4` (log), `f69e8f4` (.dockerignore),
-`a1d61be` (backlog).
+`a1d61be` (backlog), `2cd4637` (migracion a Cloud Run).
 
 ---
 
