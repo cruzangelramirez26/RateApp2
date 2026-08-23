@@ -66,6 +66,15 @@ Render free duerme el servicio tras ~15 min sin tráfico (arranque frío 30–60
       Dos limitaciones conocidas: GitHub deshabilita el cron tras 60 dias sin
       actividad en el repo, y el cron de Actions en runners gratis se atrasa
       seguido. Si se pierden pings de mas, mover a cron-job.org.
+      MEDIDO 2026-08-22: el paso 1 NO esta alcanzando. El workflow corre y da
+      success, pero los intervalos reales no son de 10 min. Cinco corridas
+      seguidas: 23:14, 23:36, 23:52, 00:43, 02:13 UTC — huecos de 22, 16, 51 y
+      90 min. Render se duerme a los 15, asi que se duerme igual: a las 02:54
+      /health tardo 21 s. El retraso del cron de Actions resulto peor de lo
+      estimado. Siguiente movimiento barato: cron-job.org, que es puntual.
+      ACLARACION: que el token viva en MySQL (2026-08-22) NO arregla esto. Son
+      dos problemas distintos — la app se sigue durmiendo igual, lo unico que
+      cambio es que al despertar ya no hay que re-loguear en Spotify.
 - [ ] Paso 2 (si se quiere definitivo): Google Cloud Run. Ya hay Dockerfile.
       Escala a cero pero arranque frío 1–3s. Free tier holgado para 1 usuario.
 - [ ] Alternativa: Oracle Cloud Always Free (VM ARM) — nunca duerme, pero
@@ -194,6 +203,11 @@ Herramientas, que si no habria deshecho el orden al apretarlo.
 `aplicar_novedad`, un solo criterio.
 
 Efecto medido en Galeria Anual: la primera A pasa de la posicion 226 a ~47.
+
+CONFIRMADO EN VIVO POR ANGEL (2026-08-22): "sip, si funciona el ordenar nuevo".
+Queda cerrado el paso 1. El paso 2 (score con decaimiento) sigue abierto pero
+ya NO es el siguiente movimiento obvio: estaba condicionado a que el corte del
+bloque se sintiera arbitrario, y no se sintio.
 
 
 ## 6b. La densidad de A+ (esto es la causa de fondo)  [ANALISIS, sin decidir]

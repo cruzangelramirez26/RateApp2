@@ -99,19 +99,39 @@ redeploy; ahora dice lo contrario, que es el punto.
 
 **PENDIENTES QUE QUEDAN:**
 
-- [ ] Confirmar en Spotify que el orden por novedad se ve bien. Ya no esta
-      bloqueado por el token: Angel entra, y en Herramientas aprieta
-      **"Ordenar Galeria Anual"** y **"Ordenar Miel"**. Sigue haciendo falta
-      un login mas (el token viejo murio antes de este cambio), pero deberia
-      ser el ultimo por redeploy.
+- [x] **Confirmar el orden por novedad en Spotify — HECHO.** Angel, al final
+      de la sesion: "sip, si funciona el ordenar nuevo". El paso 1 de la
+      seccion 6 queda cerrado. El paso 2 (score con decaimiento) sigue en el
+      backlog pero ya no es el siguiente movimiento obvio: estaba condicionado
+      a que el corte del bloque se sintiera arbitrario, y no se sintio.
 - [ ] Endpoint de solo lectura que liste tracks desde la DB sin token de
       Spotify. Hoy `/tracks/stats` solo da agregados y por eso no se puede
       saber **cuales** A+ son candidatas a revisar.
 - [ ] Medir el ratio A+/A al cierre de Miel, antes de tocar 6b.
 - [ ] El ping: los huecos reales del cron hacen que Render se duerma igual.
       Evaluar cron-job.org.
+- [ ] La region de Render. Sigue sin verificarse y en `Mejoras.txt` esta
+      marcado "PRIMERO ESTO, es gratis y rapido": si el web service no esta en
+      Virginia, cada query cruza el continente contra TiDB en `us-east-1`, y
+      `load_all()` jala la tabla completa en casi cada operacion.
 
-Commits: `e30339d` (token a MySQL).
+**Aclaracion que hubo que hacerle a Angel al cierre.** Pregunto "entonces ya no
+se apagara la app?" — no. Son dos problemas distintos y solo se cerro uno. La
+app se sigue durmiendo a los 15 min y sigue tardando 30-60 s en arrancar en
+frio; lo unico que cambio es que al despertar ya no hay que re-loguear en
+Spotify. Quedo escrito tambien en `Mejoras.txt` §4 para que no se confunda
+despues.
+
+**Estado del backlog completo, ya que pregunto:** 4 de 9 secciones hechas — 1
+(link/play contextual), 2 (modo oscuro), 4b (404 al refrescar) y 6 paso 1
+(bloque de novedades). Abiertas: 3 (PiP rehecho, la pieza grande, 9 sub-tareas
+sin empezar), 4 (hosting: el ping no alcanza, Cloud Run y Oracle sin tocar, y
+la region de Render sin verificar), 5 (apps nativas), 6 paso 2 (probablemente
+innecesario), 6b (densidad de A+: falta medir el ratio al cierre de Miel y el
+endpoint de solo lectura), las decisiones chicas (`package-lock.json` sin
+versionar, `railway.json` vestigio) y la Vista Play del chip `<3333>`.
+
+Commits: `e30339d` (token a MySQL), `bb74bc4` (log).
 
 ---
 
