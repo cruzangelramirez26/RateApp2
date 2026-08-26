@@ -210,7 +210,7 @@ ya NO es el siguiente movimiento obvio: estaba condicionado a que el corte del
 bloque se sintiera arbitrario, y no se sintio.
 
 
-## 6b. La densidad de A+ (esto es la causa de fondo)  [ANALISIS, sin decidir]
+## 6b. La densidad de A+ (esto es la causa de fondo)  [EN PAUSA - se decide con latte 2026]
 
 Numeros reales de la DB al 2026-08-21 (GET /tracks/stats; los 5 periodos suman
 exacto al global en los 7 ratings, y `count` resulta ser el total sin D):
@@ -277,14 +277,55 @@ ESCENARIOS DE CUPO (nadie los ha elegido, son para dimensionar el dolor):
                              ultimo recurso: medir el ratio A+/A del proximo
                              cuatrimestre antes de tocar nada historico.
 
-- [ ] PENDIENTE DE ANGEL: verificar primero la hipotesis del A+ Instantaneo.
-      Si se confirma, el "cupo" deja de ser una decision dolorosa y se vuelve
-      una limpieza de un bulk mal aplicado.
-- [ ] Dato que falta: no hay endpoint que liste tracks desde la DB sin token de
-      Spotify, asi que no se pudo sacar CUALES A+ son candidatas. /tracks/stats
-      solo da agregados.
+- [x] La hipotesis del A+ Instantaneo quedo DESCARTADA el 2026-08-21 por el
+      propio Angel: no fue un bulk, fue el workaround del bug del orden.
+
+DECISION DE ANGEL (2026-08-25): 6b SE CIERRA POR AHORA.
+
+  "va entonces eso cierralo, veremos el cambio en latte"
+
+Escenario elegido: SOLO HACIA ADELANTE. No se recalifica nada historico y NO se
+construye el endpoint de solo lectura. Ese endpoint se iba a hacer para saber si
+hacia falta actuar; si la decision ya es esperar el dato natural, no hace falta.
+
+POR QUE NO SE MIDE AL CIERRE DE MIEL, que es lo que cambio el plan. Miel va de
+mayo a agosto y el arreglo del orden entro el 21 de agosto: mas del 90% de miel
+se califico bajo el incentivo viejo. El 4.8 esta contaminado y el numero del 31
+lo estaria casi igual. El primer dato limpio es LATTE 2026 (sep-dic), el primer
+cuatrimestre completo despues del arreglo.
+
+QUE MEDIR EN ENERO 2027 Y COMO LEERLO:
+
+  GET /tracks/stats  ->  by_cuatri  ->  latte 2026  ->  by_rating
+  ratio = A+ / A
+
+    ~2     el arreglo funciono. 6b se cierra definitivamente, sin tocar nada.
+    3-4    mejoro pero no del todo. Evaluar el paso 2 (score con decaimiento).
+    5-7    el incentivo no era la unica causa. Reabrir el analisis.
+
+Referencia para comparar: 2025 iba en 1.6-2.4, perla 2026 en 7.0.
+
+SI EL SINTOMA VUELVE A MOLESTAR ANTES DE ENERO, la palanca NO es recalificar.
+Es el paso 2 de la seccion 6 (score con decaimiento): es codigo, cero trabajo
+manual, y reversible porque el orden en Spotify se reconstruye desde cero. Se
+le planteo a Angel el 2026-08-25 el costo de las tres opciones y descarto
+recalificar — sobre 167 A+ de perla 2026 no hay forma de distinguir cuales
+fueron el workaround y cuales sinceras, esa distincion solo vive en su cabeza.
 
 ## Decisiones chicas sin resolver
+- [ ] La URL de Cloud Run es fea (`rateapp-1043427819721.us-east4.run.app`).
+      Angel pregunto el 2026-08-25 si se puede acortar gratis. Resumen de lo
+      que se le contesto: un dominio PROPIO siempre cuesta (~$1-15/ano); gratis
+      solo hay subdominio prestado. OJO con la trampa: la via "oficial" de
+      dominio en Cloud Run us-east4 puede acabar en un balanceador global de
+      ~$18/MES, mas caro que el dominio. La opcion recomendada es Firebase
+      Hosting (`algo.web.app`, mismo proyecto, certificado de Google) — pero
+      los reenvios a Cloud Run exigen plan Blaze, que con el credito de Angel
+      sale gratis igual. Trabajo real: ~40 min, e incluye actualizar
+      SPOTIPY_REDIRECT_URI en Cloud Run **y** dar de alta el URI nuevo en el
+      dashboard de Spotify (si se olvida, el login truena), mas reinstalar la
+      PWA porque cambia el origen. Se le recomendo NO hacerlo: instalada como
+      PWA no vuelve a ver la URL. Sin respuesta de Angel.
 - [ ] Las portadas de `frontend/public/portadas/` pesan 11 MB entre las seis, y
       se muestran como miniaturas en las tarjetas de Stats. `Perla.jpg` sola son
       5 MB. Redimensionarlas a ~1200px de ancho las dejaria en cientos de KB sin

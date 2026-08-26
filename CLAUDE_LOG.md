@@ -135,10 +135,58 @@ tiene los dos puertos abiertos. Sigue pendiente el arreglo de 3 lineas.
 - [ ] Decidir si se borran las revisiones `00001`-`00005`, que conservan la
       contrasena vieja en texto plano (ya inservible, pero ahi esta).
 - [ ] Tauri (seccion 5 del backlog). Es lo que sigue en el plan de Angel.
-- [ ] Medir el ratio A+/A al cierre de miel 2026 — **cierra el 31 de agosto**.
-      Va en 58 A+ / 12 A = 4.8, contra 7.0 de perla 2026 y ~2 de 2025.
 - [ ] `MYSQL_PORT`: el arreglo de 3 lineas, ofrecido tres veces ya.
-- [ ] Endpoint de solo lectura que liste tracks desde la DB sin token.
+- [ ] Sin respuesta: el link bonito (ver abajo). Anotado en `Mejoras.txt`.
+
+**CIERRE: 6b entra en pausa hasta latte 2026, y de paso se corrige el plan.**
+
+Angel pregunto "a que te refieres con medir A+" y al explicarselo salio un
+error en el plan que traia el log del 22.
+
+**Medir al cierre de miel 2026 no sirve.** Miel va de mayo a agosto y el
+arreglo del orden entro el **21 de agosto**: mas del 90% de miel se califico
+bajo el incentivo viejo. El 4.8 de hoy esta contaminado y el numero del 31 lo
+estaria casi igual. El primer dato limpio es **latte 2026** (sep-dic), el
+primer cuatrimestre completo despues del arreglo.
+
+Se le ofrecio el atajo — construir el endpoint de solo lectura para cortar por
+fecha de calificacion y comparar antes/despues del 21 de agosto, lo que daba la
+respuesta en semanas en vez de meses. Ahi se vio que los dos pendientes que
+venian sueltos en la lista eran uno solo: **el endpoint era lo que hacia
+medible 6b**.
+
+**Angel entendio otra cosa y hubo que aclararlo:** pregunto "o sea dices que
+podemos recalificar canciones de ese periodo para que este sano?". No — lo
+propuesto era medir. Se le separaron los dos objetivos, que es lo que
+destraba la conversacion:
+
+- *"encontrar rapido una A nueva"* -> ya esta 80% resuelto (226 -> ~47), y si
+  quiere mas, la palanca es el **paso 2** (score con decaimiento): codigo, cero
+  trabajo manual, reversible.
+- *"que mis calificaciones signifiquen lo que dicen"* -> solo eso pide
+  recalificar.
+
+Y el argumento que mato la opcion de recalificar: son 167 A+ solo en perla
+2026, y **en la DB el workaround y la calificacion sincera se ven identicos**.
+Esa distincion solo vive en la cabeza de Angel, cancion por cancion.
+
+**Su decision:** *"va entonces eso cierralo, veremos el cambio en latte"*.
+Escenario **solo hacia adelante**. El endpoint de solo lectura **sale** de los
+pendientes: se iba a construir para saber si hacia falta actuar, y ya se decidio
+esperar el dato natural.
+
+Que medir en enero 2027: `GET /tracks/stats` -> `by_cuatri` -> latte 2026, y
+sacar A+/A. ~2 cierra 6b definitivamente; 3-4 pide evaluar el paso 2; 5-7
+significa que el incentivo no era la unica causa. Referencia: 2025 iba en
+1.6-2.4 y perla 2026 en 7.0. Todo quedo en `Mejoras.txt` §6b, que pasa de
+`[ANALISIS, sin decidir]` a `[EN PAUSA - se decide con latte 2026]`.
+
+**El link feo.** Angel pregunto si se puede acortar gratis. Se le explico que
+un dominio propio siempre cuesta y que gratis solo hay subdominio prestado, con
+la trampa de que la via "oficial" en `us-east4` puede acabar en un balanceador
+global de ~$18/mes — mas caro que el dominio. Recomendacion: Firebase Hosting,
+o mejor **no hacerlo**, porque instalada como PWA no vuelve a ver la URL.
+Quedo sin respuesta y anotado en `Mejoras.txt`.
 - [ ] Seccion 3 del backlog: el PiP rehecho en React (9 sub-tareas).
 
 ---
