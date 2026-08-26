@@ -2,6 +2,147 @@
 
 ---
 
+## 2026-08-25 (sesion secreto a Secret Manager + apagado de Render)
+
+**Maquina: PC `AngelPC`.**
+
+Sin cambios de codigo de la app. Infraestructura y seguridad.
+
+**Estado al abrir.** Working tree limpio, `HEAD` = `origin/main` en `5f07dcc`.
+Nada de codigo desde el 22. Se reviso el deploy en vivo y de paso cayo el
+pendiente #1 solo.
+
+**El arranque en frio de Cloud Run, medido (pendiente #1 cerrado).** No hizo
+falta el experimento controlado: el ping de GitHub Actions tiene los huecos de
+40-90 min que ya se documentaron, asi que el servicio estaba frio y el primer
+`curl` lo agarro. Dos mediciones independientes, con horas de diferencia:
+
+```
+Cloud Run  primer golpe (frio)   4.98 s  /  4.17 s
+Cloud Run  siguientes (tibio)    0.15 s     0.16 s
+Render     primer golpe (frio)  21.43 s
+```
+
+Dentro del estimado de 3-5 s que se hizo por los imports. Contra los 21 s de
+Render son ~5x en el peor caso, sumados al ~8x en las queries. La migracion
+queda justificada con numeros propios, que era lo unico que faltaba.
+
+**Render suspendido.** Angel lo hizo desde el dashboard (Settings -> Suspend).
+Verificado: `503` en 0.35 s. El workflow `keep-awake` ya apuntaba a Cloud Run
+desde el 22, asi que suspenderlo no rompio el ping.
+
+Advertencia que se le dio antes de tocar nada, porque cambia el orden correcto
+de las dos tareas: **rotar la contrasena mata a Render de todos modos**, porque
+se queda con la credencial vieja. Por eso Render se apago primero — si no,
+quedaba un servicio prendido tirando errores contra la base. Corolario: Render
+ya no es red de seguridad; revivirlo pide actualizarle la variable a mano.
+
+**Herramienta nueva: `gcloud` en la PC.** Instalado con
+`winget install Google.CloudSDK` (v582), autenticado como
+`cruzangelramirez26@gmail.com`, proyecto `rateapp-506404`. Ojo: winget no
+refresca el PATH de las shells ya abiertas, asi que en esta sesion se invoco
+por ruta completa
+(`%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`).
+
+Nota de PowerShell 5.1: `gcloud` escribe sus mensajes de estado a stderr y
+PowerShell los envuelve en `NativeCommandError` aunque el comando haya salido
+en 0. "Created secret", "Updated IAM policy" y "Deploying..." aparecen como
+errores rojos y **no lo son**.
+
+**La rotacion.** El secreto `mysql-password` se creo vacio y con
+`roles/secretmanager.secretAccessor` para
+`1043427819721-compute@developer.gserviceaccount.com` (la cuenta default de
+Compute, la misma del incidente de Developer Connect del 22).
+
+El usuario de la app resulto ser `4CCP4ijs5Bk8TUT.root`, el root del cluster
+con el prefijo de TiDB. En TiDB Serverless no hay pestana de usuarios SQL: el
+reset vive dentro del dialogo *Connect*, en un link chico de "Reset Password"
+al lado de "Existing connections are based on password you've set before".
+
+**El valor nunca paso por Claude, a proposito.** Angel roto en TiDB y pego la
+contrasena directo en la consola de Secret Manager (`+ Nueva version`). Se
+descarto el camino por CLI justamente para eso, y de paso evita el error
+clasico: `--data-file` toma los bytes tal cual, asi que un salto de linea al
+final del archivo entra al secreto y la conexion falla con un error de
+credenciales que no dice nada util.
+
+Luego, un solo comando:
+
+```
+gcloud run services update rateapp --region us-east4 \
+  --remove-env-vars MYSQL_PASSWORD \
+  --update-secrets MYSQL_PASSWORD=mysql-password:latest
+```
+
+Revision `rateapp-00006-tpl`, 100% del trafico. Ventana real sin base: los ~3
+min entre el reset y que la revision quedara arriba.
+
+**Verificado en vivo:** `/health` 200 en 0.22 s; `/tracks/stats` 200 con datos
+reales (1302 tracks) — esa es la prueba de verdad, porque pega a la base y por
+lo tanto confirma que la contrasena **nueva** funciona; `/auth/status` sigue
+autenticado, o sea el token de Spotify que vive en MySQL sobrevivio a la
+rotacion. Y en la definicion del servicio, `MYSQL_PASSWORD` ahora sale de
+`secretKeyRef: mysql-password / latest` con el valor literal vacio.
+
+**EL HALLAZGO QUE IMPORTA, y que cambia como se piensa esto.** Las revisiones
+viejas de Cloud Run son inmutables y **conservan la contrasena en texto plano**.
+Comprobado sin imprimir el valor, midiendo solo su longitud:
+
+```
+rateapp-00005-5d4  ->  MYSQL_PASSWORD  longitud=16
+rateapp-00004-mcm  ->  MYSQL_PASSWORD  longitud=16
+```
+
+O sea: **mover el secreto a Secret Manager, por si solo, no habria cerrado
+nada.** Las 5 revisiones anteriores siguen siendo copias de la credencial
+filtrada, y cualquiera con acceso a la consola las puede leer. Lo que cerro la
+fuga fue la **rotacion**; el Secret Manager es lo que evita que vuelva a pasar.
+Vale la pena tenerlo presente en general: cualquier secreto que se ponga alguna
+vez como variable de entorno en Cloud Run queda filtrado en todas las
+revisiones que lo hayan tenido, para siempre.
+
+Efecto lateral: hacer rollback a `00005` o anterior ya no sirve de nada — esas
+revisiones no pueden conectarse a la base. Borrarlas eliminaria el texto plano
+por completo, pero es irreversible y se dejo a decision de Angel.
+
+**NO ES UN SECRETO, SON TRES.** Al listar las variables del servicio salio esto:
+
+```
+FRONTEND_URL   SPOTIPY_REDIRECT_URI   MYSQL_DATABASE   MYSQL_HOST
+MYSQL_PASSWORD   MYSQL_PORT   MYSQL_USER   SECRET_KEY
+SPOTIPY_CLIENT_ID   SPOTIPY_CLIENT_SECRET
+```
+
+`SPOTIPY_CLIENT_SECRET` y `SECRET_KEY` siguen en texto plano y estaban igual de
+expuestas. Si la captura del 22 mostraba el panel de variables completo, **las
+tres salieron en la foto**, no una. Quedan sin tocar por decision pendiente de
+Angel: rotar el client secret de Spotify obliga a actualizarlo en el dashboard
+de Spotify, y `SECRET_KEY` hay que ver que invalida antes de moverla.
+
+**`MYSQL_PORT` confirmado por partida doble.** El dialogo de TiDB dice
+`PORT: 4000` y la variable en Cloud Run vale `4000` — y el codigo sigue sin
+leerla, asi que cae al 3306 por default. Funciona de casualidad porque TiDB
+tiene los dos puertos abiertos. Sigue pendiente el arreglo de 3 lineas.
+
+**PENDIENTES QUE QUEDAN:**
+
+- [x] **Arranque en frio de Cloud Run — MEDIDO.** 4.98 s y 4.17 s en frio,
+      0.15 s tibio, contra 21.4 s de Render.
+- [x] **Render — SUSPENDIDO.** Verificado en 503.
+- [x] **`MYSQL_PASSWORD` — rotada y en Secret Manager.**
+- [ ] **Decidir sobre `SPOTIPY_CLIENT_SECRET` y `SECRET_KEY`**, que siguen en
+      texto plano y probablemente tambien salieron en la captura.
+- [ ] Decidir si se borran las revisiones `00001`-`00005`, que conservan la
+      contrasena vieja en texto plano (ya inservible, pero ahi esta).
+- [ ] Tauri (seccion 5 del backlog). Es lo que sigue en el plan de Angel.
+- [ ] Medir el ratio A+/A al cierre de miel 2026 — **cierra el 31 de agosto**.
+      Va en 58 A+ / 12 A = 4.8, contra 7.0 de perla 2026 y ~2 de 2025.
+- [ ] `MYSQL_PORT`: el arreglo de 3 lineas, ofrecido tres veces ya.
+- [ ] Endpoint de solo lectura que liste tracks desde la DB sin token.
+- [ ] Seccion 3 del backlog: el PiP rehecho en React (9 sub-tareas).
+
+---
+
 ## 2026-08-22 (sesion token de Spotify a MySQL)
 
 **Maquina: PC `AngelPC`.**
