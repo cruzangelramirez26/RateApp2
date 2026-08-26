@@ -1,0 +1,14 @@
+{
+  "name": "rateapp-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cascaron nativo (Tauri v2) de RateApp. La ventana carga la app que ya corre en Cloud Run: no hay frontend local que construir.",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

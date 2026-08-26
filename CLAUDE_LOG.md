@@ -187,6 +187,102 @@ la trampa de que la via "oficial" en `us-east4` puede acabar en un balanceador
 global de ~$18/mes — mas caro que el dominio. Recomendacion: Firebase Hosting,
 o mejor **no hacerlo**, porque instalada como PWA no vuelve a ver la URL.
 Quedo sin respuesta y anotado en `Mejoras.txt`.
+
+**TAURI: ANDAMIO ARMADO (seccion 5 del backlog).**
+
+Angel: "dale tauri". Alcance que eligio: **solo dejar el andamio compilando**,
+sin instalador ni bandeja.
+
+**Prerrequisitos.** Node 24.13 y WebView2 151.0.4129 ya estaban; faltaban Rust y
+la cadena de C++ de Microsoft, ~5 GB. Instalados con winget
+(`Rustlang.Rustup` y `Microsoft.VisualStudio.2022.BuildTools` con
+`--add Microsoft.VisualStudio.Workload.VCTools`). Resultado: rustc 1.98.0,
+cargo 1.98.0, toolchain `stable-x86_64-pc-windows-msvc`, CLI de Tauri 2.11.4.
+
+**La decision de arquitectura: cascaron sobre la URL de Cloud Run.** La ventana
+apunta a `https://rateapp-1043427819721.us-east4.run.app`; no se empaqueta el
+frontend dentro del `.exe`.
+
+La razon que mando **no** fue el trabajo ahorrado: con este esquema **cada push
+sigue actualizando la app de escritorio sola**. Empaquetando, cada cambio de
+frontend obligaria a recompilar y reinstalar el `.exe` — un impuesto permanente
+en una app que se toca seguido.
+
+Y de paso esquiva dos obstaculos reales que habria que resolver en el otro
+camino: `frontend/src/utils/api.js:7` tiene `BASE = ''`, o sea rutas relativas,
+que dentro de Tauri resolverian contra `tauri://localhost` y **no funcionaria
+nada**; y el CORS de `backend/main.py:29` no incluye el origen de Tauri.
+
+`frontendDist` acepta una URL en Tauri v2, asi que no hace falta ni un
+`index.html` local. Tampoco hace falta Vite — lo que encaja con que el backend
+nunca corre en local (el proxy de `vite.config.js:8` apunta a `localhost:8000`,
+que en este setup no existe).
+
+**Donde vive: `desktop/` en la raiz, NO `frontend/src-tauri/`.** El Dockerfile
+hace `COPY frontend/ ./`, asi que fuentes de Rust ahi dentro se subirian en cada
+build de Cloud Build y desharian el trabajo del `.dockerignore` del 22.
+Agregado `desktop/` a `.dockerignore` y `target/`+`gen/` a `.gitignore`.
+
+**Tres cosas que `tauri init` genero mal y hubo que corregir:**
+
+1. `identifier` venia como `com.tauri.dev`, el marcador por defecto — Tauri se
+   **niega a empaquetar** con ese valor. Ahora `com.angelrg.rateapp`.
+2. `beforeDevCommand` venia como `npm run dev`. Como el `package.json` de
+   `desktop/` tambien tiene un script `dev` que llama a `tauri dev`, eso era una
+   **recursion infinita**. Los dos comandos previos van vacios: no hay frontend
+   local que construir.
+3. `targets: "all"` incluia formatos de macOS y Linux, imposibles de generar en
+   Windows. Ahora `["msi", "nsis"]`.
+
+**EL HALLAZGO, y es el que mas caro habria salido.** La primera compilacion
+genero **4.25 GB en 3,118 archivos DENTRO de OneDrive**.
+
+`.gitignore` no protege de esto: **OneDrive no lo lee**. Habria intentado subir
+los 4.25 GB, comerse la cuota, y — peor — OneDrive bloquea archivos mientras
+sincroniza, lo que puede **tronar una compilacion a media corrida**. Cada
+rebuild reescribe cientos de archivos, o sea sincronizacion perpetua.
+
+Arreglado con `desktop/.cargo/config.toml` que manda `build.target-dir` a
+`%LOCALAPPDATA%ateapp-rust-target`, fuera del arbol sincronizado. Se borro el
+directorio viejo y se recompilo: **1m23s** (la primera vez fueron 2m23s).
+
+Es una trampa general del repo, no de Tauri: **este proyecto vive en OneDrive**,
+asi que cualquier herramienta que genere artefactos pesados necesita que se le
+diga explicitamente donde escribir.
+
+**Verificacion.** Ventana abierta con titulo `RateApp`, 36 MB, y 6 procesos de
+WebView2 colgando de `app.exe`. Angel confirmo por captura: **carga la app
+completa con datos reales** — 18 pendientes, portadas, el tema oscuro, todo.
+
+Ojo con el metodo: se intento verificar por red y **el chequeo salio
+inconcluso** — la conexion establecida salia hacia un rango latinoamericano
+(`2806:2f0:...`) y no hacia los `2600:1900:...` que devuelve el DNS de Cloud
+Run; lo mas probable es un nodo cache de Google dentro del ISP, pero es una
+suposicion. La verificacion valida fue la captura de Angel, no el forense.
+
+**Y confirma, otra vez, el trabajo del token en MySQL:** la app de escritorio
+quedo **autenticada sin un solo login**. Si el token siguiera en disco, aqui
+habria hecho falta re-loguear.
+
+**PENDIENTES DE TAURI (para la fase siguiente):**
+
+- [ ] Icono propio. Hoy usa el generico de Tauri, y se ve en la barra de titulo
+      y en la de tareas. La app ya tiene su logo "A+" en el sidebar.
+- [ ] Fase 1 completa: icono de bandeja, arranque con Windows, e instalador
+      (`tauri build` -> msi/nsis). **Sin probar todavia.**
+- [ ] Fase 2: teclas multimedia globales. Los endpoints del player ya existen
+      (`/tracks/player/{play,pause,next,previous}`), asi que es trabajo del lado
+      de Rust. Ojo: **el Spotify de escritorio ya captura esas teclas** y ahi
+      suele estar el conflicto.
+- [ ] Fase 3: ventana flotante always-on-top que reemplace el PiP.
+      **BLOQUEADA por la seccion 3**: una ventana de Tauri necesita una URL a la
+      que apuntar, y hoy el PiP no es una ruta — se genera con cadenas de HTML
+      dentro de `NavBar.jsx`. Hace falta primero una ruta `/player` de verdad.
+      Dicho de otro modo: **Tauri no se salta el trabajo del reproductor, lo
+      desbloquea.**
+- [ ] Dato util para la seccion 3: **`lucide-react` ya esta instalado** en el
+      frontend, asi que la tarea de "iconos SVG en vez de emoji" no necesita
+      dependencia nueva.
 - [ ] Seccion 3 del backlog: el PiP rehecho en React (9 sub-tareas).
 
 ---

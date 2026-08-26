@@ -24,3 +24,7 @@ Thumbs.db
 # State files
 cuatri_virtual_state.json
 a_plus_cutoff.json
+
+# Tauri (app de escritorio) — artefactos de compilacion de Rust, cientos de MB
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

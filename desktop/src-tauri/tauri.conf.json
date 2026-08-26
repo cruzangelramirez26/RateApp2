@@ -1,0 +1,39 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "RateApp",
+  "version": "0.1.0",
+  "identifier": "com.angelrg.rateapp",
+  "build": {
+    "frontendDist": "https://rateapp-1043427819721.us-east4.run.app",
+    "devUrl": "https://rateapp-1043427819721.us-east4.run.app",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "RateApp",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 380,
+        "minHeight": 500,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

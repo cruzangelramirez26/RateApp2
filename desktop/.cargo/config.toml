@@ -1,0 +1,14 @@
+# Los artefactos de Rust NO pueden vivir dentro de OneDrive.
+#
+# La primera compilacion genero 4.25 GB en 3,118 archivos. OneDrive no lee
+# .gitignore, asi que intentaria subirlos todos, y ademas bloquea archivos
+# mientras sincroniza — lo que puede tronar una compilacion a media corrida.
+# Cada rebuild reescribe cientos de archivos, o sea sincronizacion perpetua.
+#
+# Por eso el directorio de salida se manda fuera del arbol sincronizado.
+#
+# OJO EN LA OTRA MAQUINA (la laptop): si el usuario de Windows no es "cruza",
+# ajusta esta ruta. Cargo crea el directorio solo, pero conviene que apunte a
+# algo fuera de OneDrive.
+[build]
+target-dir = "C:/Users/cruza/AppData/Local/rateapp-rust-target"

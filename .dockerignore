@@ -39,6 +39,11 @@ frontend/design/
 *.md
 Mejoras.txt
 
+# La app de escritorio (Tauri). No participa del build del servidor y sus
+# artefactos de Rust son cientos de MB: si entra, deshace el trabajo de este
+# mismo archivo.
+desktop/
+
 # Herramientas y configs que no participan del build.
 .claude/
 .vscode/
