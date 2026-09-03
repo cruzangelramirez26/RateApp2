@@ -14,6 +14,7 @@ import database
 async def lifespan(app: FastAPI):
     database.ensure_table()
     database.ensure_config_table()
+    database.ensure_listening_table()
     yield
 
 

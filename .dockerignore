@@ -54,3 +54,6 @@ railway.json
 # Basura del SO.
 .DS_Store
 Thumbs.db
+
+# Historial extendido de Spotify: 156 MB que la imagen no usa.
+historial/

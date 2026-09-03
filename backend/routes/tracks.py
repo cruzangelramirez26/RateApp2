@@ -305,6 +305,142 @@ def get_recently_played():
     return tracks
 
 
+# ---------------------------------------------------------------------------
+# Historial de escuchas real  (Mejoras.txt seccion 8)
+# ---------------------------------------------------------------------------
+
+LISTENING_CURSOR_KEY = "listening_cursor"
+
+
+def _iso_to_mysql(s: str) -> Optional[str]:
+    """'2026-09-02T18:23:45.123Z' -> '2026-09-02 18:23:45' (MySQL DATETIME)."""
+    if not s:
+        return None
+    return s.replace("T", " ").replace("Z", "").split(".")[0][:19]
+
+
+@router.get("/listening/summary")
+def listening_summary():
+    """Global listening totals. Does not touch Spotify, only MySQL."""
+    return database.get_listening_summary()
+
+
+@router.post("/listening/capture")
+def listening_capture():
+    """Pull new plays from Spotify's own history and fold them into the DB.
+
+    THIS IS WHAT MAKES THE HISTORY SELF-SUSTAINING. Spotify keeps the play
+    history on their side, so the app does NOT need to be open while Angel
+    listens — it only has to wake up now and then and ask. That is what removes
+    the need to ever request the privacy export again.
+
+    The hard limit is that /me/player/recently-played only ever returns the last
+    50 plays: anything beyond that between two captures is lost for good. Hourly
+    would already need 50 songs in one hour (a 72-second average) to lose
+    anything, and the keep-awake cron runs every 10 minutes, so the margin is
+    enormous.
+
+    Idempotent on purpose. The `after` cursor is passed to Spotify AND the
+    result is filtered locally by played_at, because double-counting here is
+    silent and permanent — the numbers would drift with no way to tell.
+
+    KNOWN IMPRECISION: recently-played says WHAT was played but not for how
+    long, so ms_total is approximated with the track duration. `plays` stays
+    exact; only the hours drift slightly high vs the export, which carries the
+    real ms_played.
+    """
+    sp = spotify.get_client()
+
+    # Un cursor ilegible se descarta por completo, y eso NO es paranoia barata:
+    # el filtro local compara strings, asi que un valor basura como "basura"
+    # resulta ser mayor que cualquier "2026-..." y descartaria toda captura
+    # futura, en silencio y para siempre. Si no se puede parsear, se trata como
+    # si no hubiera cursor: peor caso, se recapturan reproducciones que el
+    # ON DUPLICATE KEY ya sabe absorber.
+    raw_cursor = database.get_config(LISTENING_CURSOR_KEY)
+    cursor = None
+    after_ms = None
+    if raw_cursor:
+        try:
+            dt = datetime.fromisoformat(raw_cursor.replace("Z", "+00:00"))
+            after_ms = int(dt.timestamp() * 1000)
+            cursor = raw_cursor
+        except Exception:
+            print("[listening] cursor ilegible en config, se ignora: %r" % raw_cursor)
+
+    try:
+        result = sp.current_user_recently_played(limit=50, after=after_ms)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify no respondio: {e}")
+
+    items = (result or {}).get("items") or []
+
+    agg = {}
+    newest = cursor or ""
+    considered = 0
+    for item in items:
+        played_at = item.get("played_at") or ""
+        # Segundo filtro, por si el cursor de Spotify devuelve algo ya visto.
+        if cursor and played_at <= cursor:
+            continue
+        t = item.get("track") or {}
+        tid = t.get("id")
+        if not tid:
+            continue
+        considered += 1
+        if played_at > newest:
+            newest = played_at
+        a = agg.get(tid)
+        if a is None:
+            artists = t.get("artists") or [{}]
+            a = agg[tid] = {
+                "track_id": tid,
+                "name": t.get("name") or "",
+                "artist": artists[0].get("name", ""),
+                "plays": 0, "skips": 0, "ms_total": 0,
+                "first_played": _iso_to_mysql(played_at),
+                "last_played": _iso_to_mysql(played_at),
+            }
+        a["plays"] += 1
+        a["ms_total"] += int(t.get("duration_ms") or 0)
+        mp = _iso_to_mysql(played_at)
+        if mp and (a["first_played"] is None or mp < a["first_played"]):
+            a["first_played"] = mp
+        if mp and (a["last_played"] is None or mp > a["last_played"]):
+            a["last_played"] = mp
+
+    written = database.add_listening_batch(list(agg.values())) if agg else 0
+    if newest and newest != cursor:
+        database.set_config(LISTENING_CURSOR_KEY, newest)
+
+    return {
+        "ok": True,
+        "returned_by_spotify": len(items),
+        "new_plays": considered,
+        "tracks_touched": written,
+        "cursor": newest or None,
+    }
+
+
+@router.get("/listening/{track_id}")
+def listening_for_track(track_id: str):
+    """Real listening stats for one track: plays, hours, first and last time.
+
+    One PK lookup. For a list of tracks use database.get_listening_many()
+    instead — calling this in a loop is the 40-second mistake documented in
+    database.py.
+    """
+    stats = database.get_listening(track_id)
+    if not stats:
+        return {
+            "track_id": track_id, "found": False, "plays": 0, "skips": 0,
+            "ms_total": 0, "hours": 0.0,
+            "first_played": None, "last_played": None,
+        }
+    stats["found"] = True
+    return stats
+
+
 @router.get("/search")
 def search_tracks(q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=200)):
     """Search tracks in the database by name or artist."""

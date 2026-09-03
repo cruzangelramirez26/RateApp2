@@ -81,6 +81,12 @@ export const api = {
       body: JSON.stringify({ track_id: trackId, playlist_id: playlistId, shuffle_off: shuffleOff }),
     }),
 
+  // Historial de escuchas real (ver Mejoras.txt sección 8).
+  // Sale del export de privacidad de Spotify, que la API no expone: no hay
+  // endpoint de play counts. Se mantiene al día con /listening/capture.
+  getListening: (trackId) => request(`/tracks/listening/${trackId}`),
+  getListeningSummary: () => request('/tracks/listening/summary'),
+
   // Migración de cuatrimestre
   getMigrationCandidates: () => request('/tracks/migrate/candidates'),
   migrateTracks: (trackIds, toCuatrimestre) => request('/tracks/migrate', {

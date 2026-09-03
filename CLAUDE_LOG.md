@@ -2,6 +2,167 @@
 
 ---
 
+## 2026-09-02 (sesion historial de escuchas real)
+
+**Maquina: PC `AngelPC`.**
+
+Angel abrio con cuatro ideas de golpe: mixes tipo Blend con varias personas,
+limpiar los Me Gusta, mixes de artistas, y — como idea futura — abrir RateApp a
+mas gente. Se documentaron las cuatro en `Mejoras.txt` (secciones **7, 8 y 9**
+nuevas) y luego la sesion se fue entera a la 8, porque **Angel ya tenia pedido
+el export de Spotify** y lo puso en `historial/` a media conversacion.
+
+**Lo primero fue tapar un hoyo, antes de tocar los datos.** `historial/` estaba
+untracked pero **no** en `.gitignore` ni en `.dockerignore`. Un `git add .`
+distraido subia 156 MB a GitHub, y no son solo canciones: **cada fila trae
+`ip_addr`**. Ademas reventaba el contexto de Cloud Build, que en agosto se habia
+bajado de 143 MB a 11. Agregado a los dos archivos y verificado con
+`git check-ignore`.
+
+**Que hay en el export:** 187,577 reproducciones, 23,914 canciones unicas,
+**5,872 horas** (244 dias enteros), de 2018 a hoy. La cobertura del join salio
+al **99.3%** y solo 2 filas de 187 mil no traen `spotify_track_uri` — mucho
+mejor de lo que se le habia advertido a Angel.
+
+**EL HALLAZGO QUE CAMBIO LA FEATURE: la premisa estaba equivocada.**
+
+Angel pidio "las menos escuchadas". Se midio y **no existen**: de 2,212 Me Gusta
+con 6+ meses, solo **32 (1%)** tienen 0-2 reproducciones en toda su vida. La
+mediana de un Me Gusta suyo son **22 escuchas completas**. No hay basura por
+volumen, y construir la feature como se pidio habria dado una pantalla vacia.
+
+Lo que si existe es otra cosa, y es lo que de verdad le molesta:
+**721 de 2,328 Me Gusta (31%) estan ABANDONADAS** — las escucho mucho hace anios
+y lleva 12+ meses sin ponerlas. Ejemplo: "Cuarto de Hotel" de Gera MX, **108
+reproducciones, cero en 12 meses**. La lista es el retrato de su gusto de hace
+2-4 anios (Gera MX, C. Tangana, LATIN MAFIA, Tiago PZK).
+
+**La metrica correcta no era volumen, era recencia.** "Nunca la escuche" y "ya
+no me gusta" son dos cosas distintas y solo la segunda describe el problema.
+Quedo escrito en `Mejoras.txt` §8, junto con la advertencia de que *abandonada
+!= basura*: la app **no** debe quitar likes sola.
+
+**HALLAZGO APARTE, y puede valer mas que la limpieza:** **1,538 de los 2,328
+Me Gusta (66%) nunca pasaron por RateApp.** La app conoce 1,310 tracks. Hay
+canciones con 29 reproducciones en el ultimo anio sin calificar (Easykid, Nsqk,
+Alvaro Diaz). O sea la app esta ciega a dos tercios de lo que Angel escucha.
+
+**Tercer dato, que Angel pidio de pasada:** **317 canciones que escucha hoy y
+nunca likeo** (OUTRO de Omar Courtz, 34 plays este anio). Y confirmo su sospecha:
+las mas escuchadas fuera de Me Gusta (Gera MX 91 plays, Cosculluela, Anuel, todas
+con 0 en 12 meses) tienen el perfil exacto de las abandonadas — si son canciones
+que likeo y quito.
+
+**Roza la seccion 6b:** de las 721 abandonadas solo 30 son A+ y 26 son A. O sea
+el historial **no** delata que Angel infle A+ en canciones que ni oye. Dato
+limpio para cuando se mida latte 2026 en enero.
+
+**EL MIEDO DE ANGEL, y como se resolvio.** Dijo textual que le daba miedo que
+"la aplicacion termine tardando anios en cargar", porque los tiempos ya se
+habian arreglado en agosto y no queria descomponerlos. Se le contesto con
+numeros y el diseno salio de ahi:
+
+  - La tabla nueva son ~24k filas contra las ~1.3k de `tracks`: **3.5 MB, el
+    0.07% de la cuota de TiDB**. Un lookup por PK en 24k filas es
+    indistinguible de uno en 1,310 — lo que domina son los ~80 ms de viaje a
+    `us-east-1`, no el tamanio.
+  - **Tabla INDEPENDIENTE.** `load_all()` no la toca y ninguna query existente
+    cambia, asi que los tiempos de hoy quedan literalmente igual.
+  - El error que si costaria caro es **una query por cancion dentro de un loop**:
+    500 canciones x 80 ms = **40 segundos**. Por eso existe
+    `get_listening_many()` con un solo `IN (...)`, y la regla quedo escrita
+    tanto en `database.py` como en `CLAUDE.md`.
+  - El import inicial fila por fila serian ~24k viajes (media hora larga y
+    Request Units quemadas): se hace con `executemany` en lotes de 1000.
+
+**Codigo:**
+
+`backend/database.py` — `listening_stats` (track_id PK, name, artist, plays,
+skips, ms_total, first_played, last_played, indices en last_played y plays) mas
+`ensure_listening_table`, `replace_listening_batch` (import: pisa),
+`add_listening_batch` (captura: **suma**), `get_listening`, `get_listening_many`
+y `get_listening_summary`. Las dos funciones de escritura son distintas a
+proposito: el import conoce la verdad absoluta de una cancion y la sobreescribe,
+la captura solo sabe de las reproducciones nuevas y tiene que sumarlas. Usar
+replace en la captura resetearia cada cancion a lo que vio la ultima media hora.
+
+`backend/main.py` — `ensure_listening_table()` en el lifespan.
+
+`backend/routes/tracks.py` — `GET /tracks/listening/summary`,
+`POST /tracks/listening/capture` y `GET /tracks/listening/{track_id}`.
+Ojo con el orden de registro: las dos rutas literales van **antes** de la
+parametrizada, si no `{track_id}` se come a `summary` y a `capture`.
+
+`backend/scripts/import_historial.py` (nuevo) — procesa los JSON y sube el
+agregado. **La contrasena sale de una variable de entorno**, nunca de un
+archivo: en la sesion del 2026-08-25 se decidio que ese valor no pasara por
+Claude, y se respeto. Los demas datos de conexion se sacaron de Cloud Run con
+`gcloud run services describe` (no son secretos): `MYSQL_DATABASE=rateapp`.
+
+`.github/workflows/capture-listening.yml` (nuevo) — POST a `/listening/capture`
+cada 30 min.
+
+`frontend/` — `api.getListening()`, componente `ListeningModal.jsx`, y la opcion
+**"Mis escuchas"** en el menu ⋯ de la tabla de Biblioteca.
+
+**LA PREGUNTA DE ANGEL QUE VALIA LA PENA, y la respuesta es buena.** Pregunto si
+para medir de hoy en adelante hay que tener la app prendida — su cabeza decia
+que si. **No.** Spotify guarda el historial de su lado, asi que la app solo tiene
+que despertar cada tanto y preguntar por `recently-played`. Eso significa
+**historial perpetuo sin volver a pedir el export nunca**.
+  - El scope `user-read-recently-played` **ya estaba** desde mayo. Cero re-login.
+  - El limite real: el endpoint devuelve maximo **las ultimas 50**
+    reproducciones. Perder algo con captura cada 30 min exigiria 50 canciones en
+    media hora. El margen es enorme.
+  - Imprecision conocida y documentada: `recently-played` dice QUE se escucho,
+    no por cuanto tiempo, asi que `ms_total` se aproxima con la duracion del
+    track. `plays` queda exacto; solo las horas derivan un poco hacia arriba
+    contra el export, que si trae `ms_played` real.
+
+**EL BUG QUE ATRAPO LA VERIFICACION, y era de los caros.** El filtro
+anti-duplicados comparaba `played_at <= cursor` como **strings**. Con un cursor
+corrupto — un `"basura"` cualquiera — resulta que `"2026-09-02..." <= "basura"`
+es **True**, porque `"2" < "b"` en ASCII. O sea: un cursor invalido habria
+bloqueado toda captura futura, **en silencio y para siempre**, sin un solo error
+en los logs. Arreglado descartando por completo el cursor que no parsea. Es
+justo el tipo de fallo que no se encuentra mirando el codigo.
+
+**Verificacion: 21 casos, sin red y sin MySQL** (capa de `mysql.connector`
+stubeada y un cliente de Spotify de mentiras). Lo que mas importaba era el
+doble conteo, porque ese error es silencioso y permanente: re-capturar la misma
+ventana no cuenta nada; con el cursor a la mitad de la tanda solo entra lo
+posterior; la misma cancion tres veces suma `plays=3` en una sola fila con
+`first_played`/`last_played` correctos; el cursor se manda a Spotify como epoch
+ms; una ventana vacia no truena ni mueve el cursor; items sin track no rompen la
+corrida; un cursor ilegible se ignora y captura igual; y si Spotify se cae sale
+un 502 legible y no un 500 pelado. Ademas se importo la app real (46 rutas, 43
+antes) verificando que la ruta generica quede registrada al final, y
+`npm run build` OK (1586 modulos).
+
+`import_historial.py` se probo con `--dry-run` contra los 156 MB reales:
+187,577 filas procesadas en **1.2 s**.
+
+**PENDIENTES:**
+
+- [ ] **Correr el import.** Lo tiene que hacer Angel, porque necesita la
+      contrasena: `$env:MYSQL_PASSWORD = '...'` y luego
+      `python backend/scripts/import_historial.py`. Hasta que eso pase, la tabla
+      existe pero vacia y el modal dira "sin registro de escuchas".
+- [ ] Cola de "califica lo que si escuchas": los 1,538 Me Gusta sin calificar,
+      ordenados por reproducciones de los ultimos 12 meses.
+- [ ] Vista de abandonadas (las 721) para limpiar Me Gusta.
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] Seccion 7: los mixes. Angel quiere el **persistente** primero (novia y un
+      par de amigos, <=10 personas, sin problema en darlos de alta a mano en el
+      dashboard) y el desechable de road trip despues. **Antes de disenar nada,
+      verificar si `/recommendations` sigue vivo para esta app** — se deprecio en
+      nov 2024 para apps en development mode, y de eso depende que el mix pueda
+      descubrir o solo cruzar.
+- [ ] `MYSQL_PORT` sigue sin leerse. **No se toco a proposito**: mezclarlo con
+      este deploy habria complicado el diagnostico si algo fallaba. Va aparte.
+
+---
+
 ## 2026-08-25 (sesion secreto a Secret Manager + apagado de Render)
 
 **Maquina: PC `AngelPC`.**
@@ -243,7 +404,8 @@ sincroniza, lo que puede **tronar una compilacion a media corrida**. Cada
 rebuild reescribe cientos de archivos, o sea sincronizacion perpetua.
 
 Arreglado con `desktop/.cargo/config.toml` que manda `build.target-dir` a
-`%LOCALAPPDATA%ateapp-rust-target`, fuera del arbol sincronizado. Se borro el
+`%LOCALAPPDATA%
+ateapp-rust-target`, fuera del arbol sincronizado. Se borro el
 directorio viejo y se recompilo: **1m23s** (la primera vez fueron 2m23s).
 
 Es una trampa general del repo, no de Tauri: **este proyecto vive en OneDrive**,

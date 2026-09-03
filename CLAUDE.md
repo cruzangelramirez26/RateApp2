@@ -24,13 +24,19 @@ Arquitectura completa: [`ARQUITECTURA.md`](ARQUITECTURA.md) — stack, modelo de
 
 ## Base de datos MySQL
 
-Dos tablas:
+Tres tablas:
 
 **`tracks`** — track_id, name, artist, album, added_at, rating, manual_order, cuatrimestre_override
 - `added_at`: fecha de primera calificación. **Nunca se pisa al re-calificar** (upsert solo la escribe en INSERT, no en UPDATE).
 - `cuatrimestre_override`: NULL por defecto. Se pone cuando una canción se migra a otro cuatrimestre o cuando una canción histórica sube a TOP_SET y se agrega al cuatrimestre actual.
 
 **`config`** — key/value para config persistente (ej: `aplus_cutoff`)
+
+**`listening_stats`** — escuchas reales: track_id, name, artist, plays, skips, ms_total, first_played, last_played
+- Spotify **no expone play counts por API**. Estos datos salieron del export de "Historial de reproducción extendido" (187,577 reproducciones, 2018–2026 → 23,914 canciones) y se mantienen al día con `POST /tracks/listening/capture`, que lee `recently-played` cada 30 min desde GitHub Actions.
+- **Es independiente de `tracks` a propósito.** `load_all()` no la toca y ninguna query existente cambia, así que no afecta los tiempos de carga.
+- **REGLA: nunca `get_listening()` dentro de un loop.** La DB está en `us-east-1` (~80 ms por viaje), así que 500 canciones a query por cabeza son 40 segundos. Para listas se usa `get_listening_many()`, con un solo `IN (...)`.
+- Los JSON crudos del export viven en `historial/`, que está en `.gitignore` **y** `.dockerignore`: son 156 MB y cada fila trae `ip_addr`.
 
 ## Constantes clave
 

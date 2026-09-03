@@ -1,0 +1,54 @@
+# Captura el historial de escuchas de Spotify hacia adelante.
+#
+# POR QUE EXISTE: Spotify no expone play counts por API. El historial completo
+# (2018-2026) entro una sola vez desde el export de privacidad, pero ese export
+# es una foto: hay que volver a pedirlo, y tarda hasta 30 dias en llegar.
+#
+# Este workflow hace que no haga falta pedirlo nunca mas. Spotify guarda el
+# historial DE SU LADO, asi que la app no necesita estar abierta mientras Angel
+# escucha — solo tiene que despertar cada tanto y preguntar por lo nuevo.
+#
+# EL LIMITE, y es el que fija la frecuencia:
+# /me/player/recently-played devuelve como maximo las ULTIMAS 50 reproducciones.
+# Lo que pase de ahi entre dos capturas se pierde y no se recupera. Cada hora ya
+# exigiria 50 canciones en una hora (72 segundos de promedio, sin parar) para
+# perder algo, asi que el margen es grande. Se corre cada 30 min para tener el
+# doble de holgura: la captura es idempotente y una de mas no cuesta nada.
+#
+# El endpoint filtra por cursor Y por played_at, asi que repetir una captura no
+# duplica reproducciones.
+#
+# MISMAS LIMITACIONES QUE keep-awake.yml: GitHub deshabilita los workflows
+# programados tras 60 dias sin actividad en el repo, y el cron de los runners
+# gratis se atrasa. Un retraso aqui es inofensivo mientras no se acumulen 50
+# canciones sin capturar.
+
+name: capture-listening
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:        # para dispararlo a mano desde la pestana Actions
+
+# Si una corrida se empalma con la anterior, que gane la nueva: dos capturas
+# simultaneas leerian el mismo cursor y harian trabajo repetido.
+concurrency:
+  group: capture-listening
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Capturar reproducciones nuevas
+        run: |
+          # --max-time 90 y los retries aguantan un arranque frio de Cloud Run.
+          # --fail hace que un 5xx tumbe el paso, para que se note en la pestana
+          # Actions en vez de fallar en silencio durante semanas.
+          curl --fail --silent --show-error \
+               --request POST \
+               --max-time 90 \
+               --retry 3 --retry-delay 15 --retry-all-errors \
+               --write-out '\nstatus=%{http_code} tiempo=%{time_total}s\n' \
+               https://rateapp-1043427819721.us-east4.run.app/tracks/listening/capture

@@ -379,3 +379,201 @@ def set_virtual_state(state: dict):
     """Persist virtual edit mode state to DB."""
     import json
     set_config("virtual_state", json.dumps(state, ensure_ascii=False))
+
+
+# ---------------------------------------------------------------------------
+# Historial de escuchas real  (Mejoras.txt seccion 8)
+# ---------------------------------------------------------------------------
+#
+# Spotify NO expone play counts por API. Este agregado sale del export de
+# "Historial de reproduccion extendido" (187,577 reproducciones, 2018-2026) y
+# se mantiene al dia capturando /me/player/recently-played.
+#
+# REGLA DE RENDIMIENTO, y es la unica que importa:
+# esta tabla es ~24k filas contra las ~1.3k de `tracks`, pero eso NO es lo que
+# puede costar caro. Lo caro seria consultarla FILA POR FILA dentro de un loop:
+# la DB vive en us-east-1 y cada viaje cuesta ~80 ms, asi que 500 canciones a
+# query por cabeza son 40 SEGUNDOS. Por eso existe get_listening_many(): toda
+# vista de lista usa esa, con un solo IN (...). Nunca get_listening() en un for.
+#
+# La tabla es INDEPENDIENTE de `tracks` a proposito. load_all() no la toca y
+# ninguna query existente cambia, asi que los tiempos de carga de hoy quedan
+# exactamente igual.
+
+def ensure_listening_table():
+    """Create the listening_stats table if it doesn't exist."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS listening_stats (
+                track_id     VARCHAR(64)  PRIMARY KEY,
+                name         VARCHAR(512) NOT NULL DEFAULT '',
+                artist       VARCHAR(512) NOT NULL DEFAULT '',
+                plays        INT          NOT NULL DEFAULT 0,
+                skips        INT          NOT NULL DEFAULT 0,
+                ms_total     BIGINT       NOT NULL DEFAULT 0,
+                first_played DATETIME     NULL,
+                last_played  DATETIME     NULL,
+                INDEX idx_last_played (last_played),
+                INDEX idx_plays (plays)
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+        """)
+        conn.commit()
+        cur.close()
+
+
+_LISTENING_COLS = ("track_id, name, artist, plays, skips, ms_total, "
+                   "first_played, last_played")
+
+
+def replace_listening_batch(rows: list, chunk: int = 1000) -> int:
+    """Overwrite listening stats for the given tracks. Used by the bulk import.
+
+    `rows` = list of dicts with track_id, name, artist, plays, skips, ms_total,
+    first_played, last_played.
+
+    Sends `chunk` rows per round trip. One INSERT per row would be ~24k trips of
+    ~80 ms each: over half an hour, and Request Units burned for nothing.
+    """
+    if not rows:
+        return 0
+    sql = """
+        INSERT INTO listening_stats
+            (track_id, name, artist, plays, skips, ms_total, first_played, last_played)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            name         = VALUES(name),
+            artist       = VALUES(artist),
+            plays        = VALUES(plays),
+            skips        = VALUES(skips),
+            ms_total     = VALUES(ms_total),
+            first_played = VALUES(first_played),
+            last_played  = VALUES(last_played)
+    """
+    total = 0
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for i in range(0, len(rows), chunk):
+            batch = [
+                (r["track_id"], (r.get("name") or "")[:512],
+                 (r.get("artist") or "")[:512],
+                 int(r.get("plays", 0)), int(r.get("skips", 0)),
+                 int(r.get("ms_total", 0)),
+                 r.get("first_played"), r.get("last_played"))
+                for r in rows[i:i + chunk]
+            ]
+            cur.executemany(sql, batch)
+            conn.commit()
+            total += len(batch)
+        cur.close()
+    return total
+
+
+def add_listening_batch(rows: list) -> int:
+    """Add plays on top of what's already stored. Used by the periodic capture.
+
+    Distinct from replace_listening_batch on purpose: the bulk import knows the
+    absolute truth for a track and overwrites it, while the capture only knows
+    about the handful of plays since last time and must ADD them. Using replace
+    here would reset every track to whatever the last hour happened to see.
+    """
+    if not rows:
+        return 0
+    sql = """
+        INSERT INTO listening_stats
+            (track_id, name, artist, plays, skips, ms_total, first_played, last_played)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            name         = VALUES(name),
+            artist       = VALUES(artist),
+            plays        = plays    + VALUES(plays),
+            skips        = skips    + VALUES(skips),
+            ms_total     = ms_total + VALUES(ms_total),
+            first_played = LEAST(COALESCE(first_played, VALUES(first_played)),
+                                 VALUES(first_played)),
+            last_played  = GREATEST(COALESCE(last_played, VALUES(last_played)),
+                                    VALUES(last_played))
+    """
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.executemany(sql, [
+            (r["track_id"], (r.get("name") or "")[:512],
+             (r.get("artist") or "")[:512],
+             int(r.get("plays", 0)), int(r.get("skips", 0)),
+             int(r.get("ms_total", 0)),
+             r.get("first_played"), r.get("last_played"))
+            for r in rows
+        ])
+        conn.commit()
+        cur.close()
+    return len(rows)
+
+
+def _listening_row(row) -> dict:
+    return {
+        "track_id": row[0], "name": row[1], "artist": row[2],
+        "plays": row[3], "skips": row[4], "ms_total": int(row[5] or 0),
+        "hours": round((row[5] or 0) / 3600000.0, 2),
+        "first_played": row[6].isoformat() if row[6] else None,
+        "last_played": row[7].isoformat() if row[7] else None,
+    }
+
+
+def get_listening(track_id: str) -> Optional[dict]:
+    """Listening stats for ONE track. Single PK lookup: do not call in a loop."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT " + _LISTENING_COLS +
+            " FROM listening_stats WHERE track_id = %s",
+            (track_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        return _listening_row(row) if row else None
+
+
+def get_listening_many(track_ids: list, chunk: int = 900) -> dict:
+    """Listening stats for many tracks at once -> {track_id: stats}.
+
+    This is the one to use from any list view. Chunked because a single IN ()
+    with thousands of placeholders can blow past the statement size limit.
+    """
+    out = {}
+    ids = [t for t in dict.fromkeys(track_ids) if t]
+    if not ids:
+        return out
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for i in range(0, len(ids), chunk):
+            part = ids[i:i + chunk]
+            marks = ",".join(["%s"] * len(part))
+            cur.execute(
+                "SELECT " + _LISTENING_COLS +
+                " FROM listening_stats WHERE track_id IN (" + marks + ")",
+                tuple(part),
+            )
+            for row in cur.fetchall():
+                out[row[0]] = _listening_row(row)
+        cur.close()
+    return out
+
+
+def get_listening_summary() -> dict:
+    """Global totals. One aggregate query, no full table transfer."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(*), COALESCE(SUM(plays), 0), COALESCE(SUM(ms_total), 0),
+                   MIN(first_played), MAX(last_played)
+            FROM listening_stats
+        """)
+        row = cur.fetchone()
+        cur.close()
+        return {
+            "tracks": row[0],
+            "plays": int(row[1] or 0),
+            "hours": round((row[2] or 0) / 3600000.0, 1),
+            "first_played": row[3].isoformat() if row[3] else None,
+            "last_played": row[4].isoformat() if row[4] else None,
+        }

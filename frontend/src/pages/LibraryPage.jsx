@@ -5,6 +5,7 @@ import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
 import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import ListeningModal from '../components/ListeningModal';
 import { useToast } from '../hooks/useToast';
 
 const QUICK_PLAYLISTS = [
@@ -79,6 +80,7 @@ export default function LibraryPage() {
   const [sortMode, setSortMode] = useState('spotify');
   const [isLikedView, setIsLikedView] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [listeningTrack, setListeningTrack] = useState(null);
   const [ratingPickerOpen, setRatingPickerOpen] = useState(false);
   const [likedOffset, setLikedOffset] = useState(0);
   const [hasMoreLiked, setHasMoreLiked] = useState(false);
@@ -408,6 +410,23 @@ export default function LibraryPage() {
                                 >
                                   Cambiar calificación
                                 </button>
+                                <button
+                                  onClick={() => {
+                                    setListeningTrack({ ...t, track_id: tid });
+                                    setOpenMenuId(null);
+                                    setRatingPickerOpen(false);
+                                  }}
+                                  style={{
+                                    display: 'block', width: '100%', textAlign: 'left',
+                                    padding: '9px 14px', background: 'none', border: 'none',
+                                    cursor: 'pointer', fontSize: '0.85rem',
+                                    color: 'var(--text-secondary)', fontWeight: 400,
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                >
+                                  Mis escuchas
+                                </button>
                                 <a
                                   href={`https://open.spotify.com/track/${tid}`}
                                   target="_blank"
@@ -471,6 +490,13 @@ export default function LibraryPage() {
             </div>
           )}
         </>
+      )}
+
+      {listeningTrack && (
+        <ListeningModal
+          track={listeningTrack}
+          onClose={() => setListeningTrack(null)}
+        />
       )}
     </div>
   );

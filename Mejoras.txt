@@ -312,6 +312,188 @@ le planteo a Angel el 2026-08-25 el costo de las tres opciones y descarto
 recalificar — sobre 167 A+ de perla 2026 no hay forma de distinguir cuales
 fueron el workaround y cuales sinceras, esa distincion solo vive en su cabeza.
 
+## 7. Mixes entre varias personas  [DECIDIDO 2026-09-01, sin empezar]
+Planteado por Angel el 2026-09-01: "poder hacer merge con alguien mas", tipo
+Blend de Spotify pero mas alla de las canciones en comun — que cruce los Me
+Gusta Y las mas escuchadas de los ultimos 30 dias de cada quien.
+
+ESCALA QUE ELIGIO: su novia, tal vez dos amigos. Maximo ~10 en un road trip.
+NO quiere que sea "compartelo con quien sea" — eso es la seccion 9. No tiene
+problema en dar de alta a cada persona a mano en el dashboard de Spotify, ni en
+que se logueen una vez.
+
+DOS MODOS, y quiere los dos:
+- PERSISTENTE (PRIORIDAD). Mix que se actualiza solo cada semana. Exige guardar
+  el refresh token de cada persona.
+- DESECHABLE (despues). Modo road trip: se leen los gustos en el momento, se
+  arma la playlist, y a las ~24 h se tira la sesion. No guarda tokens ajenos.
+
+EL MURO, y es lo que hace cara la version persistente:
+RateApp es de un solo usuario en tres lugares distintos.
+  - spotify.py:21 — TOKEN_KEY = "spotify_token", UNA sola fila en `config`.
+    Si un amigo entra a /auth/login, su token PISA el de Angel y lo saca de su
+    propia app. Esto pasa hoy, sin cambiar nada.
+  - routes/auth.py:19 — /callback no sabe quien se esta logueando.
+  - spotify._client y _auth_manager son globales del proceso.
+Trabajo minimo: tabla de personas con un token por cabeza, y un /callback que
+sepa a quien esta autenticando. Es cirugia de auth, no de UI.
+
+LIMITES DE SPOTIFY (no dependen de nosotros):
+  - La app esta en development mode: tope de 25 personas, cada una dada de alta
+    a mano en el dashboard (nombre + email de Spotify). Alcanza de sobra para
+    la escala que pidio.
+  - Scope nuevo `user-top-read` para /me/top/tracks. OJO: agregarlo obliga a
+    Angel a re-loguearse, porque validate_token descarta el token al que le
+    falta un scope (ver CLAUDE_LOG 2026-08-22).
+  - short_term de /me/top/tracks = ultimas ~4 semanas. Es exactamente el
+    "mas escuchadas de los ultimos 30 dias" que pidio.
+
+LO QUE **NO** SE PUEDE, y hay que verificarlo antes de prometerlo:
+Angel tambien pidio "canciones que nos podrian gustar a todos" — descubrimiento,
+no interseccion. Spotify deprecó en noviembre 2024 los endpoints
+/recommendations y /audio-features para apps nuevas o en development mode, que
+eran justo las dos piezas para eso.
+  - [ ] VERIFICAR contra la app real antes de planear encima: pegarle a
+        /recommendations con el token actual y ver si devuelve 403/404. Es una
+        llamada de prueba, 5 min. NO construir nada encima hasta saberlo.
+  - Si esta muerto, el plan B es cruzar artistas y generos compartidos y jalar
+    top tracks de esos artistas. Decente, pero no es el motor de Spotify.
+
+ACTUALIZACION SEMANAL: la infraestructura ya existe. El cron de GitHub Actions
+(.github/workflows/keep-awake.yml) ya corre cada 10 min; un workflow semanal que
+pegue a un endpoint de rebuild es trivial al lado del resto.
+
+## 8. Limpiar los Me Gusta  [INFRA HECHA 2026-09-02, faltan las vistas]
+# Estado: el historial ya esta en la app (tabla `listening_stats`, endpoints,
+# captura automatica cada 30 min y el modal "Mis escuchas" en Biblioteca).
+# Falta correr el import (lo hace Angel, necesita la contrasena) y las tres
+# vistas de abajo.
+Angel, 2026-09-01: "tengo muchas canciones en Me Gusta que en realidad ya no me
+gustan, que nunca escuche tanto, y me ensucian ahi". Quiere metricas para
+decidir cuales quitar — sobre todo las menos escuchadas.
+
+EL PROBLEMA: Spotify NO expone play counts por cancion. No existe endpoint de
+"cuantas veces escuche esto". Lo que hay:
+  - /me/top/tracks long_term — tope 50. Poca senal contra ~1300 likes.
+  - /me/player/recently-played — solo las ultimas 50.
+  - El export de historial extendido. Ese si trae TODO.
+
+DECISION DE ANGEL: pedir el export. "Quiero hacerlo bien."
+Ya lo habia pedido una vez para importarlo a stats.fm (paga la premium ahi),
+pero stats.fm solo IMPORTA, no exporta, asi que hay que volver a pedirlo. Se
+busco el ZIP viejo en la PC AngelPC el 2026-09-01 y NO esta — pudo bajarlo desde
+la laptop o el celular, pero el link de descarga de Spotify caduca.
+
+COMO SE PIDE (los pasos exactos, porque el 5 es donde falla todo el mundo):
+  1. account.spotify.com/privacy, logueado.
+  2. Bajar a "Descarga tus datos".
+  3. Hay TRES casillas. Marcar **"Historial de reproduccion extendido"**
+     (Extended streaming history). NO la primera ("Datos de la cuenta"): esa
+     solo trae 1 ano, aunque llegue en ~5 dias.
+  4. Solicitar.
+  5. **CONFIRMAR EL CORREO.** Spotify manda un mail con un boton de confirmar.
+     Si no se aprieta, la solicitud NUNCA arranca. Aqui se cae la mayoria.
+  6. Llega en hasta 30 dias.   Solicitado: ______   Llegado: ______
+
+QUE TRAE, y por que sirve: un ZIP con Streaming_History_Audio_AAAA-AAAA_N.json.
+Campos utiles: `ts`, `ms_played`, `master_metadata_track_name`,
+`master_metadata_album_artist_name`, `spotify_track_uri`, `reason_end`,
+`skipped`, `shuffle`.
+El oro es `spotify_track_uri` (spotify:track:XXXX): el ID sale directo y hace
+JOIN con tracks.track_id, o sea se cruza con las 1302 canciones calificadas.
+Caveat: los podcasts no traen track uri, algunas filas lo traen null, y el URI
+guardado es el del momento de la reproduccion — con relinking o versiones
+distintas de album un porcentaje no va a casar. Cobertura alta, no 100%.
+
+[ACTUALIZACION 2026-09-02] EL EXPORT YA LLEGO. Angel ya lo tenia pedido y lo
+puso en `historial/` (156 MB, 2018-2026). No hubo que esperar 30 dias.
+  - PROTEGIDO EL MISMO DIA: `historial/` agregado a .gitignore Y .dockerignore.
+    Cada fila trae `ip_addr`, o sea son datos personales, no solo canciones; y
+    sin el .dockerignore reventaba el contexto de Cloud Build (11 MB -> 167 MB).
+  - Lo que hay: 187,577 reproducciones, 23,914 canciones unicas, 5,872 horas
+    (244 dias enteros). Cobertura del join: 99.3% de los Me Gusta aparecen en el
+    historial, y solo 2 filas de 187 mil no traen track_uri. Mejor de lo temido.
+
+**EL DIAGNOSTICO CAMBIO — la premisa original estaba equivocada.**
+Angel pidio "las menos escuchadas". Se midio y NO existen: de 2,212 Me Gusta con
+6+ meses de antiguedad, solo 32 (1%) tienen 0-2 reproducciones en toda su vida.
+La mediana de un Me Gusta suyo son 22 escuchas completas. No hay basura por
+volumen.
+
+Lo que SI existe, y es lo que de verdad le molesta: **ABANDONADAS**. Canciones
+que amo hace anios y hoy lleva 12+ meses sin poner ni una vez.
+  -> **721 de 2,328 Me Gusta (31%)**. Ese es el numero real de la queja.
+  -> Ejemplo tipico: "Cuarto de Hotel" de Gera MX, 108 reproducciones, CERO en
+     los ultimos 12 meses. El retrato es su gusto de hace 2-4 anios (Gera MX,
+     C. Tangana, LATIN MAFIA, Tiago PZK).
+  -> 633 de las 721 no estan calificadas.
+LECCION DE DISENO: la metrica correcta NO es volumen total, es **recencia**.
+"Nunca la escuche" y "ya no me gusta" son dos cosas distintas y solo la segunda
+describe el problema.
+OJO: abandonada != basura. Una cancion puede ser un clasico personal que no se
+pone seguido. La lista es de CANDIDATAS A REVISAR, la decision sigue siendo de
+Angel cancion por cancion. NO auto-quitar likes.
+
+**HALLAZGO APARTE, y puede que valga mas que la limpieza:**
+**1,538 de los 2,328 Me Gusta (66%) NUNCA pasaron por RateApp** — no tienen
+calificacion. La app conoce 1,310 tracks; los Me Gusta son 2,328. Hay canciones
+con 29 reproducciones en el ultimo anio sin calificar (Easykid, Nsqk, Alvaro
+Diaz). O sea la app esta ciega a dos tercios de lo que Angel realmente escucha.
+  - [ ] Cola de "calificar lo que si escuchas": Me Gusta sin calificar,
+        ordenadas por reproducciones de los ultimos 12 meses. Es PendingPage
+        pero alimentada por escuchas reales en vez de por la playlist <3333>.
+
+ROZA LA SECCION 6b: de las 721 abandonadas, 30 son A+ y 26 son A. Es poco (6% de
+las 486 A+), asi que el historial NO delata una inflacion masiva de A+ por el
+lado de "las califico alto y ni las oye". Dato util para cuando se evalue latte
+2026.
+
+MIENTRAS LLEGA EL EXPORT (los dos son baratos y no dependen de el):
+  - [ ] Cruce con la DB propia, hoy mismo y gratis: Me Gusta que NUNCA se
+        calificaron, y Me Gusta calificados C / C+ / D que siguen likeados. Eso
+        ya es una lista de limpieza legitima con datos que ya existen.
+  - [x] HECHO 2026-09-02: `recently-played` se captura cada 30 min
+        (.github/workflows/capture-listening.yml -> POST /tracks/listening/capture).
+        Confirmado que Spotify guarda el historial de SU lado, asi que la app
+        NO necesita estar prendida: solo despertar y preguntar. Eso significa
+        historial perpetuo sin volver a pedir el export nunca.
+  - [ ] (original) Empezar a acumular `recently-played` en MySQL, pero
+        desde el dia 1 construye el historial que Spotify no regala. El cron de
+        keep-awake ya corre cada 10 min y podria capturar de paso (50 items por
+        llamada, cursor `after`).
+
+OJO AL IMPORTARLO — decision de diseno que hay que tomar ANTES de escribir el
+importador: el historial completo son cientos de miles de filas (una por
+reproduccion, desde que Angel abrio la cuenta). TiDB Serverless free tier
+aguanta el espacio de sobra (5 GiB), pero insertar fila por fila quema Request
+Units al pedo. Lo mas probable es que NO haya que guardar cada reproduccion:
+basta una tabla agregada por cancion (play_count, ms_total, first_played,
+last_played, skips). El JSON crudo se procesa en local y a la DB solo sube el
+agregado. Si despues hace falta el detalle, el ZIP sigue ahi.
+
+DESPUES: con el historial completo en MySQL se abre mas de lo que se pidio, y
+Angel ya lo intuyo ("podemos jugar un poquito con eso"). Ejemplos: ratio
+skipped/completada por cancion, deteccion de A+ que en realidad nunca se
+escucharon (toca directo la seccion 6b), y horas/dias de escucha reales.
+
+## 9. RateApp para otras personas (multi-usuario de verdad)  [IDEA FUTURA]
+Angel, 2026-09-01: "me gustaria en un futuro no tan lejano poder hacer esta
+aplicacion para mas personas, que puedan tener esta herramienta". Lo puso
+despues de los mixes y explicitamente NO es para ahora.
+
+OJO CON EL ORDEN, porque Angel lo planteo al reves: dijo que ser multi-usuario
+haria mas facil el tema de mixes. Es al contrario — el mix PERSISTENTE de la
+seccion 7 ya obliga a construir la mitad del cimiento multi-usuario (tabla de
+personas, un token por persona, /callback que sepa quien entra). La 7 es un
+anticipo de esta, no al reves.
+
+Pero solo la MITAD, y la distincion importa para no prometer de mas:
+  - Lo que SI se reusa: toda la capa de auth.
+  - Lo que NO: el modelo de datos. Hoy `tracks` tiene track_id como PRIMARY KEY
+    sin columna de usuario, o sea una cancion tiene un solo dueno implicito. Que
+    otra persona califique lo suyo exige PK compuesta y filtrar por usuario en
+    TODAS las queries. Eso es harina de otro costal y la seccion 7 no lo toca.
+
 ## Decisiones chicas sin resolver
 - [ ] La URL de Cloud Run es fea (`rateapp-1043427819721.us-east4.run.app`).
       Angel pregunto el 2026-08-25 si se puede acortar gratis. Resumen de lo

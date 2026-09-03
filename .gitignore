@@ -28,3 +28,13 @@ a_plus_cutoff.json
 # Tauri (app de escritorio) — artefactos de compilacion de Rust, cientos de MB
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+
+# Historial extendido de Spotify (export de privacidad, ~156 MB).
+# NO se versiona: son datos personales — cada fila trae ip_addr — y ademas
+# engordaria el repo para siempre. Se procesa en local y a MySQL solo sube
+# el agregado por cancion.
+historial/
+
+# Claude Code: settings locales y worktrees temporales de sesiones pasadas.
+# Sin esto, un `git add -A` distraido versiona copias enteras del repo.
+.claude/
