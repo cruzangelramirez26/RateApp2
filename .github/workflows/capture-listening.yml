@@ -43,11 +43,16 @@ jobs:
     steps:
       - name: Capturar reproducciones nuevas
         run: |
+          # --data '' NO es adorno: manda Content-Length: 0. Sin eso el
+          # balanceador de Google rechaza el POST con 411 (Length Required)
+          # ANTES de que llegue a la app, y la captura no correria nunca.
+          # Comprobado contra produccion: POST pelado -> 411, con --data '' -> 200.
+          #
           # --max-time 90 y los retries aguantan un arranque frio de Cloud Run.
           # --fail hace que un 5xx tumbe el paso, para que se note en la pestana
           # Actions en vez de fallar en silencio durante semanas.
           curl --fail --silent --show-error \
-               --request POST \
+               --request POST --data '' \
                --max-time 90 \
                --retry 3 --retry-delay 15 --retry-all-errors \
                --write-out '\nstatus=%{http_code} tiempo=%{time_total}s\n' \

@@ -142,6 +142,41 @@ antes) verificando que la ruta generica quede registrada al final, y
 `import_historial.py` se probo con `--dry-run` contra los 156 MB reales:
 187,577 filas procesadas en **1.2 s**.
 
+**DOS BUGS MAS, y los dos solo aparecieron EN PRODUCCION.** La verificacion
+local (21 casos) no podia atraparlos: uno vive en el balanceador de Google y
+el otro solo existe cuando la tabla tiene datos.
+
+1. **`POST` sin body -> 411 Length Required.** Cloud Run exige
+   `Content-Length`, y `curl --request POST` pelado no lo manda. El workflow
+   recien escrito **habria fallado cada 30 min sin capturar nada** — con
+   `--fail` se habria visto en rojo en Actions, pero jamas habria funcionado.
+   Arreglado con `--data ''`. Comprobado contra produccion: pelado -> 411,
+   con `--data ''` -> 200.
+
+2. **`Decimal / float` -> TypeError en `get_listening_summary`.** MySQL
+   devuelve `Decimal` para `SUM()`. Con la tabla VACIA el `COALESCE(SUM(),0)`
+   entrega un 0 entero y todo pasa; en cuanto entro la primera captura real, el
+   endpoint empezo a dar 500. O sea el bug se escondia exactamente hasta que
+   habia datos. Confirmado leyendo el traceback de Cloud Logging antes de
+   tocar nada (`database.py` linea 576), no adivinando. Arreglado con `int()`
+   antes de dividir, en `get_listening_summary` y en `_listening_row`.
+   Se agregaron 12 casos que simulan los tipos que MySQL devuelve DE VERDAD
+   (Decimal en los SUM, datetime en las fechas): 33 comprobaciones en total.
+
+**LA CAPTURA YA CORRIO EN VIVO Y FUNCIONA.** Primera llamada real: 50
+reproducciones, 36 canciones tocadas. Y la idempotencia quedo probada contra
+produccion, que era lo que mas importaba: segunda llamada seguida trajo 1 play
+nuevo (Angel estaba escuchando algo en ese momento) y la tercera trajo 0.
+
+**Nota de metodo:** el primer intento de verificar el deploy dio un falso
+positivo. Se buscaba `status 200` en el endpoint nuevo, pero el fallback del
+SPA devuelve `index.html` con 200 para cualquier ruta sin extension — o sea la
+revision VIEJA parecia tener el endpoint. Hay que verificar que la respuesta
+sea JSON, no que el status sea 200. Aparte: Cloud Build tardo ~15 min en
+arrancar (antes eran 2:35 de punta a punta), y los builds de este proyecto
+viven en la region `us-east4` — `gcloud builds list` sin `--region` sale vacio
+y parece que no hay nada.
+
 **PENDIENTES:**
 
 - [ ] **Correr el import.** Lo tiene que hacer Angel, porque necesita la

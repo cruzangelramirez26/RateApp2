@@ -510,10 +510,11 @@ def add_listening_batch(rows: list) -> int:
 
 
 def _listening_row(row) -> dict:
+    ms_total = int(row[5] or 0)   # ver la nota de Decimal en get_listening_summary
     return {
         "track_id": row[0], "name": row[1], "artist": row[2],
-        "plays": row[3], "skips": row[4], "ms_total": int(row[5] or 0),
-        "hours": round((row[5] or 0) / 3600000.0, 2),
+        "plays": int(row[3] or 0), "skips": int(row[4] or 0), "ms_total": ms_total,
+        "hours": round(ms_total / 3600000.0, 2),
         "first_played": row[6].isoformat() if row[6] else None,
         "last_played": row[7].isoformat() if row[7] else None,
     }
@@ -570,10 +571,15 @@ def get_listening_summary() -> dict:
         """)
         row = cur.fetchone()
         cur.close()
+        # int() antes de dividir NO es cosmetico: SUM() en MySQL devuelve
+        # Decimal, y Decimal / float lanza TypeError. Con la tabla vacia el
+        # COALESCE entrega un 0 entero y el bug no aparece — solo sale cuando
+        # ya hay datos, que es justo cuando importa.
+        ms_total = int(row[2] or 0)
         return {
             "tracks": row[0],
             "plays": int(row[1] or 0),
-            "hours": round((row[2] or 0) / 3600000.0, 1),
+            "hours": round(ms_total / 3600000.0, 1),
             "first_played": row[3].isoformat() if row[3] else None,
             "last_played": row[4].isoformat() if row[4] else None,
         }
