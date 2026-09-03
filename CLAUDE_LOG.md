@@ -2,6 +2,52 @@
 
 ---
 
+## 2026-09-03 (sesion import del historial de escuchas)
+
+**Maquina: laptop del trabajo.** Primera vez que se trabaja en esta maquina en
+el repo — sin cambios de codigo, solo un pendiente operativo de la sesion
+anterior.
+
+**Cerrado el unico pendiente de la sesion del 2026-09-02: correr el import.**
+Angel no lo habia corrido porque necesitaba la contrasena de MySQL, que vive
+en Secret Manager desde la rotacion del 2026-08-25. La saco el mismo de la
+consola de GCP (Secret Manager -> `mysql-password` -> ver valor de la version
+`latest`) y la puso en su propia shell — el valor no paso por Claude, que era
+el punto de haberla movido ahi.
+
+**Esta laptop no tenia ninguna dependencia del backend instalada**, y salieron
+en cascada: `mysql-connector-python`, luego `pandas`, luego `python-dotenv`.
+Ninguna es sorpresa por si misma (es la deuda de las "dos maquinas" de
+`CLAUDE.md` global), pero una si vale la pena anotar: **`pandas==2.2.2`, la
+version fija en `requirements.txt`, no tiene wheel para Python 3.14** (lo que
+trae esta laptop). `pip install -r requirements.txt` intento compilarlo desde
+fuente con meson y murio buscando `vswhere.exe` — hubiera exigido instalar
+Visual Studio Build Tools solo para correr un script de una vez. Se instalo
+`pandas` sin fijar version y cayo en la `3.0.5`, que si trae wheel. `database.py`
+solo la usa para `pd.DataFrame` / `pd.to_datetime` en unas pocas funciones, asi
+que no deberia haber incompatibilidad, pero si alguna vez sale un error rato de
+pandas en un script local (no en produccion, que sigue en `2.2.2` via Docker),
+es por ahi.
+
+**El import corrio limpio:** 187,577 reproducciones leidas de los 17 JSON
+(2018-2026), 132 filas sin `spotify_track_uri` ignoradas, procesado en 1.1s.
+Subido a MySQL en lotes de 1000: 23,914 filas escritas en 7.5s. La diferencia
+entre las 187,577 reproducciones leidas y las 118,735 que quedaron contadas en
+`plays` es a proposito — el script aplica el mismo umbral de 30s que ya usa la
+app para contar una reproduccion como tal (`UMBRAL_PLAY_MS`), asi que los
+numeros significan lo mismo en los dos lados.
+
+**Verificado contra produccion**, no solo con el output del script:
+`GET /tracks/listening/summary` respondio `{"tracks":23918,"plays":118735,
+"hours":5853.5,"first_played":"2018-01-28T16:55:58",
+"last_played":"2026-09-03T02:54:39"}` — la tabla `listening_stats` ya tiene
+datos reales y "Mis escuchas" en Biblioteca deberia mostrarlos.
+
+Sin commit de codigo — solo se corrio el script que ya existia. Este archivo
+se actualiza y sube como cierre de sesion.
+
+---
+
 ## 2026-09-02 (sesion historial de escuchas real)
 
 **Maquina: PC `AngelPC`.**
