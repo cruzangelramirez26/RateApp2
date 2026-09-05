@@ -400,6 +400,11 @@ def set_virtual_state(state: dict):
 # ninguna query existente cambia, asi que los tiempos de carga de hoy quedan
 # exactamente igual.
 
+def _utils():
+    import utils
+    return utils
+
+
 def ensure_listening_table():
     """Create the listening_stats table if it doesn't exist."""
     with get_conn() as conn:
@@ -439,9 +444,11 @@ def replace_listening_batch(rows: list, chunk: int = 1000) -> int:
         return 0
     sql = """
         INSERT INTO listening_stats
-            (track_id, name, artist, plays, skips, ms_total, first_played, last_played)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (track_id, name, artist, plays, skips, ms_total, first_played,
+             last_played, match_key)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
+            match_key    = VALUES(match_key),
             name         = VALUES(name),
             artist       = VALUES(artist),
             plays        = VALUES(plays),
@@ -459,7 +466,8 @@ def replace_listening_batch(rows: list, chunk: int = 1000) -> int:
                  (r.get("artist") or "")[:512],
                  int(r.get("plays", 0)), int(r.get("skips", 0)),
                  int(r.get("ms_total", 0)),
-                 r.get("first_played"), r.get("last_played"))
+                 r.get("first_played"), r.get("last_played"),
+                 _utils().listening_key(r.get("name"), r.get("artist")))
                 for r in rows[i:i + chunk]
             ]
             cur.executemany(sql, batch)
@@ -481,9 +489,11 @@ def add_listening_batch(rows: list) -> int:
         return 0
     sql = """
         INSERT INTO listening_stats
-            (track_id, name, artist, plays, skips, ms_total, first_played, last_played)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (track_id, name, artist, plays, skips, ms_total, first_played,
+             last_played, match_key)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
+            match_key    = VALUES(match_key),
             name         = VALUES(name),
             artist       = VALUES(artist),
             plays        = plays    + VALUES(plays),
@@ -501,7 +511,8 @@ def add_listening_batch(rows: list) -> int:
              (r.get("artist") or "")[:512],
              int(r.get("plays", 0)), int(r.get("skips", 0)),
              int(r.get("ms_total", 0)),
-             r.get("first_played"), r.get("last_played"))
+             r.get("first_played"), r.get("last_played"),
+             _utils().listening_key(r.get("name"), r.get("artist")))
             for r in rows
         ])
         conn.commit()
@@ -583,3 +594,127 @@ def get_listening_summary() -> dict:
             "first_played": row[3].isoformat() if row[3] else None,
             "last_played": row[4].isoformat() if row[4] else None,
         }
+
+
+# ---------------------------------------------------------------------------
+# Emparejamiento por nombre+artista  (arregla el conteo de escuchas)
+# ---------------------------------------------------------------------------
+#
+# Spotify da IDs distintos a la misma cancion segun album, mercado o reedicion,
+# asi que cruzar solo por track_id perdia reproducciones: 17 canciones de Angel
+# marcaban 0 habiendolas escuchado, 884 salian subcontadas, y en total se
+# perdian ~12,000 reproducciones. Ver utils.listening_key().
+
+def ensure_listening_match_key():
+    """Agrega la columna match_key si falta. Idempotente."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'listening_stats'
+              AND COLUMN_NAME = 'match_key'
+        """)
+        if cur.fetchone()[0] == 0:
+            cur.execute("ALTER TABLE listening_stats "
+                        "ADD COLUMN match_key VARCHAR(255) NULL DEFAULT NULL")
+            cur.execute("CREATE INDEX idx_match_key ON listening_stats (match_key)")
+            conn.commit()
+        cur.close()
+
+
+def reindex_listening_keys(chunk: int = 1000) -> dict:
+    """Recalcula match_key para todas las filas.
+
+    Existe para no obligar a re-correr el import de 156 MB (que ademas pide la
+    contrasena de MySQL a mano): la tabla ya guarda name y artist, asi que la
+    clave se puede derivar de lo que hay.
+    """
+    import utils
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT track_id, name, artist FROM listening_stats")
+        filas = cur.fetchall()
+        pares = [(utils.listening_key(r[1], r[2]), r[0]) for r in filas]
+        for i in range(0, len(pares), chunk):
+            cur.executemany(
+                "UPDATE listening_stats SET match_key = %s WHERE track_id = %s",
+                pares[i:i + chunk])
+            conn.commit()
+        cur.close()
+    return {"filas": len(pares), "claves_unicas": len({p[0] for p in pares})}
+
+
+def get_listening_for(tracks: list, chunk: int = 500) -> dict:
+    """Escuchas de varias canciones -> {track_id: stats}.
+
+    `tracks` = lista de dicts con track_id (o id), name y artist.
+
+    SUMA todas las filas que comparten nombre+artista, que es lo que arregla el
+    subconteo: una cancion puede tener varias filas con IDs distintos y las
+    reproducciones estan repartidas entre ellas.
+
+    Cae al emparejamiento por track_id cuando la fila todavia no tiene
+    match_key (tabla sin reindexar) o cuando la clave no encuentra nada.
+    """
+    import utils
+    if not tracks:
+        return {}
+
+    porTrack, claves, ids = {}, {}, []
+    for t in tracks:
+        tid = t.get("track_id") or t.get("id")
+        if not tid:
+            continue
+        k = utils.listening_key(t.get("name"), t.get("artist"))
+        claves[tid] = k
+        ids.append(tid)
+    if not ids:
+        return {}
+
+    # 1) por clave, agregando las filas repartidas entre varios IDs
+    porClave = {}
+    unicas = sorted({k for k in claves.values() if k and k != "|"})
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for i in range(0, len(unicas), chunk):
+            parte = unicas[i:i + chunk]
+            marks = ",".join(["%s"] * len(parte))
+            cur.execute(
+                "SELECT match_key, SUM(plays), SUM(skips), SUM(ms_total), "
+                "MIN(first_played), MAX(last_played) "
+                "FROM listening_stats WHERE match_key IN (" + marks + ") "
+                "GROUP BY match_key", tuple(parte))
+            for row in cur.fetchall():
+                porClave[row[0]] = row
+
+        # 2) respaldo por track_id, para lo que la clave no cubrio
+        faltan = [t for t in ids if claves.get(t) not in porClave]
+        porId = {}
+        for i in range(0, len(faltan), chunk):
+            parte = faltan[i:i + chunk]
+            marks = ",".join(["%s"] * len(parte))
+            cur.execute(
+                "SELECT track_id, SUM(plays), SUM(skips), SUM(ms_total), "
+                "MIN(first_played), MAX(last_played) "
+                "FROM listening_stats WHERE track_id IN (" + marks + ") "
+                "GROUP BY track_id", tuple(parte))
+            for row in cur.fetchall():
+                porId[row[0]] = row
+        cur.close()
+
+    for tid in ids:
+        row = porClave.get(claves.get(tid)) or porId.get(tid)
+        if not row:
+            continue
+        ms = int(row[3] or 0)
+        porTrack[tid] = {
+            "track_id": tid,
+            "plays": int(row[1] or 0),
+            "skips": int(row[2] or 0),
+            "ms_total": ms,
+            "hours": round(ms / 3600000.0, 2),
+            "first_played": row[4].isoformat() if row[4] else None,
+            "last_played": row[5].isoformat() if row[5] else None,
+        }
+    return porTrack

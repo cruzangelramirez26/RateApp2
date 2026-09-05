@@ -82,7 +82,12 @@ export default function CleanupPage() {
                      || (t.artist || '').toLowerCase().includes(s));
     }
     const copia = [...l];
-    if (orden === 'menos') copia.sort((a, b) => a.plays - b.plays);
+    // Las que no tienen dato van AL FINAL en "menos escuchadas". Antes
+    // encabezaban la lista como si tuvieran 0 escuchas, o sea aparecían como
+    // las primeras candidatas a borrar — y Angel detectó que varias sí las
+    // escucha, solo que Spotify las guarda bajo otro track_id.
+    if (orden === 'menos') copia.sort((a, b) =>
+      (a.sin_datos ? 1 : 0) - (b.sin_datos ? 1 : 0) || a.plays - b.plays);
     else if (orden === 'mas') copia.sort((a, b) => b.plays - a.plays);
     else copia.sort((a, b) => (b.meses_sin_oir || 0) - (a.meses_sin_oir || 0)
                            || b.plays - a.plays);
@@ -90,6 +95,7 @@ export default function CleanupPage() {
   }, [data, orden, maxPlays, q, soloSinCalificar]);
 
   const mostradas = lista.slice(0, visibles);
+  const sinDatos = (data?.tracks || []).filter(x => x.sin_datos).length;
 
   function toggle(id) {
     setSel(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -264,6 +270,10 @@ export default function CleanupPage() {
         La mediana de tus Me Gusta son <b>20 escuchas</b>, así que 5 ya es "casi
         nunca". Calificar aquí <b>solo cataloga</b>: se guarda con la fecha en
         que descubriste la canción y no entra a ninguna playlist.
+        {sinDatos > 0 && (
+          <> <b>{sinDatos}</b> canciones salen con <b>?</b>: no tengo su
+          historial, no que no las hayas escuchado. Van al final de la lista.</>
+        )}
       </div>
 
       {lista.length === 0 ? (
@@ -371,9 +381,12 @@ export default function CleanupPage() {
                     }}>
                       <div style={{
                         fontFamily: 'var(--font-mono)', fontSize: '0.95rem', fontWeight: 700,
-                        color: t.plays <= 5 ? ratingColor('D') : 'var(--text-secondary)',
-                      }}>{t.plays}</div>
-                      <div>{t.meses_sin_oir != null ? `${t.meses_sin_oir}m` : 'sin datos'}</div>
+                        color: t.sin_datos ? 'var(--text-muted)'
+                             : (t.plays <= 5 ? ratingColor('D') : 'var(--text-secondary)'),
+                      }}>{t.sin_datos ? '?' : t.plays}</div>
+                      <div>{t.sin_datos
+                        ? 'sin dato'
+                        : (t.meses_sin_oir != null ? `${t.meses_sin_oir}m` : '—')}</div>
                     </div>
                   </div>
 

@@ -455,8 +455,9 @@ def backfill_queue(limit: int = Query(3000, ge=1, le=5000)):
 
     pendientes = [t for t in liked if not rated.get(t.get("id") or t.get("track_id"), "")]
 
-    ids = [t.get("id") or t.get("track_id") for t in pendientes]
-    escuchas = database.get_listening_many(ids)
+    # Empareja por nombre+artista, no solo por track_id: Spotify da IDs
+    # distintos a la misma cancion y por ahi se perdian ~12,000 reproducciones.
+    escuchas = database.get_listening_for(pendientes)
 
     ahora = utils.now_utc()
     hace_12m = (ahora - timedelta(days=365)).replace(tzinfo=None)
@@ -489,6 +490,7 @@ def backfill_queue(limit: int = Query(3000, ge=1, le=5000)):
             "plays": plays,
             "skips": s["skips"] if s else 0,
             "hours": s["hours"] if s else 0.0,
+            "sin_datos": s is None,
             "first_played": first,
             "last_played": last,
             "activa": activa,
@@ -551,8 +553,7 @@ def abandoned_queue(
             v = str(r.get("rating", "")).strip()
             ratings[r["track_id"]] = v if v and v.lower() != "nan" else ""
 
-    ids = [t.get("id") or t.get("track_id") for t in liked]
-    escuchas = database.get_listening_many(ids)
+    escuchas = database.get_listening_for(liked)
 
     ahora = utils.now_utc().replace(tzinfo=None)
     corte_escucha = ahora - timedelta(days=30 * meses)
@@ -801,8 +802,7 @@ def cleanup_queue(limit: int = Query(3000, ge=1, le=5000)):
             v = str(r.get("rating", "")).strip()
             ratings[r["track_id"]] = v if v and v.lower() != "nan" else ""
 
-    ids = [t.get("id") or t.get("track_id") for t in liked]
-    escuchas = database.get_listening_many(ids)   # UNA query con un solo IN
+    escuchas = database.get_listening_for(liked)   # UNA query con un solo IN
 
     ahora = utils.now_utc().replace(tzinfo=None)
     filas = []
@@ -831,6 +831,11 @@ def cleanup_queue(limit: int = Query(3000, ge=1, le=5000)):
             "first_played": first,
             "last_played": last,
             "meses_sin_oir": meses,
+            # DISTINCION IMPORTANTE: "0 escuchas" y "no tengo el dato" no son lo
+            # mismo, y confundirlos es peligroso — las sin dato salen arriba en
+            # la lista de limpieza, o sea son las primeras candidatas a borrar.
+            # Angel reporto justo eso: canciones que si escucha marcadas en 0.
+            "sin_datos": s is None,
             "suggested_added_at": first.replace("T", " ")[:19] if first else None,
         })
 
@@ -839,15 +844,40 @@ def cleanup_queue(limit: int = Query(3000, ge=1, le=5000)):
     return {"total": len(filas), "tracks": filas}
 
 
+@router.post("/listening/reindex")
+def listening_reindex():
+    """Recalcula la clave de emparejamiento de toda la tabla.
+
+    Hace falta una vez, despues de agregar match_key. Se hace desde el
+    servidor y no re-corriendo el import para no obligar a Angel a manejar la
+    contrasena de MySQL otra vez: la tabla ya guarda name y artist, asi que la
+    clave se deriva de lo que hay.
+    """
+    database.ensure_listening_match_key()
+    return database.reindex_listening_keys()
+
+
 @router.get("/listening/{track_id}")
-def listening_for_track(track_id: str):
+def listening_for_track(track_id: str,
+                        name: str = Query("", description="para emparejar por nombre"),
+                        artist: str = Query("")):
     """Real listening stats for one track: plays, hours, first and last time.
 
     One PK lookup. For a list of tracks use database.get_listening_many()
     instead — calling this in a loop is the 40-second mistake documented in
     database.py.
     """
-    stats = database.get_listening(track_id)
+    # Con nombre y artista se empareja igual que las colas, que es lo que
+    # recupera las escuchas guardadas bajo otro track_id.
+    # isinstance: llamada de Python a Python, estos llegan como objeto Query.
+    name = name if isinstance(name, str) else ""
+    artist = artist if isinstance(artist, str) else ""
+    if name or artist:
+        stats = database.get_listening_for(
+            [{"track_id": track_id, "name": name, "artist": artist}]
+        ).get(track_id)
+    else:
+        stats = database.get_listening(track_id)
     if not stats:
         return {
             "track_id": track_id, "found": False, "plays": 0, "skips": 0,

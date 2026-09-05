@@ -101,6 +101,31 @@ tambien puede nacer historica. Por eso la logica usa la variable `efectivo`
 segundo, una A+ fechada en 2021 no recibiria `cuatrimestre_override` y
 `rebuild/anual` la sacaria de la Galeria donde se acaba de agregar.
 
+### EMPAREJAMIENTO POR NOMBRE+ARTISTA (no solo por track_id)
+**Spotify le da IDs DISTINTOS a la misma cancion** segun el album, el mercado o
+la reedicion. El id del export de historial no siempre es el que hoy tiene esa
+cancion en Me Gusta, asi que cruzar solo por `track_id` PIERDE reproducciones.
+
+Medido con los datos reales: **17 canciones marcaban 0 escuchas habiendolas
+escuchado** (LUCES DE COLORES decia 0 y tenia 19) y **884 salian subcontadas**;
+en total se perdian **~12,000 reproducciones**. Lo detecto Angel comparando
+contra stats.fm.
+
+`listening_stats.match_key` guarda `utils.listening_key(name, artist)` y
+`database.get_listening_for(tracks)` **SUMA todas las filas que comparten esa
+clave**. Toda vista de lista usa esa funcion, nunca `get_listening_many`.
+
+La normalizacion es **conservadora a proposito**: minusculas, acentos,
+invisibles (el export trae U+2060) y puntuacion, y nada mas. Se probo truncar
+en " - " o " (feat" y fusionaba `Punto G (Remix)` con `Punto G (feat. Darell)`,
+que son canciones distintas. **No la hagas mas agresiva.**
+
+`POST /tracks/listening/reindex` repuebla la clave sin re-correr el import.
+
+**En la UI, `0` y "sin dato" NO son lo mismo** y confundirlos es peligroso: las
+sin dato encabezaban la lista de limpieza, o sea eran las primeras candidatas a
+borrar. Las colas devuelven `sin_datos` y la UI muestra `?`, no `0`.
+
 ### Limpieza de Me Gusta
 `GET /tracks/cleanup/queue` — **TODOS** los Me Gusta con sus escuchas, sin
 filtrar y ordenados de menos escuchada a mas. El frontend ordena y corta.

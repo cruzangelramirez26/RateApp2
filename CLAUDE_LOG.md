@@ -2,6 +2,88 @@
 
 ---
 
+## 2026-09-04 (sesion: el conteo de escuchas estaba mal)
+
+**Maquina: PC `AngelPC`.**
+
+**LO REPORTO ANGEL COMPARANDO CONTRA stats.fm**, y tenia razon: *"esta mal la
+cantidad de reproducciones, dice que eso y mas de joan no la he escuchado y en
+stats dice que la escuche 3 veces... tambien luces de colores, dice que 0 pero
+la escuche 19 veces"*.
+
+**LA CAUSA: Spotify le da IDs DISTINTOS a la misma cancion** (album, mercado,
+reedicion — track relinking). Comprobado con el caso exacto que dio:
+
+```
+LUCES DE COLORES
+  en el historial : 5dDlknAL9imbXXl7uG7oqe  -> 18 reproducciones
+  en sus Me Gusta : 5BTnoMRlpAnyzYY9S9HbIn  -> no casa
+```
+
+**Y era mucho mas grande de lo que parecia.** El join por `track_id` perdia:
+
+  - **17** canciones marcadas en 0 que si escucha. **Estas eran las
+    peligrosas**: con el orden por defecto salian ARRIBA en la lista de
+    limpieza, o sea eran las primeras candidatas a que las borrara.
+  - **884** con el conteo por debajo del real
+  - **~12,000 reproducciones** en total
+  - de todos sus Me Gusta, **solo 1** nunca se escucho de verdad
+
+**LA SOLUCION, y por que NO se hizo mas agresiva.** Se agrego `match_key`
+(nombre+artista normalizado) y `get_listening_for()` **suma** todas las filas
+que comparten clave. Antes de elegir la normalizacion se midieron dos:
+
+  - **conservadora** (minusculas, acentos, invisibles, puntuacion): 178
+    colisiones de 21,435, y todas resultaron ser el mismo titulo escrito
+    distinto (`Mi Ultima Cancion` / `Mi Ultima Cancion` con acentos). Recupera
+    16 de las 17 perdidas y corrige 815 conteos.
+  - **agresiva** (ademas trunca en " - " y " (feat"): 494 colisiones, e incluia
+    `Punto G (Remix)` con `Punto G (feat. Darell)` — canciones distintas.
+
+Se eligio la conservadora, y quedo escrito en `CLAUDE.md` que no se haga mas
+agresiva.
+
+Detalle que solo aparece mirando los bytes: el export trae **U+2060 (word
+joiner)** al inicio de algunos titulos, invisible al ojo y suficiente para que
+el emparejamiento por texto falle. Por eso la normalizacion descarta la
+categoria Unicode `Cf`.
+
+**No hizo falta re-importar los 156 MB.** `POST /tracks/listening/reindex`
+deriva la clave del `name`/`artist` que la tabla ya guarda, asi que Angel no
+tuvo que volver a manejar la contrasena de MySQL.
+
+**ARREGLO APARTE, y era el peligroso:** la UI mostraba `0` cuando en realidad no
+habia dato. Como el orden por defecto es "menos escuchadas", esas canciones
+**encabezaban la lista de candidatas a borrar** — Angel pudo haber quitado likes
+de canciones que si escucha. Ahora las colas devuelven `sin_datos`, la UI pinta
+`?` en vez de `0`, y esas filas se mandan **al final** de la lista.
+
+**BUG QUE ATRAPO LA VERIFICACION, y es el mismo patron por segunda vez:**
+`norm_text` reventaba con `TypeError: normalize() argument 2 must be str, not
+Query`. Una ruta de FastAPI llamada de Python a Python recibe sus defaults como
+objetos `Query`, no como el valor. Ya habia pasado con `backfill_playlist` en
+esta misma sesion. Ahora `norm_text` es defensiva y la ruta valida con
+`isinstance`.
+
+**Verificacion: 110 comprobaciones.** Las nuevas prueban el caso exacto de
+Angel: LUCES DE COLORES devuelve **19** (18+1, sumando las dos filas) con el id
+nuevo de Me Gusta, y `Eso Y Mas` casa con `Eso Y Mas` acentuado. Tres tests
+viejos fallaron por stubs desactualizados (apuntaban a `get_listening_many`);
+**se corrigieron los tests, no el codigo**.
+
+**PENDIENTES:**
+
+- [ ] **Correr el reindex en produccion** tras el deploy, y volver a comprobar
+      LUCES DE COLORES contra stats.fm.
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] Seccion 7, los mixes. Primer paso: verificar si `/recommendations` sigue
+      vivo para esta app.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-04 (sesion: se corrige el error de medicion + cache + tramos de escucha)
 
 **Maquina: PC `AngelPC`.** Tres quejas de Angel, y la tercera obligo a admitir
