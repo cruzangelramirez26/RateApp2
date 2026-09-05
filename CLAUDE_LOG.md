@@ -2,6 +2,95 @@
 
 ---
 
+## 2026-09-04 (sesion: la captura pasa a Cloud Scheduler)
+
+**Maquina: PC `AngelPC`.** Sin cambios de codigo de la app. Infraestructura.
+
+Angel abrio con "ayer hice el import, como vamos?". Se reviso el estado en vivo
+y de la revision salio un problema real que no se habia visto.
+
+**LO BUENO: el sistema se sostiene solo.** Comparando contra lo que quedo el
+2026-09-03, sin que nadie tocara nada:
+
+```
+                 3 sep      4 sep
+canciones        23,918  ->  23,926   (+8)
+reproducciones  118,735  -> 118,795   (+60)
+horas           5,853.5  -> 5,856.9   (+3.4)
+ultima escucha  3 sep 02:54  ->  4 sep 22:16
+```
+
+12 de 12 corridas del workflow en verde. Y el modal tiene con que trabajar: de
+las primeras 30 canciones de Biblioteca, **las 30 traen historial**.
+
+**EL PROBLEMA, y es el que motivo la sesion.** El workflow pedia `*/30 * * * *`
+y **GitHub lo estaba corriendo cada 2 a 5 horas**. Medido sobre 12 corridas
+seguidas: huecos de 111, 137, 166, 176, 184, 214, 265, 273, 277, 280 y **308
+minutos**. El peor: **5.1 horas**.
+
+Eso no es cosmetico. `/me/player/recently-played` devuelve como maximo **las
+ultimas 50** reproducciones, o sea ~2.9 horas de escucha seguida. Con huecos de
+5 h se pierden reproducciones, **y no se recuperan**: para eso habria que volver
+a pedir el export y esperar 30 dias.
+
+Es el mismo atraso del cron de Actions que ya estaba documentado desde el
+2026-08-22 con `keep-awake` (huecos de 40-90 min), solo que aqui salio peor y
+aqui si cuesta datos.
+
+**Todavia no se habia perdido nada.** Se revisaron las 10 ultimas capturas y el
+maximo que devolvio Spotify fue **23 de 50** (46% del buffer). Margen real, pero
+muy lejos del "es imposible perder algo" que se habia prometido al disenarlo.
+Se llena en un dia de escucha intensa: un road trip, o un dia de trabajo con
+musica continua.
+
+Angel: *"dale el arreglo de los cron, no quiero perder el historial"*.
+
+**LA SOLUCION: Cloud Scheduler.** Job `capture-listening` en `us-east4` (la
+misma region que Cloud Run), **cada 15 min**, con 3 reintentos y deadline de
+90 s. Se eligio sobre cron-job.org porque vive en el mismo proyecto de GCP que
+ya se administra, y sobre subirle la frecuencia a Actions porque el problema de
+Actions no es la frecuencia pedida sino que no la respeta.
+
+Costo: **$0**. Cloud Scheduler regala 3 jobs por cuenta de facturacion y este
+es el primero. Hubo que habilitar `cloudscheduler.googleapis.com`, que no lo
+estaba.
+
+**El detalle que se habria repetido:** el job va con `--message-body='{}'` y
+`Content-Type: application/json`. Sin body, Cloud Run responde **411 Length
+Required** desde el balanceador — el mismo bug que tumbo el workflow el 2026-09-02
+y que ahi se arreglo con `--data ''`. Quedo escrito en `CLAUDE.md` para que no
+se caiga por tercera vez.
+
+**Verificado end-to-end, no por el estado del job:** se forzo una corrida y se
+confirmo en los logs de Cloud Run la peticion real —
+`02:32:31  HTTP 200  Google-Cloud-Scheduler`. El `status: {}` vacio del job
+tambien indica exito (gcloud omite el codigo cuando es 0), pero el log del
+servidor es la prueba de que llego y respondio bien.
+
+**El workflow de Actions NO se borro: se degrado a red de seguridad**, cada 6 h
+(`17 */6 * * *`). El riesgo que cubre es perdida irreversible de historial, asi
+que vale la pena tener un segundo mecanismo por si el job se borra, se
+deshabilita la API o falla la facturacion. La captura es idempotente (filtra por
+cursor **y** por `played_at`), asi que solaparse con Cloud Scheduler no cuenta
+nada dos veces — eso ya estaba probado contra produccion el 2026-09-02.
+
+**PENDIENTES (sin cambios respecto a ayer, salvo el cron ya cerrado):**
+
+- [x] **El cron — RESUELTO.** Cloud Scheduler cada 15 min, Actions de respaldo.
+- [ ] Cola de "califica lo que si escuchas": los 1,538 Me Gusta sin calificar,
+      ordenados por reproducciones de los ultimos 12 meses. Sigue siendo lo de
+      mas valor: la app esta ciega a dos tercios de lo que Angel escucha.
+- [ ] Vista de abandonadas (las 721).
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] Seccion 7, los mixes. Primer paso son 5 min: **verificar si
+      `/recommendations` sigue vivo para esta app**.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar, esperando decision.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+      Ya esta en `.gitignore`; falta decidir si se borra.
+
+---
+
 ## 2026-09-03 (sesion import del historial de escuchas)
 
 **Maquina: laptop del trabajo.** Primera vez que se trabaja en esta maquina en

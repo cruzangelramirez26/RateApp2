@@ -33,7 +33,9 @@ Tres tablas:
 **`config`** — key/value para config persistente (ej: `aplus_cutoff`)
 
 **`listening_stats`** — escuchas reales: track_id, name, artist, plays, skips, ms_total, first_played, last_played
-- Spotify **no expone play counts por API**. Estos datos salieron del export de "Historial de reproducción extendido" (187,577 reproducciones, 2018–2026 → 23,914 canciones) y se mantienen al día con `POST /tracks/listening/capture`, que lee `recently-played` cada 30 min desde GitHub Actions.
+- Spotify **no expone play counts por API**. Estos datos salieron del export de "Historial de reproducción extendido" (187,577 reproducciones, 2018–2026 → 23,914 canciones) y se mantienen al día con `POST /tracks/listening/capture`, que lee `recently-played`.
+- **Quién dispara la captura: Cloud Scheduler** (job `capture-listening`, región `us-east4`), **cada 15 min**. El workflow de GitHub Actions quedó degradado a red de seguridad cada 6 h porque el cron de Actions se atrasaba de 2 a 5 horas. Importa: `recently-played` solo devuelve **las últimas 50** reproducciones (~2.9 h de escucha seguida), así que un hueco largo pierde historial de forma irreversible.
+- El POST **debe llevar `Content-Length`**. Cloud Run responde `411` a un POST sin body, así que `curl` va con `--data ''` y Cloud Scheduler con `--message-body='{}'`.
 - **Es independiente de `tracks` a propósito.** `load_all()` no la toca y ninguna query existente cambia, así que no afecta los tiempos de carga.
 - **REGLA: nunca `get_listening()` dentro de un loop.** La DB está en `us-east-1` (~80 ms por viaje), así que 500 canciones a query por cabeza son 40 segundos. Para listas se usa `get_listening_many()`, con un solo `IN (...)`.
 - Los JSON crudos del export viven en `historial/`, que está en `.gitignore` **y** `.dockerignore`: son 156 MB y cada fila trae `ip_addr`.

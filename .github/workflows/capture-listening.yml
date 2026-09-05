@@ -1,37 +1,34 @@
-# Captura el historial de escuchas de Spotify hacia adelante.
+# RED DE SEGURIDAD de la captura de escuchas. NO es el mecanismo principal.
 #
-# POR QUE EXISTE: Spotify no expone play counts por API. El historial completo
-# (2018-2026) entro una sola vez desde el export de privacidad, pero ese export
-# es una foto: hay que volver a pedirlo, y tarda hasta 30 dias en llegar.
+# El principal es un job de **Cloud Scheduler** (`capture-listening`, region
+# us-east4, proyecto rateapp-506404) que corre cada 15 min y es puntual de
+# verdad.
 #
-# Este workflow hace que no haga falta pedirlo nunca mas. Spotify guarda el
-# historial DE SU LADO, asi que la app no necesita estar abierta mientras Angel
-# escucha — solo tiene que despertar cada tanto y preguntar por lo nuevo.
+# POR QUE SE DEGRADO ESTE WORKFLOW A RESPALDO:
+# nacio pidiendo `*/30 * * * *` y GitHub lo corria cada **2 a 5 horas** — se
+# midieron 12 corridas seguidas con un hueco peor de 5.1 h. El cron de Actions
+# en runners gratis no es una promesa, es una sugerencia. Y aqui el atraso
+# cuesta datos: /me/player/recently-played devuelve como maximo las ULTIMAS 50
+# reproducciones, o sea ~2.9 horas de escucha seguida, asi que un hueco de 5 h
+# puede perder reproducciones que NO se recuperan. (Al momento del cambio
+# todavia no se habia perdido nada: el maximo devuelto fue 23 de 50.)
 #
-# EL LIMITE, y es el que fija la frecuencia:
-# /me/player/recently-played devuelve como maximo las ULTIMAS 50 reproducciones.
-# Lo que pase de ahi entre dos capturas se pierde y no se recupera. Cada hora ya
-# exigiria 50 canciones en una hora (72 segundos de promedio, sin parar) para
-# perder algo, asi que el margen es grande. Se corre cada 30 min para tener el
-# doble de holgura: la captura es idempotente y una de mas no cuesta nada.
+# Se deja vivo, cada 6 horas, porque el riesgo que cubre es la perdida
+# irreversible de historial: si el job de Cloud Scheduler se borra, se
+# deshabilita la API o falla la facturacion, esto sigue capturando. La captura
+# es idempotente (filtra por cursor Y por played_at), asi que solaparse con
+# Cloud Scheduler no cuenta nada dos veces.
 #
-# El endpoint filtra por cursor Y por played_at, asi que repetir una captura no
-# duplica reproducciones.
-#
-# MISMAS LIMITACIONES QUE keep-awake.yml: GitHub deshabilita los workflows
-# programados tras 60 dias sin actividad en el repo, y el cron de los runners
-# gratis se atrasa. Un retraso aqui es inofensivo mientras no se acumulen 50
-# canciones sin capturar.
+# Si algun dia se quita Cloud Scheduler, hay que volver a subirle la frecuencia
+# a este — sabiendo que igual se va a atrasar.
 
-name: capture-listening
+name: capture-listening (respaldo)
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
-  workflow_dispatch:        # para dispararlo a mano desde la pestana Actions
+    - cron: '17 */6 * * *'   # cada 6 h, en el minuto 17 para no pegarse a la hora en punto
+  workflow_dispatch:         # para dispararlo a mano desde la pestana Actions
 
-# Si una corrida se empalma con la anterior, que gane la nueva: dos capturas
-# simultaneas leerian el mismo cursor y harian trabajo repetido.
 concurrency:
   group: capture-listening
   cancel-in-progress: false
