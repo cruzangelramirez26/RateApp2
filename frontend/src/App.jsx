@@ -11,6 +11,7 @@ import LibraryPage from './pages/LibraryPage';
 import RecentPage from './pages/RecentPage';
 import StatsPage from './pages/StatsPage';
 import ToolsPage from './pages/ToolsPage';
+import BackfillPage from './pages/BackfillPage';
 
 export default function App() {
   const [auth, setAuth] = useState(null);
@@ -78,6 +79,9 @@ export default function App() {
                 <Route path="/library" element={<LibraryPage />} />
                 <Route path="/recent" element={<RecentPage />} />
                 <Route path="/tools" element={<ToolsPage />} />
+                {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
+                    desde Herramientas. */}
+                <Route path="/backfill" element={<BackfillPage />} />
                 <Route path="/dashboard" element={<StatsPage />} />
               </Routes>
             </div>

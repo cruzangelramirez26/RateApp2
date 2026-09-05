@@ -87,6 +87,11 @@ export const api = {
   getListening: (trackId) => request(`/tracks/listening/${trackId}`),
   getListeningSummary: () => request('/tracks/listening/summary'),
 
+  // Cola de "califica lo que sí escuchas": los Me Gusta que nunca pasaron por
+  // RateApp, ordenados por escuchas reales. Tarda: recorre TODOS los Me Gusta
+  // de Spotify (~47 llamadas para 2,300).
+  getBackfillQueue: () => request('/tracks/backfill/queue'),
+
   // Migración de cuatrimestre
   getMigrationCandidates: () => request('/tracks/migrate/candidates'),
   migrateTracks: (trackIds, toCuatrimestre) => request('/tracks/migrate', {

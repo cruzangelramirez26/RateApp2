@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon, Headphones } from 'lucide-react';
 import { api } from '../utils/api';
 import ThemeToggle from '../components/ThemeToggle';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
@@ -10,6 +11,7 @@ const CUATRI_DISPLAY = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
 const REORDER_RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C'];
 
 export default function ToolsPage() {
+  const navigate = useNavigate();
   const [virtualStatus, setVirtualStatus] = useState(null);
   const [aplusStatus, setAplusStatus] = useState(null);
   const [aplusCandidates, setAplusCandidates] = useState([]);
@@ -205,6 +207,28 @@ export default function ToolsPage() {
     <div className="page">
       <div className="page-header">
         <div className="page-title">Herramientas</div>
+      </div>
+
+      {/* -- Califica lo que si escuchas -------------------------------------- */}
+      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
+        <div style={{
+          fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
+          letterSpacing: '0.06em', fontWeight: 600, marginBottom: '12px',
+          fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          <Headphones size={14} />
+          Califica lo que sí escuchas
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
+          Dos tercios de tus Me Gusta nunca pasaron por RateApp. Aquí salen
+          ordenados por las veces que de verdad los has puesto, según tu historial
+          de escuchas. Calificar ahí <strong>solo cataloga</strong>: no mete nada
+          a ninguna playlist.
+        </p>
+        <button className="btn" onClick={() => navigate('/backfill')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <Headphones size={14} /> Abrir la cola
+        </button>
       </div>
 
       {/* -- Apariencia ------------------------------------------------------ */}

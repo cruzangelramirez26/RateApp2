@@ -2,6 +2,120 @@
 
 ---
 
+## 2026-09-04 (sesion: cola de backfill, "califica lo que si escuchas")
+
+**Maquina: PC `AngelPC`.** Misma sesion que el cambio a Cloud Scheduler.
+
+**LA PREOCUPACION DE ANGEL, y tenia toda la razon.** Al proponerle la cola de
+los 1,537 Me Gusta sin calificar contesto: *"no quiero que canciones viejitas
+entren a mis playlist actuales"*. Se midio y el numero le da la razon con
+creces: **1,520 de las 1,537 son de antes de 2026**. Solo UNA es de este anio.
+
+Reparto por anio de descubrimiento: 2018:111, 2019:133, 2020:145, 2021:265,
+2022:169, 2023:347, 2024:343, 2025:7, 2026:1, sin dato:16.
+
+**Y el problema era PEOR de lo que el planteo**, por tres capas encadenadas:
+
+1. `rate_track` mete una cancion historica en TOP_SET a **Latte 2026 + MMG +
+   Galeria + like**.
+2. `upsert_track` fecha con **hoy** en el INSERT, y las 1,537 no estan en
+   `tracks`, o sea todas serian INSERT.
+3. Con `added_at = hoy` cuentan como **novedades**, asi que el bloque de
+   novedades de agosto las pondria **ARRIBA DE TODO** en la Galeria Anual.
+   O sea calificarlas deshacia el trabajo de la seccion 6.
+
+**Cuarta consecuencia, que Angel no habia visto y que se le senalo:** estamos en
+latte 2026, justo el cuatrimestre que el decidio el 2026-08-25 esperar para medir
+su ratio A+/A limpio (*"veremos el cambio en latte"*). Meter 1,537
+calificaciones ahi **destruye esa medicion**, que lleva cuatro meses esperandose.
+
+**LA SOLUCION SALE DEL HISTORIAL QUE SE IMPORTO AYER.** Cada cancion se fecha
+con su **primera escucha real**, no con hoy. Una de 2021 queda fechada en 2021,
+o sea es historica, o sea no entra a Latte 2026 ni a la Galeria. El problema se
+resuelve de raiz en vez de con un parche — y es la razon por la que el export
+vale mas de lo que parecia.
+
+**LO QUE PIDIO ANGEL, textual:** *"quiero la versatilidad de que si quiero,
+pueda calificar una cancion que ya tenia en mis me gusta y que se comporte como
+una nueva, que se meta a mis playlist y asi pero tambien la opcion de
+calificarla sin que se meta a ningun lado"*. Y pregunto que proponia.
+
+**Diseno: dos acciones distintas y visibles, no un modo escondido.**
+- **Calificar** (los 7 botones) -> cataloga. `soft=true` + fecha historica.
+  Nada toca Spotify. Es el default porque sera el 95% de las 1,537.
+- **"A mi rotacion"** (boton aparte) -> flujo completo, como cancion nueva.
+  Solo ofrece B+/A/A+, porque subir algo mas bajo no tiene sentido.
+
+**Lo bonito: el segundo boton casi no necesito codigo.** Si la cancion quedo
+fechada en 2021, para la app **ya es historica**, y la regla que existe desde
+mayo para "historica que sube a TOP_SET" es exactamente *"agrega a cuatrimestre
+actual + MMG + Galeria + like + pone override"*. O sea "a mi rotacion" es
+literalmente `rate_track` sin soft. La logica vieja ya hacia lo correcto; lo que
+faltaba era la fecha que la activa bien.
+
+**EL HUECO QUE ABRIA EL CAMBIO, encontrado escribiendo las pruebas.** Hasta hoy
+una cancion NUEVA siempre se fechaba hoy, asi que la logica podia preguntar
+`if old_track:` para decidir si era historica. Con `added_at` una cancion nueva
+puede **nacer fechada en 2021**, y entonces:
+
+- Una A+ nueva con fecha historica **no recibia `cuatrimestre_override`**, asi
+  que `rebuild/anual` — que filtra por anio actual — la habria sacado de la
+  Galeria donde se acababa de meter. Inconsistencia silenciosa.
+- Una B nueva con fecha historica **si entraba** al cuatrimestre actual, cuando
+  la tabla de `CLAUDE.md` dice que para B/C+ el cuatrimestre historico es
+  intocable.
+
+Arreglado con una variable `efectivo` (= `old_track`, o la fecha recien
+insertada si la cancion es nueva) que reemplaza a `old_track is None` en los dos
+puntos. El comportamiento viejo queda intacto: una cancion nueva fechada hoy se
+sigue tratando igual que siempre, y hay pruebas de las dos ramas.
+
+**Codigo:**
+
+`backend/models.py` — `RateRequest.added_at` opcional. Compatible hacia atras:
+sin el campo, `rate_track` sigue fechando con hoy.
+
+`backend/routes/tracks.py` — `added_at = req.added_at or now_str`; la variable
+`efectivo`; y `GET /tracks/backfill/queue`, que cruza los Me Gusta con
+`listening_stats` **con `get_listening_many()`, una sola query con un `IN (...)`**
+(pedirlas de a una serian ~1,500 viajes a us-east-1 = dos minutos largos).
+Cada fila devuelve `suggested_added_at` con la primera escucha.
+
+Limitacion conocida y documentada: el agregado guarda totales, no una serie
+temporal, asi que **no se puede contar "plays de los ultimos 12 meses"**.
+El orden usa `last_played` como proxy de "la sigues oyendo" y dentro de eso
+ordena por plays totales.
+
+`frontend/src/pages/BackfillPage.jsx` (nuevo) + ruta `/backfill` + tarjeta de
+entrada en Herramientas. **Sin tab propia a proposito**: la barra movil ya tiene
+5 items.
+
+**Verificacion: 56 comprobaciones** (21 de captura + 12 de tipos de MySQL + 23
+nuevas), sin red y sin MySQL. Las que importan: una A+ de 2021 catalogada no
+toca NADA (ni playlist, ni like, ni override); la misma sin soft si entra al
+cuatrimestre actual, MMG, Galeria y like, y **ninguna playlist de cuatrimestre
+pasado se toca**; los dos huecos de arriba, con sus dos ramas cada uno; el flujo
+viejo sin `added_at` sigue fechando hoy; y el orden de la cola pone primero lo
+que si escucha aunque tenga menos plays que algo abandonado con 100.
+`npm run build` OK (1587 modulos).
+
+**CONSECUENCIA QUE SE LE AVISO ANTES DE EMPEZAR:** sus **stats historicas van a
+cambiar**. Latte 2023 pasara de vacio a tener decenas de canciones conforme
+catalogue. Es el retrato real de su historia musical, pero es un cambio visible
+en el Dashboard.
+
+**PENDIENTES:**
+
+- [ ] Vista de abandonadas (las 721) para limpiar Me Gusta.
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] Seccion 7, los mixes. Primer paso, 5 min: **verificar si
+      `/recommendations` sigue vivo para esta app**.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-04 (sesion: la captura pasa a Cloud Scheduler)
 
 **Maquina: PC `AngelPC`.** Sin cambios de codigo de la app. Infraestructura.

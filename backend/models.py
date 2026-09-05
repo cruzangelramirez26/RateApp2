@@ -10,6 +10,17 @@ class RateRequest(BaseModel):
     artist: str = ""
     album: str = ""
     rating: str = Field(..., pattern=r"^(A\+|A|B\+|B|C\+|C|D)$")
+    # Fecha con la que se registra la cancion cuando es NUEVA en la DB.
+    # Existe por el backfill (Mejoras.txt seccion 8): al catalogar los ~1,500
+    # Me Gusta viejos hay que fecharlos con su primera escucha real, no con
+    # hoy. Sin esto, una cancion de 2021 entraria como si fuera de este
+    # cuatrimestre y acabaria en Latte 2026 y en la Galeria Anual — encima
+    # arriba de todo, porque el bloque de novedades la veria recien llegada.
+    #
+    # Solo aplica al INSERT: upsert_track nunca pisa added_at al re-calificar,
+    # asi que la fecha original se conserva para siempre.
+    # Formato: "YYYY-MM-DD HH:MM:SS".
+    added_at: Optional[str] = None
 
 
 class BulkRateRequest(BaseModel):

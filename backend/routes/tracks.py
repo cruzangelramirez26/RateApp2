@@ -422,6 +422,93 @@ def listening_capture():
     }
 
 
+@router.get("/backfill/queue")
+def backfill_queue(limit: int = Query(3000, ge=1, le=5000)):
+    """Me Gusta que NUNCA pasaron por RateApp, ordenados por lo que de verdad oyes.
+
+    De los 2,328 Me Gusta de Angel, 1,537 (66%) no tienen calificacion: la app
+    esta ciega a dos tercios de lo que escucha. Esta cola es PendingPage pero
+    alimentada por escuchas reales en vez de por la playlist <3333>.
+
+    CADA FILA TRAE `suggested_added_at` = la primera vez que se escucho la
+    cancion, y el frontend la manda de vuelta al calificar. Sin eso, catalogar
+    estas canciones las fecharia hoy, y como 1,520 de las 1,537 son de antes de
+    2026 acabarian todas dentro de Latte 2026 y de la Galeria Anual — encima
+    ordenadas arriba de todo, porque el bloque de novedades las veria recien
+    llegadas. Tambien arruinaria la medicion de A+/A de latte 2026 (seccion 6b),
+    que lleva meses esperandose.
+
+    RENDIMIENTO: las escuchas se piden con get_listening_many(), UNA query con
+    un solo IN (...). Pedirlas cancion por cancion serian ~1,500 viajes a
+    us-east-1 a ~80 ms = dos minutos largos. Es la regla escrita en database.py.
+    """
+    sp = spotify.get_client()
+    liked = spotify.get_all_liked_tracks(sp, limit=limit)
+
+    # Que ya esta calificado. Una sola lectura de la tabla, no una por cancion.
+    df = database.load_all()
+    rated = {}
+    if not df.empty:
+        for _, r in df.iterrows():
+            val = str(r.get("rating", "")).strip()
+            rated[r["track_id"]] = val if val and val.lower() != "nan" else ""
+
+    pendientes = [t for t in liked if not rated.get(t.get("id") or t.get("track_id"), "")]
+
+    ids = [t.get("id") or t.get("track_id") for t in pendientes]
+    escuchas = database.get_listening_many(ids)
+
+    ahora = utils.now_utc()
+    hace_12m = (ahora - timedelta(days=365)).replace(tzinfo=None)
+
+    filas = []
+    for t in pendientes:
+        tid = t.get("id") or t.get("track_id")
+        s = escuchas.get(tid)
+        plays = s["plays"] if s else 0
+        last = s["last_played"] if s else None
+        first = s["first_played"] if s else None
+
+        # "Activa" = la sigues oyendo. El agregado guarda totales, no una serie
+        # temporal, asi que no se puede contar plays de los ultimos 12 meses:
+        # last_played es el mejor proxy disponible y es el que decide el orden.
+        activa = False
+        if last:
+            try:
+                activa = datetime.fromisoformat(last) >= hace_12m
+            except Exception:
+                activa = False
+
+        filas.append({
+            "track_id": tid,
+            "name": t.get("name", ""),
+            "artist": t.get("artist", ""),
+            "album": t.get("album", ""),
+            "image": t.get("image"),
+            "liked_at": t.get("added_at"),
+            "plays": plays,
+            "skips": s["skips"] if s else 0,
+            "hours": s["hours"] if s else 0.0,
+            "first_played": first,
+            "last_played": last,
+            "activa": activa,
+            # Lo que el frontend devuelve en el POST /rate para fechar bien.
+            # Si no hay historial cae a None y rate_track usa "hoy", que para
+            # una cancion sin una sola escucha registrada es lo honesto.
+            "suggested_added_at": first.replace("T", " ")[:19] if first else None,
+        })
+
+    # Primero lo que sigues oyendo, y dentro de eso lo mas escuchado.
+    filas.sort(key=lambda f: (f["activa"], f["plays"]), reverse=True)
+
+    return {
+        "total_liked": len(liked),
+        "total_pending": len(filas),
+        "activas": sum(1 for f in filas if f["activa"]),
+        "tracks": filas,
+    }
+
+
 @router.get("/listening/{track_id}")
 def listening_for_track(track_id: str):
     """Real listening stats for one track: plays, hours, first and last time.
@@ -505,11 +592,23 @@ def rate_track(req: RateRequest, soft: bool = False):
     mmg_id = config.DISTRIBUTION_PLAYLISTS["mis_me_gusta"]
     anual_id = config.DISTRIBUTION_PLAYLISTS["anual"]
 
-    # Preserve original added_at on re-rate (upsert only sets it on INSERT)
-    database.upsert_track(tid, req.name, req.artist, req.album, now_str, new_rating)
+    # Preserve original added_at on re-rate (upsert only sets it on INSERT).
+    # req.added_at lo manda el backfill con la fecha de la PRIMERA ESCUCHA real,
+    # para que una cancion de 2021 quede fechada en 2021 y por lo tanto cuente
+    # como historica: asi no se cuela a Latte 2026 ni a la Galeria Anual.
+    added_at = req.added_at or now_str
+    database.upsert_track(tid, req.name, req.artist, req.album, added_at, new_rating)
 
     if soft:
         return {"ok": True, "rating": new_rating}
+
+    # Estado con el que quedo la cancion DESPUES del upsert. No basta con mirar
+    # old_track: desde que el backfill puede insertar con fecha historica, una
+    # cancion NUEVA tambien puede nacer fechada en 2021, y entonces hay que
+    # tratarla como historica igual que a una que ya existia. Antes de eso el
+    # caso no podia darse — una cancion nueva siempre se fechaba hoy — y por eso
+    # la logica de abajo solo consultaba old_track.
+    efectivo = old_track or {"added_at": added_at, "cuatrimestre_override": None}
 
     if new_rating == "D":
         for pl_id in [cuatri_id, mmg_id, anual_id]:
@@ -533,14 +632,15 @@ def rate_track(req: RateRequest, soft: bool = False):
                     spotify.add_to_playlist(sp, cuatri_id, [tid])
             except Exception:
                 pass
-        # If track is historical, set override so rebuild lo incluye en el cuatri actual
-        if old_track:
-            override = old_track.get("cuatrimestre_override")
-            if not _belongs_to_current_cuatri(old_track, current_cuatri) and override != current_cuatri:
-                try:
-                    database.set_cuatrimestre_override([tid], current_cuatri)
-                except Exception:
-                    pass
+        # If track is historical, set override so rebuild lo incluye en el cuatri actual.
+        # Sin el override, `POST /playlists/rebuild/anual` — que filtra por anio
+        # actual — sacaria de la Galeria la cancion que se acaba de agregar.
+        override = efectivo.get("cuatrimestre_override")
+        if not _belongs_to_current_cuatri(efectivo, current_cuatri) and override != current_cuatri:
+            try:
+                database.set_cuatrimestre_override([tid], current_cuatri)
+            except Exception:
+                pass
         # Add to MMG + Anual
         for pl_id in [mmg_id, anual_id]:
             try:
@@ -570,10 +670,12 @@ def rate_track(req: RateRequest, soft: bool = False):
 
         if new_rating in {"B", "C+"}:
             # B y C+ van al cuatrimestre actual (si la canción es del cuatrimestre actual)
+            # Una cancion nueva fechada hoy sigue contando como actual (era el
+            # viejo `old_track is None`), pero una nueva fechada en 2021 por el
+            # backfill NO: para B/C+ el cuatrimestre historico es intocable.
             is_current_track = (
-                old_track is None
-                or _belongs_to_current_cuatri(old_track, current_cuatri)
-                or old_track.get("cuatrimestre_override") == current_cuatri
+                _belongs_to_current_cuatri(efectivo, current_cuatri)
+                or efectivo.get("cuatrimestre_override") == current_cuatri
             )
             if is_current_track and cuatri_id:
                 try:

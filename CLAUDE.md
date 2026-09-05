@@ -78,6 +78,29 @@ Si no cumple ninguna → es **histórica**.
 ### Playlists históricas = INTOCABLES
 Las playlists de cuatrimestres pasados (ej. Perla cuando estamos en Miel) **nunca se modifican** al re-calificar. Solo se tocan MMG, Galería Anual, el cuatrimestre actual, y Me Gusta nativo.
 
+### Backfill: catalogar los Me Gusta viejos
+`POST /tracks/rate` acepta **`added_at`** opcional. Lo usa la cola de
+`/backfill` (`GET /tracks/backfill/queue`) para fechar cada cancion con su
+**primera escucha real** en vez de con hoy.
+
+**Por que importa:** 1,520 de los 1,537 Me Gusta sin calificar son de antes de
+2026. Fechados hoy entrarian todos a Latte 2026 y a la Galeria Anual — y encima
+arriba de todo, porque el bloque de novedades los veria recien llegados —
+ademas de arruinar la medicion de A+/A de latte 2026 (seccion 6b).
+
+Dos acciones, y el default es el seguro:
+- **Calificar** -> `soft=true` + `added_at` historico. Solo cataloga: no toca
+  ninguna playlist.
+- **A mi rotacion** -> `rate_track` normal. Como la cancion quedo fechada en su
+  epoca, la logica de "historica que sube a TOP_SET" ya hace lo correcto:
+  cuatrimestre actual + MMG + Galeria + like + override.
+
+**OJO al tocar `rate_track`:** desde que existe `added_at`, una cancion **nueva**
+tambien puede nacer historica. Por eso la logica usa la variable `efectivo`
+(`old_track` o la fecha recien insertada) y no `old_track is None`. Con lo
+segundo, una A+ fechada en 2021 no recibiria `cuatrimestre_override` y
+`rebuild/anual` la sacaria de la Galeria donde se acaba de agregar.
+
 ### Modo soft
 `POST /tracks/rate?soft=true` — guarda solo en DB, no toca Spotify. Se usa cuando el usuario califica desde la vista "Me Gusta" en Biblioteca (solo quiere registrar una nota, no distribuir).
 
