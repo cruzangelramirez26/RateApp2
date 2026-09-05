@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Headphones, ArrowUp, X, RefreshCw, Play } from 'lucide-react';
 import { api } from '../utils/api';
+import { preloadCache } from '../utils/preloadCache';
 import { ratingColor, ratingDim } from '../utils/theme';
 import { useToast } from '../hooks/useToast';
 
@@ -25,6 +26,7 @@ import { useToast } from '../hooks/useToast';
  * El default es el seguro. Nada entra a una playlist por descuido.
  */
 
+const CACHE_KEY = 'backfillQueue';
 const RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
 const TOP_SET = ['A+', 'A', 'B+'];   // subir solo tiene sentido con TOP_SET
 
@@ -57,15 +59,21 @@ export default function BackfillPage() {
   const tracksRef = useRef([]);
   tracksRef.current = data?.tracks || [];
 
+  // Se calcula antes de los handlers porque escuchar() necesita el tramo visible.
+  const lista = (data?.tracks || []).filter(t => !soloActivas || t.activa);
+
   // Arma una playlist real con lo primero de la cola y la reproduce. Angel:
   // "no quisiera ir buscando cancion por cancion".
-  async function escuchar() {
+  async function escuchar(desde = 0) {
     setSonando(true);
     try {
-      const r = await api.buildQueuePlaylist('backfill', 50, true);
+      // Se manda el tramo EXACTO que se está viendo, para no obligar a
+      // calificar las primeras 50 antes de poder oír las siguientes.
+      const ids = lista.slice(desde, desde + 50).map(x => x.track_id);
+      const r = await api.buildQueuePlaylist('backfill', 50, true, ids);
       toast(
         r.playing
-          ? `Sonando ${r.count} canciones, de la más escuchada para abajo`
+          ? `Sonando ${r.count} canciones desde la #${desde + 1}`
           : (r.error || 'Playlist lista, pero no se pudo reproducir'),
         r.playing ? 'success' : 'error',
         5000,
@@ -100,10 +108,13 @@ export default function BackfillPage() {
     return () => { vivo = false; clearInterval(id); };
   }, []);
 
-  const cargar = useCallback(() => {
+  // Cacheada en sesión: la petición recorre los ~2,300 Me Gusta de Spotify y
+  // tarda. Sin esto, salir de la página y volver a entrar hacía esperar otra vez.
+  const cargar = useCallback((forzar = false) => {
     setLoading(true);
     setError(null);
-    api.getBackfillQueue()
+    if (forzar) preloadCache.invalidate(CACHE_KEY);
+    preloadCache.load(CACHE_KEY, api.getBackfillQueue)
       .then(d => setData(d))
       .catch(() => setError('No se pudo cargar la cola.'))
       .finally(() => setLoading(false));
@@ -150,12 +161,17 @@ export default function BackfillPage() {
   }
 
   function quitar(id) {
-    setData(d => d && ({
-      ...d,
-      total_pending: d.total_pending - 1,
-      activas: d.activas - (d.tracks.find(x => x.track_id === id)?.activa ? 1 : 0),
-      tracks: d.tracks.filter(x => x.track_id !== id),
-    }));
+    setData(d => {
+      if (!d) return d;
+      const next = {
+        ...d,
+        total_pending: d.total_pending - 1,
+        activas: d.activas - (d.tracks.find(x => x.track_id === id)?.activa ? 1 : 0),
+        tracks: d.tracks.filter(x => x.track_id !== id),
+      };
+      preloadCache.set(CACHE_KEY, next);   // que el cache no quede viejo
+      return next;
+    });
   }
 
   if (loading) {
@@ -175,12 +191,11 @@ export default function BackfillPage() {
       <div className="page">
         <h1 className="page-title">Califica lo que sí escuchas</h1>
         <p style={{ color: 'var(--text-muted)' }}>{error}</p>
-        <button className="btn" onClick={cargar}>Reintentar</button>
+        <button className="btn" onClick={() => cargar(true)}>Reintentar</button>
       </div>
     );
   }
 
-  const lista = (data?.tracks || []).filter(t => !soloActivas || t.activa);
   const mostradas = lista.slice(0, visibles);
 
   return (
@@ -204,7 +219,7 @@ export default function BackfillPage() {
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Play size={14} /> {sonando ? 'Armando…' : 'Escuchar 50'}
           </button>
-          <button className="btn" onClick={cargar} title="Recargar">
+          <button className="btn" onClick={() => cargar(true)} title="Recargar de Spotify">
             <RefreshCw size={14} />
           </button>
         </div>
@@ -326,6 +341,17 @@ export default function BackfillPage() {
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{t.artist}</div>
               </div>
+
+              <button
+                onClick={() => escuchar(mostradas.indexOf(t))}
+                disabled={sonando}
+                title="Escuchar 50 desde aquí"
+                style={{
+                  background: 'none', border: '1px solid var(--border-subtle)',
+                  borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)',
+                  padding: '4px 7px', display: 'flex', flexShrink: 0,
+                }}
+              ><Play size={12} /></button>
 
               {/* El dato que sirve para decidir: cuánto la has puesto y desde cuándo */}
               <div style={{

@@ -101,11 +101,21 @@ tambien puede nacer historica. Por eso la logica usa la variable `efectivo`
 segundo, una A+ fechada en 2021 no recibiria `cuatrimestre_override` y
 `rebuild/anual` la sacaria de la Galeria donde se acaba de agregar.
 
-### Limpieza de Me Gusta: las abandonadas
-`GET /tracks/abandoned/queue?meses=&min_plays=` — Me Gusta que se escucharon
-mucho y llevan N meses sin sonar. **No** es "las menos escuchadas": esas casi
-no existen (la mediana de un Me Gusta de Angel son 22 escuchas completas, y
-solo 32 de 2,212 tienen 0-2 plays). La metrica correcta es **recencia**.
+### Limpieza de Me Gusta
+`GET /tracks/cleanup/queue` — **TODOS** los Me Gusta con sus escuchas, sin
+filtrar y ordenados de menos escuchada a mas. El frontend ordena y corta.
+
+**EL UMBRAL LO PONE ANGEL, NO EL BACKEND, y hay una razon.** Aqui se afirmo
+que "las menos escuchadas no existen" y **estaba mal medido**: se miro el
+umbral 0-2 plays (34 canciones). Con la mediana de sus Me Gusta en **20**
+escuchas, 5 SI es casi nada — hay **115** asi y **405** con 10 o menos (17%).
+Angel tenia razon y lo dijo dos veces. Un umbral absoluto no sirve para juzgar
+una distribucion que no se conoce: se le da la lista ordenada y el corta.
+
+`GET /tracks/abandoned/queue?meses=&min_plays=` — la otra mitad del problema:
+las que se escucharon mucho y llevan N meses sin sonar (metrica de recencia).
+Sigue vivo, pero la UI ya no lo usa: `cleanup/queue` trae `meses_sin_oir` y el
+frontend ordena por eso.
 
 `POST /tracks/unlike` — la **unica accion destructiva de la app**. Nunca se
 dispara sola: sale siempre de una seleccion explicita, la UI pide confirmacion,

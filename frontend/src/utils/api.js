@@ -92,9 +92,15 @@ export const api = {
   // de Spotify (~47 llamadas para 2,300).
   getBackfillQueue: () => request('/tracks/backfill/queue'),
 
-  // Limpieza de Me Gusta: las ABANDONADAS. No son "las menos escuchadas" (esas
-  // no existen: la mediana de un Me Gusta suyo son 22 escuchas), son las que
-  // amó hace años y lleva 12+ meses sin poner.
+  // Limpieza de Me Gusta.
+  // OJO: aquí se dijo alguna vez que "las menos escuchadas no existen". Estaba
+  // MAL MEDIDO — se miró el umbral 0-2 plays. Con la mediana en 20 escuchas,
+  // 5 sí es casi nada: hay 115 así y 405 con 10 o menos.
+  //
+  // TODOS los Me Gusta con sus escuchas, sin filtrar. El umbral lo pone Angel
+  // desde la UI, no el backend: con la mediana en 20 escuchas, 5 ya es "casi
+  // nunca", y ese corte solo lo sabe él.
+  getCleanupQueue: () => request('/tracks/cleanup/queue'),
   getAbandoned: (meses = 12, minPlays = 5) =>
     request(`/tracks/abandoned/queue?meses=${meses}&min_plays=${minPlays}`),
   // Única acción destructiva de la app: siempre desde una selección explícita.
@@ -104,9 +110,12 @@ export const api = {
   }),
   // Arma una playlist real con lo primero de la cola y la reproduce, para no
   // ir canción por canción. Reutiliza siempre la misma playlist.
-  buildQueuePlaylist: (source = 'backfill', limit = 50, play = true) =>
+  // trackIds explícito = "escuchar de la 60 a la 100" sin tener que calificar
+  // las 50 primeras. Si va vacío, el backend toma las primeras N de la cola.
+  buildQueuePlaylist: (source = 'backfill', limit = 50, play = true, trackIds = null) =>
     request(`/tracks/backfill/playlist?source=${source}&limit=${limit}&play=${play}`, {
       method: 'POST',
+      body: JSON.stringify({ track_ids: trackIds }),
     }),
 
   // Migración de cuatrimestre

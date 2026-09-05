@@ -83,6 +83,17 @@ class MigrateRequest(BaseModel):
     to_cuatrimestre: str
 
 
+class QueuePlaylistRequest(BaseModel):
+    """Armar una playlist real para escuchar una cola sin ir cancion por cancion.
+
+    `track_ids` explicito es lo que resuelve "y si quiero escuchar de la 60 a la
+    100": el frontend manda justo el tramo que el usuario esta viendo, en vez de
+    obligarlo a calificar las primeras 50 para llegar a las siguientes.
+    Si viene vacio, el endpoint cae a las primeras N de la cola que se le pida.
+    """
+    track_ids: Optional[list[str]] = None
+
+
 class UnlikeRequest(BaseModel):
     """Quitar el like de Spotify a varias canciones (limpieza de Me Gusta).
 

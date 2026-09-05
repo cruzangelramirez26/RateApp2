@@ -2,6 +2,88 @@
 
 ---
 
+## 2026-09-04 (sesion: se corrige el error de medicion + cache + tramos de escucha)
+
+**Maquina: PC `AngelPC`.** Tres quejas de Angel, y la tercera obligo a admitir
+un error de analisis de hace tres sesiones.
+
+**1) EL ERROR: "las menos escuchadas no existen" ESTABA MAL MEDIDO.**
+
+Angel lo dijo dos veces y las dos se le llevo la contraria. La tercera fue
+explicita: *"es que en realidad yo queria eso que te dije, las que tengo en mis
+me gusta y casi ni escuche, no digo solo las que tienen 0 escuchas, sino que
+tienen demasiado pocas"*.
+
+Se volvio a medir, y **tenia razon**. El analisis del 2026-09-02 uso el umbral
+**0-2 reproducciones** (34 canciones) y de ahi salio la conclusion. Pero:
+
+```
+mediana de sus Me Gusta: 20 escuchas    promedio: 25    maximo: 150
+
+con  2 escuchas o menos     34   1.5%   <- lo unico que se habia mirado
+con  5 escuchas o menos    115   4.9%
+con 10 escuchas o menos    405  17.4%
+```
+
+Con la mediana en 20, **5 escuchas si es "casi nunca"**. El error fue usar un
+umbral absoluto para juzgar una distribucion que no se conocia.
+
+**Y la solucion que propuso el es mejor que cualquier umbral:** *"maybe armar
+mis me gusta por escucha, y de ahi calificar y asi"*. O sea: no que la app
+decida el corte, sino darle la lista ordenada y que el corte.
+
+`GET /tracks/cleanup/queue` devuelve **TODOS** los Me Gusta con sus numeros, sin
+filtrar. El frontend ordena (menos escuchadas / abandonadas / mas escuchadas),
+filtra por umbral escribible, por texto y por "solo sin calificar". El corte lo
+pone Angel. `AbandonedPage` se reemplazo por `CleanupPage`.
+
+**2) LA CARGA SE REPETIA CADA VEZ.** *"se cargo y tardo mucho, luego me sali, me
+volvi a meter y volvio a cargar todo"*. Justo: la peticion recorre los ~2,300 Me
+Gusta de Spotify (~47 llamadas) y no habia cache.
+
+Arreglado con `preloadCache`, que ya existia en el proyecto desde mayo y no se
+estaba usando aqui. Ahora la primera carga es la unica; cambiar de orden o de
+umbral es local e instantaneo, y salir y volver no vuelve a esperar. Calificar y
+quitar likes actualizan el cache con `preloadCache.set` para que no quede viejo.
+El boton de recargar fuerza con `invalidate`.
+
+**3) NO SE PODIA ESCUCHAR MAS QUE LAS PRIMERAS 50.** *"que hago si quiero
+escuchar de la 60 a la 100? a fuerza tendria que calificar las 50 primeras?"*.
+
+No. `POST /tracks/backfill/playlist` ahora acepta `track_ids` en el body, y el
+frontend manda **el tramo exacto** que se esta viendo. Cada fila tiene ademas un
+boton de play que arranca la playlist **desde ahi**. Sin `track_ids` cae al
+comportamiento viejo (las primeras N), asi que nada se rompio.
+
+De paso, cada fuente (`backfill`, `abandoned`, `cleanup`) usa **su propia clave
+en `config`**: si compartieran una, abrir una vista pisaria la playlist que la
+otra dejo sonando.
+
+**Verificacion: 96 comprobaciones** (21 captura + 12 tipos MySQL + 23 backfill +
+23 abandonadas + 17 nuevas). Las de esta tanda: vienen TODAS las canciones y no
+solo las que pasan un umbral; la de 0 escuchas va primero y la de 150 al final;
+sin historial cuenta como 0 y no se omite; se sugiere la primera escucha para no
+fechar en el cuatrimestre actual; el tramo pedido se manda tal cual; deduplica
+sin perder el orden; sin `track_ids` cae a la cola como antes; y cada fuente
+tiene su nombre y su clave de playlist. `npm run build` OK (1588 modulos).
+
+Un test viejo fallo y **el que estaba mal era el test**: comprobaba la clave
+`_ab`, que cambio a `_abandoned` al separar una clave por fuente. Se actualizo
+el test, no el codigo.
+
+**PENDIENTES:**
+
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] Seccion 7, los mixes. Primer paso, 5 min: **verificar si
+      `/recommendations` sigue vivo para esta app**.
+- [ ] `/tracks/abandoned/queue` quedo sin usar por la UI. Se dejo vivo porque su
+      criterio de recencia esta probado, pero es candidato a borrarse.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-04 (sesion: limpiar Me Gusta + escuchar las colas)
 
 **Maquina: PC `AngelPC`.** Continuacion directa de la cola de backfill.

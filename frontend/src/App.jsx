@@ -12,7 +12,7 @@ import RecentPage from './pages/RecentPage';
 import StatsPage from './pages/StatsPage';
 import ToolsPage from './pages/ToolsPage';
 import BackfillPage from './pages/BackfillPage';
-import AbandonedPage from './pages/AbandonedPage';
+import CleanupPage from './pages/CleanupPage';
 
 export default function App() {
   const [auth, setAuth] = useState(null);
@@ -83,7 +83,7 @@ export default function App() {
                 {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
                     desde Herramientas. */}
                 <Route path="/backfill" element={<BackfillPage />} />
-                <Route path="/abandoned" element={<AbandonedPage />} />
+                <Route path="/abandoned" element={<CleanupPage />} />
                 <Route path="/dashboard" element={<StatsPage />} />
               </Routes>
             </div>

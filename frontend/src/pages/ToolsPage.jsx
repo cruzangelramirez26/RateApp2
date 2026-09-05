@@ -242,13 +242,13 @@ export default function ToolsPage() {
           Limpiar Me Gusta
         </div>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
-          Las canciones que escuchabas muchísimo y llevas más de un año sin poner.
-          No son "las que nunca oíste" — esas casi no tienes. Nada se quita sin
-          que lo marques tú.
+          Tus Me Gusta ordenados por lo que de verdad los escuchaste, de menos a
+          más. La mediana son 20 escuchas, así que 5 ya es "casi nunca". Tú pones
+          el corte; nada se quita sin que lo marques.
         </p>
         <button className="btn" onClick={() => navigate('/abandoned')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-          <HeartOff size={14} /> Ver las abandonadas
+          <HeartOff size={14} /> Ordenar por escuchas
         </button>
       </div>
 

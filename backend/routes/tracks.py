@@ -10,7 +10,7 @@ import config
 import utils
 from models import (
     RateRequest, TrackOut, StatsOut, AplusApplyRequest, MigrateRequest,
-    PlayContextRequest, UnlikeRequest,
+    PlayContextRequest, UnlikeRequest, QueuePlaylistRequest,
 )
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
@@ -642,9 +642,10 @@ BACKFILL_PLAYLIST_KEY = "backfill_playlist_id"
 
 @router.post("/backfill/playlist")
 def backfill_playlist(
+    req: Optional[QueuePlaylistRequest] = None,
     limit: int = Query(50, ge=1, le=100),
     play: bool = Query(True),
-    source: str = Query("backfill", pattern="^(backfill|abandoned)$"),
+    source: str = Query("backfill", pattern="^(backfill|abandoned|cleanup)$"),
 ):
     """Arma una playlist REAL con lo primero de la cola y la reproduce.
 
@@ -661,23 +662,42 @@ def backfill_playlist(
     """
     sp = spotify.get_client()
 
-    # Los argumentos van EXPLICITOS. Llamadas asi, de Python a Python, no pasan
-    # por FastAPI, y los defaults declarados como Query(...) llegarian como el
-    # objeto Query en vez de como el numero.
-    datos = (abandoned_queue(limit=3000, meses=ABANDONO_MESES,
-                             min_plays=ABANDONO_MIN_PLAYS)
-             if source == "abandoned" else backfill_queue(limit=3000))
-    tracks = datos["tracks"][:limit]
-    if not tracks:
-        raise HTTPException(status_code=400, detail="No hay canciones en la cola.")
-    ids = [t["track_id"] for t in tracks]
+    # Camino preferido: el frontend manda EXACTAMENTE el tramo que el usuario
+    # esta viendo. Angel: "que hago si quiero escuchar de la 60 a la 100? a
+    # fuerza tendria que calificar las 50 primeras?". No: manda esas.
+    ids = [t for t in dict.fromkeys(req.track_ids)] if (req and req.track_ids) else []
 
-    nombre = ("Abandonadas — revisar" if source == "abandoned"
-              else "Por calificar — lo que más escuchas")
+    if not ids:
+        # Sin lista explicita se cae a las primeras N de la cola que se pida.
+        # Los argumentos van EXPLICITOS: llamadas de Python a Python no pasan
+        # por FastAPI, y los defaults declarados como Query(...) llegarian como
+        # el objeto Query en vez de como el numero.
+        if source == "abandoned":
+            datos = abandoned_queue(limit=3000, meses=ABANDONO_MESES,
+                                    min_plays=ABANDONO_MIN_PLAYS)
+        elif source == "cleanup":
+            datos = cleanup_queue(limit=3000)
+        else:
+            datos = backfill_queue(limit=3000)
+        ids = [t["track_id"] for t in datos["tracks"][:limit]]
+
+    ids = ids[:limit]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No hay canciones en la cola.")
+
+    NOMBRES = {
+        "abandoned": "Abandonadas — revisar",
+        "cleanup": "Limpiar Me Gusta — revisar",
+        "backfill": "Por calificar — lo que más escuchas",
+    }
+    nombre = NOMBRES.get(source, NOMBRES["backfill"])
     desc = ("Generada por RateApp. Se reemplaza cada vez que la pides, "
             "así que no la edites a mano.")
 
-    pl_id = database.get_config(BACKFILL_PLAYLIST_KEY + ("_ab" if source == "abandoned" else ""))
+    # Una playlist por fuente: si compartieran clave, abrir una vista
+    # pisaria la playlist que la otra dejo sonando.
+    cfg_key = BACKFILL_PLAYLIST_KEY + ("" if source == "backfill" else "_" + source)
+    pl_id = database.get_config(cfg_key)
     if pl_id:
         # Puede haber sido borrada desde Spotify: si ya no existe, se recrea.
         try:
@@ -691,8 +711,7 @@ def backfill_playlist(
                 me["id"], nombre, public=False, description=desc)
             pl_id = nueva["id"]
             spotify.replace_playlist(sp, pl_id, ids)
-            database.set_config(
-                BACKFILL_PLAYLIST_KEY + ("_ab" if source == "abandoned" else ""), pl_id)
+            database.set_config(cfg_key, pl_id)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"No se pudo crear la playlist: {e}")
 
@@ -731,6 +750,74 @@ def backfill_playlist(
         "error": error_play,
         "spotify_url": f"https://open.spotify.com/playlist/{pl_id}",
     }
+
+
+@router.get("/cleanup/queue")
+def cleanup_queue(limit: int = Query(3000, ge=1, le=5000)):
+    """TODOS los Me Gusta con sus escuchas reales. Sin filtrar, sin ordenar.
+
+    Reemplaza a /abandoned/queue, que filtraba con un criterio fijo. Angel:
+    "en realidad yo queria las que tengo en mis me gusta y casi ni escuche, no
+    digo solo las que tienen 0 escuchas, sino que tienen demasiado pocas.
+    maybe armar mis me gusta por escucha, y de ahi calificar".
+
+    Tenia razon y la medicion anterior estaba mal planteada: se habia mirado el
+    umbral 0-2 plays (34 canciones) y de ahi salio el "no existen las menos
+    escuchadas". Pero con la mediana en 20 escuchas, **5 escuchas si es casi
+    nada**: hay 115 asi, y 405 con 10 o menos (17% de sus Me Gusta).
+
+    Por eso este endpoint NO decide el umbral. Devuelve todo con sus numeros y
+    el frontend ordena y corta — el corte lo pone Angel, que es quien sabe.
+
+    Una sola llamada trae las ~2,300 canciones, y el frontend la cachea: asi
+    cambiar de orden o de umbral es instantaneo y no se vuelve a esperar.
+    """
+    sp = spotify.get_client()
+    liked = spotify.get_all_liked_tracks(sp, limit=limit)
+
+    df = database.load_all()
+    ratings = {}
+    if not df.empty:
+        for _, r in df.iterrows():
+            v = str(r.get("rating", "")).strip()
+            ratings[r["track_id"]] = v if v and v.lower() != "nan" else ""
+
+    ids = [t.get("id") or t.get("track_id") for t in liked]
+    escuchas = database.get_listening_many(ids)   # UNA query con un solo IN
+
+    ahora = utils.now_utc().replace(tzinfo=None)
+    filas = []
+    for t in liked:
+        tid = t.get("id") or t.get("track_id")
+        s = escuchas.get(tid)
+        last = s.get("last_played") if s else None
+        meses = None
+        if last:
+            try:
+                meses = int((ahora - datetime.fromisoformat(last)).days / 30)
+            except Exception:
+                meses = None
+        first = s.get("first_played") if s else None
+        filas.append({
+            "track_id": tid,
+            "name": t.get("name", ""),
+            "artist": t.get("artist", ""),
+            "album": t.get("album", ""),
+            "image": t.get("image"),
+            "liked_at": t.get("added_at"),
+            "rating": ratings.get(tid, "") or None,
+            "plays": s["plays"] if s else 0,
+            "skips": s["skips"] if s else 0,
+            "hours": s["hours"] if s else 0.0,
+            "first_played": first,
+            "last_played": last,
+            "meses_sin_oir": meses,
+            "suggested_added_at": first.replace("T", " ")[:19] if first else None,
+        })
+
+    # Menos escuchadas primero: es el orden que Angel pidio ver.
+    filas.sort(key=lambda f: (f["plays"], -(f["meses_sin_oir"] or 0)))
+    return {"total": len(filas), "tracks": filas}
 
 
 @router.get("/listening/{track_id}")
