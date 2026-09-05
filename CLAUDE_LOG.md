@@ -71,6 +71,22 @@ Un test viejo fallo y **el que estaba mal era el test**: comprobaba la clave
 `_ab`, que cambio a `_abandoned` al separar una clave por fuente. Se actualizo
 el test, no el codigo.
 
+**BUG REPORTADO POR ANGEL EN VIVO:** *"le estoy picando a la cancion 22 o 23 y
+me esta reproduciendo la segunda cancion de la lista"*. El indice estaba bien;
+el error era `start_playback(context_uri=...)` **sin `offset`**.
+
+Spotify **recuerda la posicion dentro de un contexto**, y como aqui la playlist
+se REUTILIZA siempre, arrancarla sin offset reanudaba donde se habia quedado la
+tanda anterior en vez de empezar por la primera del tramo. El sintoma exacto que
+describio.
+
+Lo mas feo: **el codigo de mayo ya lo resolvia bien**. `play-in-context` pasa
+`offset={"uri": ...}` desde entonces, y aqui no se copio ese detalle.
+
+Arreglado con `offset={"uri": <primera del tramo>}` y respaldo a
+`{"position": 0}` por si Spotify todavia no propago el reemplazo de la
+playlist. 5 casos nuevos, incluido que **nunca** se llame sin offset.
+
 **PENDIENTES:**
 
 - [ ] Vista de las 317 que escucha y no tiene likeadas.

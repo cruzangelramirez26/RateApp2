@@ -718,21 +718,40 @@ def backfill_playlist(
     started = False
     error_play = None
     if play:
-        # Mismo patron que play-in-context: Spotify rechaza start_playback con
-        # NO_ACTIVE_DEVICE cuando la app esta abierta pero idle.
         ctx = f"spotify:playlist:{pl_id}"
         try:
             sp.shuffle(False)
         except Exception:
             pass
+
+        # EL OFFSET NO ES OPCIONAL, y omitirlo fue un bug real: Spotify recuerda
+        # la posicion dentro de un contexto, y como aqui SIEMPRE se reutiliza la
+        # misma playlist, arrancarla sin offset REANUDA donde se quedo la tanda
+        # anterior en vez de empezar por la primera. Sintoma: pedir "escuchar
+        # desde la #22" y oir la segunda cancion de la vez pasada.
+        # Es el mismo patron que play-in-context ya usaba desde mayo.
+        #
+        # Se intenta por uri (preciso, y de paso confirma que la playlist ya
+        # tiene el contenido nuevo) y se cae a position 0 por si Spotify todavia
+        # no propago el reemplazo.
+        primera = f"spotify:track:{ids[0]}"
+
+        def _arrancar(device_id=None):
+            try:
+                sp.start_playback(device_id=device_id, context_uri=ctx,
+                                  offset={"uri": primera})
+            except Exception:
+                sp.start_playback(device_id=device_id, context_uri=ctx,
+                                  offset={"position": 0})
+
         try:
-            sp.start_playback(context_uri=ctx)
+            _arrancar()
             started = True
         except Exception as first:
             dev = _resolve_device_id(sp)
             if dev:
                 try:
-                    sp.start_playback(device_id=dev, context_uri=ctx)
+                    _arrancar(dev)
                     started = True
                 except Exception as second:
                     error_play = str(second)
