@@ -101,6 +101,29 @@ tambien puede nacer historica. Por eso la logica usa la variable `efectivo`
 segundo, una A+ fechada en 2021 no recibiria `cuatrimestre_override` y
 `rebuild/anual` la sacaria de la Galeria donde se acaba de agregar.
 
+### Limpieza de Me Gusta: las abandonadas
+`GET /tracks/abandoned/queue?meses=&min_plays=` — Me Gusta que se escucharon
+mucho y llevan N meses sin sonar. **No** es "las menos escuchadas": esas casi
+no existen (la mediana de un Me Gusta de Angel son 22 escuchas completas, y
+solo 32 de 2,212 tienen 0-2 plays). La metrica correcta es **recencia**.
+
+`POST /tracks/unlike` — la **unica accion destructiva de la app**. Nunca se
+dispara sola: sale siempre de una seleccion explicita, la UI pide confirmacion,
+y el tope son 200 por llamada. **No escribe ninguna calificacion a proposito**:
+abandonada no es lo mismo que mala, y marcar estas canciones con un rating
+seria poner en la DB un juicio que el usuario no hizo.
+
+`POST /tracks/backfill/playlist?source=backfill|abandoned` — arma una playlist
+REAL con las primeras N de la cola y la reproduce, para no ir cancion por
+cancion. **Reutiliza siempre la misma playlist** (su id vive en `config`), asi
+que reemplaza el contenido en vez de dejar una playlist nueva cada vez. Si la
+borras desde Spotify, se recrea sola.
+
+**OJO con el widget de Now Playing del sidebar:** califica con el flujo
+completo y sin fecha, asi que usarlo mientras suena la cola de backfill meteria
+la cancion al cuatrimestre actual. Por eso `/backfill` tiene su propio panel de
+"sonando ahora" con los botones correctos.
+
 ### Modo soft
 `POST /tracks/rate?soft=true` — guarda solo en DB, no toca Spotify. Se usa cuando el usuario califica desde la vista "Me Gusta" en Biblioteca (solo quiere registrar una nota, no distribuir).
 

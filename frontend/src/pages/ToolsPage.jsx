@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon, Headphones } from 'lucide-react';
+import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon, Headphones, HeartOff } from 'lucide-react';
 import { api } from '../utils/api';
 import ThemeToggle from '../components/ThemeToggle';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
@@ -228,6 +228,27 @@ export default function ToolsPage() {
         <button className="btn" onClick={() => navigate('/backfill')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <Headphones size={14} /> Abrir la cola
+        </button>
+      </div>
+
+      {/* -- Limpiar Me Gusta -------------------------------------------------- */}
+      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
+        <div style={{
+          fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
+          letterSpacing: '0.06em', fontWeight: 600, marginBottom: '12px',
+          fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          <HeartOff size={14} />
+          Limpiar Me Gusta
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
+          Las canciones que escuchabas muchísimo y llevas más de un año sin poner.
+          No son "las que nunca oíste" — esas casi no tienes. Nada se quita sin
+          que lo marques tú.
+        </p>
+        <button className="btn" onClick={() => navigate('/abandoned')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <HeartOff size={14} /> Ver las abandonadas
         </button>
       </div>
 

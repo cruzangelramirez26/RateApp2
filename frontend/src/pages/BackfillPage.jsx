@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Headphones, ArrowUp, X, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Headphones, ArrowUp, X, RefreshCw, Play } from 'lucide-react';
 import { api } from '../utils/api';
 import { ratingColor, ratingDim } from '../utils/theme';
 import { useToast } from '../hooks/useToast';
@@ -51,7 +51,54 @@ export default function BackfillPage() {
   const [busy, setBusy] = useState(null);
   const [hechas, setHechas] = useState(0);
   const [visibles, setVisibles] = useState(60);
+  const [sonando, setSonando] = useState(false);
+  const [nowPlaying, setNowPlaying] = useState(null);
   const toast = useToast();
+  const tracksRef = useRef([]);
+  tracksRef.current = data?.tracks || [];
+
+  // Arma una playlist real con lo primero de la cola y la reproduce. Angel:
+  // "no quisiera ir buscando cancion por cancion".
+  async function escuchar() {
+    setSonando(true);
+    try {
+      const r = await api.buildQueuePlaylist('backfill', 50, true);
+      toast(
+        r.playing
+          ? `Sonando ${r.count} canciones, de la más escuchada para abajo`
+          : (r.error || 'Playlist lista, pero no se pudo reproducir'),
+        r.playing ? 'success' : 'error',
+        5000,
+      );
+    } catch (e) {
+      toast(e.message || 'No se pudo armar la playlist', 'error');
+    } finally {
+      setSonando(false);
+    }
+  }
+
+  // Panel de "sonando ahora" DENTRO de esta página, y no es un capricho: el
+  // widget del sidebar califica con el flujo completo y sin fecha, así que
+  // calificar desde ahí metería la canción a Latte 2026 — justo lo que esta
+  // página existe para evitar. Aquí los botones usan la lógica correcta.
+  useEffect(() => {
+    let vivo = true;
+    const tick = () => {
+      api.getNowPlaying()
+        .then(np => {
+          if (!vivo) return;
+          const t = np?.track;
+          if (!t) return setNowPlaying(null);
+          // Solo interesa si es una de las que faltan por calificar.
+          const enCola = tracksRef.current.find(x => x.track_id === t.id);
+          setNowPlaying(enCola ? { ...enCola, image: t.image || enCola.image } : null);
+        })
+        .catch(() => {});
+    };
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => { vivo = false; clearInterval(id); };
+  }, []);
 
   const cargar = useCallback(() => {
     setLoading(true);
@@ -152,11 +199,62 @@ export default function BackfillPage() {
             {hechas > 0 && <> · <b style={{ color: 'var(--accent)' }}>{hechas} listas</b></>}
           </p>
         </div>
-        <button className="btn" onClick={cargar} title="Recargar"
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <RefreshCw size={14} /> Recargar
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={escuchar} disabled={sonando || !data.tracks.length}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Play size={14} /> {sonando ? 'Armando…' : 'Escuchar 50'}
+          </button>
+          <button className="btn" onClick={cargar} title="Recargar">
+            <RefreshCw size={14} />
+          </button>
+        </div>
       </div>
+
+      {/* Sonando ahora — con los botones correctos, para no tener que calificar
+          desde el widget del sidebar (que usa el flujo completo y sin fecha). */}
+      {nowPlaying && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 11, marginTop: 12,
+          padding: '10px 12px', borderRadius: 'var(--radius-md)',
+          border: `1px solid var(--accent)`, background: 'var(--bg-card)',
+          flexWrap: 'wrap',
+        }}>
+          {nowPlaying.image && (
+            <img src={nowPlaying.image} alt="" style={{
+              width: 42, height: 42, borderRadius: 'var(--radius-sm)',
+              objectFit: 'cover', flexShrink: 0,
+            }} />
+          )}
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <div style={{
+              fontSize: '0.68rem', color: 'var(--accent)', fontWeight: 700,
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+            }}>Sonando ahora · {nowPlaying.plays} escuchas</div>
+            <div style={{
+              fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{nowPlaying.name}</div>
+            <div style={{ fontSize: '0.77rem', color: 'var(--text-muted)' }}>
+              {nowPlaying.artist}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {RATINGS.map(r => (
+              <button
+                key={r}
+                disabled={busy === nowPlaying.track_id}
+                onClick={() => catalogar(nowPlaying, r)}
+                style={{
+                  padding: '5px 11px', borderRadius: 7, cursor: 'pointer',
+                  border: `1.5px solid ${ratingColor(r)}`,
+                  background: ratingDim(r), color: ratingColor(r),
+                  fontFamily: 'var(--font-mono)', fontSize: '0.78rem', fontWeight: 700,
+                }}
+              >{r}</button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{
         marginTop: 12, padding: '9px 12px', background: 'var(--bg-surface)',

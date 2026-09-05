@@ -10,7 +10,7 @@ import config
 import utils
 from models import (
     RateRequest, TrackOut, StatsOut, AplusApplyRequest, MigrateRequest,
-    PlayContextRequest,
+    PlayContextRequest, UnlikeRequest,
 )
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
@@ -506,6 +506,230 @@ def backfill_queue(limit: int = Query(3000, ge=1, le=5000)):
         "total_pending": len(filas),
         "activas": sum(1 for f in filas if f["activa"]),
         "tracks": filas,
+    }
+
+
+# --- Limpieza de Me Gusta: las ABANDONADAS (Mejoras.txt seccion 8) ----------
+#
+# Angel pidio "las menos escuchadas" y NO EXISTEN: de 2,212 Me Gusta con 6+
+# meses, solo 32 tienen 0-2 reproducciones en toda su vida, y la mediana son 22
+# escuchas completas. No hay basura por volumen.
+#
+# Lo que si existe, y es lo que de verdad le molesta, son las ABANDONADAS: 721
+# canciones (31% de sus Me Gusta) que escucho mucho hace anios y lleva 12+ meses
+# sin poner ni una vez. La metrica correcta es RECENCIA, no volumen.
+#
+# ABANDONADA != BASURA. Puede ser un clasico personal que no se pone seguido.
+# Esto es una lista de CANDIDATAS A REVISAR: la app nunca quita un like sola.
+
+ABANDONO_MESES = 12      # sin escucharla
+ABANDONO_MIN_PLAYS = 5   # la escuchaste de verdad en su momento
+ABANDONO_MIN_EDAD_D = 365  # el like tiene al menos un anio: lo nuevo no se juzga
+
+
+@router.get("/abandoned/queue")
+def abandoned_queue(
+    limit: int = Query(3000, ge=1, le=5000),
+    meses: int = Query(ABANDONO_MESES, ge=1, le=120),
+    min_plays: int = Query(ABANDONO_MIN_PLAYS, ge=0, le=1000),
+):
+    """Me Gusta que amabas y ya no escuchas.
+
+    Ordenadas por cuanto las escuchaste ANTES: primero las que mas te gustaron
+    y mas abandonaste, que son las que mas dicen sobre como cambio tu gusto.
+
+    RENDIMIENTO: un solo get_listening_many() con un IN (...), nunca una query
+    por cancion (ver la regla en database.py).
+    """
+    sp = spotify.get_client()
+    liked = spotify.get_all_liked_tracks(sp, limit=limit)
+
+    df = database.load_all()
+    ratings = {}
+    if not df.empty:
+        for _, r in df.iterrows():
+            v = str(r.get("rating", "")).strip()
+            ratings[r["track_id"]] = v if v and v.lower() != "nan" else ""
+
+    ids = [t.get("id") or t.get("track_id") for t in liked]
+    escuchas = database.get_listening_many(ids)
+
+    ahora = utils.now_utc().replace(tzinfo=None)
+    corte_escucha = ahora - timedelta(days=30 * meses)
+    corte_like = ahora - timedelta(days=ABANDONO_MIN_EDAD_D)
+
+    filas = []
+    for t in liked:
+        tid = t.get("id") or t.get("track_id")
+        s = escuchas.get(tid)
+        if not s or s["plays"] < min_plays:
+            continue
+
+        # Un like reciente no se juzga: no ha tenido tiempo de ser abandonado.
+        liked_at = t.get("added_at")
+        if liked_at:
+            try:
+                if datetime.fromisoformat(
+                        str(liked_at).replace("Z", "+00:00")).replace(
+                        tzinfo=None) > corte_like:
+                    continue
+            except Exception:
+                pass
+
+        last = s.get("last_played")
+        if not last:
+            continue
+        try:
+            last_dt = datetime.fromisoformat(last)
+        except Exception:
+            continue
+        if last_dt > corte_escucha:
+            continue   # la sigues escuchando: no esta abandonada
+
+        filas.append({
+            "track_id": tid,
+            "name": t.get("name", ""),
+            "artist": t.get("artist", ""),
+            "album": t.get("album", ""),
+            "image": t.get("image"),
+            "rating": ratings.get(tid, "") or None,
+            "plays": s["plays"],
+            "hours": s["hours"],
+            "first_played": s.get("first_played"),
+            "last_played": last,
+            "meses_sin_oir": int((ahora - last_dt).days / 30),
+        })
+
+    filas.sort(key=lambda f: -f["plays"])
+    return {
+        "total": len(filas),
+        "criterio": {"meses_sin_oir": meses, "min_plays": min_plays},
+        "tracks": filas,
+    }
+
+
+@router.post("/unlike")
+def unlike_tracks(req: UnlikeRequest):
+    """Quita el like de Spotify a las canciones dadas.
+
+    Es la unica accion destructiva de la limpieza, asi que:
+      - la app NUNCA la dispara sola, siempre sale de una seleccion explicita;
+      - no escribe ninguna calificacion. Abandonada no es lo mismo que mala, y
+        marcarlas D automaticamente seria poner en la DB un juicio que Angel no
+        hizo. Si quiere calificarlas, para eso estan los botones de rating.
+    """
+    ids = [t for t in dict.fromkeys(req.track_ids) if t]
+    if not ids:
+        return {"ok": True, "removed": 0}
+    if len(ids) > 200:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximo 200 canciones por vez. Es a proposito: quitar likes "
+                   "no se deshace solo y conviene revisarlo en tandas.",
+        )
+    sp = spotify.get_client()
+    try:
+        spotify.unsave_tracks(sp, ids)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify rechazo el unlike: {e}")
+    return {"ok": True, "removed": len(ids)}
+
+
+# --- Escuchar la cola sin ir cancion por cancion ----------------------------
+
+BACKFILL_PLAYLIST_KEY = "backfill_playlist_id"
+
+
+@router.post("/backfill/playlist")
+def backfill_playlist(
+    limit: int = Query(50, ge=1, le=100),
+    play: bool = Query(True),
+    source: str = Query("backfill", pattern="^(backfill|abandoned)$"),
+):
+    """Arma una playlist REAL con lo primero de la cola y la reproduce.
+
+    Angel: "no quisiera ir buscando cancion por cancion". Una playlist de verdad
+    (en vez de mandarle una lista de uris a start_playback) le deja seguir
+    escuchando desde Spotify sin la app abierta.
+
+    Se REUTILIZA la misma playlist siempre — su id vive en `config` — para no
+    ir dejando una playlist nueva tirada en su cuenta cada vez. Por eso el
+    contenido se reemplaza, no se acumula.
+
+    Tope de `limit` a proposito: pidio explicitamente no acabar con una cola de
+    mil canciones.
+    """
+    sp = spotify.get_client()
+
+    # Los argumentos van EXPLICITOS. Llamadas asi, de Python a Python, no pasan
+    # por FastAPI, y los defaults declarados como Query(...) llegarian como el
+    # objeto Query en vez de como el numero.
+    datos = (abandoned_queue(limit=3000, meses=ABANDONO_MESES,
+                             min_plays=ABANDONO_MIN_PLAYS)
+             if source == "abandoned" else backfill_queue(limit=3000))
+    tracks = datos["tracks"][:limit]
+    if not tracks:
+        raise HTTPException(status_code=400, detail="No hay canciones en la cola.")
+    ids = [t["track_id"] for t in tracks]
+
+    nombre = ("Abandonadas — revisar" if source == "abandoned"
+              else "Por calificar — lo que más escuchas")
+    desc = ("Generada por RateApp. Se reemplaza cada vez que la pides, "
+            "así que no la edites a mano.")
+
+    pl_id = database.get_config(BACKFILL_PLAYLIST_KEY + ("_ab" if source == "abandoned" else ""))
+    if pl_id:
+        # Puede haber sido borrada desde Spotify: si ya no existe, se recrea.
+        try:
+            spotify.replace_playlist(sp, pl_id, ids)
+        except Exception:
+            pl_id = None
+    if not pl_id:
+        try:
+            me = sp.current_user()
+            nueva = sp.user_playlist_create(
+                me["id"], nombre, public=False, description=desc)
+            pl_id = nueva["id"]
+            spotify.replace_playlist(sp, pl_id, ids)
+            database.set_config(
+                BACKFILL_PLAYLIST_KEY + ("_ab" if source == "abandoned" else ""), pl_id)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"No se pudo crear la playlist: {e}")
+
+    started = False
+    error_play = None
+    if play:
+        # Mismo patron que play-in-context: Spotify rechaza start_playback con
+        # NO_ACTIVE_DEVICE cuando la app esta abierta pero idle.
+        ctx = f"spotify:playlist:{pl_id}"
+        try:
+            sp.shuffle(False)
+        except Exception:
+            pass
+        try:
+            sp.start_playback(context_uri=ctx)
+            started = True
+        except Exception as first:
+            dev = _resolve_device_id(sp)
+            if dev:
+                try:
+                    sp.start_playback(device_id=dev, context_uri=ctx)
+                    started = True
+                except Exception as second:
+                    error_play = str(second)
+            else:
+                error_play = ("No hay ningún dispositivo de Spotify disponible. "
+                              "Abre Spotify y vuelve a intentar.")
+            if not started and error_play is None:
+                error_play = str(first)
+
+    return {
+        "ok": True,
+        "playlist_id": pl_id,
+        "count": len(ids),
+        "playing": started,
+        "error": error_play,
+        "spotify_url": f"https://open.spotify.com/playlist/{pl_id}",
     }
 
 

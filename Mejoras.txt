@@ -439,9 +439,19 @@ Angel cancion por cancion. NO auto-quitar likes.
 calificacion. La app conoce 1,310 tracks; los Me Gusta son 2,328. Hay canciones
 con 29 reproducciones en el ultimo anio sin calificar (Easykid, Nsqk, Alvaro
 Diaz). O sea la app esta ciega a dos tercios de lo que Angel realmente escucha.
-  - [ ] Cola de "calificar lo que si escuchas": Me Gusta sin calificar,
-        ordenadas por reproducciones de los ultimos 12 meses. Es PendingPage
-        pero alimentada por escuchas reales en vez de por la playlist <3333>.
+  - [x] HECHO 2026-09-04 — Cola "califica lo que si escuchas" en /backfill.
+        Ordena por escuchas reales (con last_played como proxy de "la sigues
+        oyendo": el agregado no guarda serie temporal, asi que no se puede
+        contar plays de los ultimos 12 meses exactos). Califica con la fecha
+        de la PRIMERA escucha, asi que nada se cuela a Latte 2026. Boton
+        aparte "a mi rotacion" para las que si quiere oir hoy, y panel de
+        "sonando ahora" propio porque el widget del sidebar califica mal.
+  - [x] HECHO 2026-09-04 — Vista de abandonadas en /abandoned. Presets de
+        criterio, seleccion multiple y confirmacion explicita. POST
+        /tracks/unlike es la unica accion destructiva de la app y NO escribe
+        rating: abandonada != mala.
+  - [x] HECHO 2026-09-04 — Boton "Escuchar 50" en las dos colas: arma una
+        playlist REAL (reutiliza siempre la misma) y la reproduce en orden.
 
 ROZA LA SECCION 6b: de las 721 abandonadas, 30 son A+ y 26 son A. Es poco (6% de
 las 486 A+), asi que el historial NO delata una inflacion masiva de A+ por el

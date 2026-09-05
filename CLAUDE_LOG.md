@@ -2,6 +2,97 @@
 
 ---
 
+## 2026-09-04 (sesion: limpiar Me Gusta + escuchar las colas)
+
+**Maquina: PC `AngelPC`.** Continuacion directa de la cola de backfill.
+
+Angel pidio dos cosas, y de la segunda dijo lo importante: *"sigo sin ver lo
+contrario que es lo que verdaderamente queria, calificar o mas bien descalificar
+las que no me gustan de mi me gusta"*. Tenia razon: era lo primero que pidio
+el 2026-09-01 y llevaba tres sesiones sin construirse.
+
+**1) ESCUCHAR LA COLA SIN IR CANCION POR CANCION.**
+*"no quisiera ir buscando cancion por cancion. maybe hacer una playlist real de
+mis canciones mas escuchadas y que si le doy click traiga esa playlist en ese
+orden"*, y aparte *"para no tener una cola de 1000 canciones mejor"*.
+
+`POST /tracks/backfill/playlist?source=backfill|abandoned&limit=50` arma una
+playlist **real** con lo primero de la cola y la reproduce con `context_uri`.
+Se eligio playlist real sobre mandar una lista de `uris` a `start_playback`
+porque asi puede seguir escuchando desde Spotify sin la app abierta, que es lo
+que el describio.
+
+**Reutiliza siempre la misma playlist** — su id vive en `config` — para no ir
+dejando una playlist nueva tirada en su cuenta cada vez que le da al boton. Si
+la borra desde Spotify, se recrea sola en vez de tronar. El `limit` topa en 100
+a proposito: pidio explicitamente no acabar con una cola de mil canciones.
+
+**EL RIESGO QUE SE LE SENALO ANTES DE CONSTRUIRLO, y que el no habia visto:**
+el widget de Now Playing del sidebar califica con `api.rateTrack` **sin fecha**,
+o sea con el flujo completo. Si escuchaba la cola y calificaba desde ahi,
+**metia la cancion a Latte 2026** — exactamente lo que la pagina de backfill
+existe para evitar. Por eso `/backfill` tiene ahora su **propio panel de
+"sonando ahora"**, con los 7 botones cableados a la logica correcta (soft +
+fecha de la primera escucha). Se sondea `now-playing` cada 5 s y el panel solo
+aparece si la cancion es una de las que faltan por calificar.
+
+**2) LIMPIAR ME GUSTA: LAS ABANDONADAS.** Lo que de verdad queria.
+
+`GET /tracks/abandoned/queue?meses=&min_plays=` — Me Gusta que se escucharon
+mucho y llevan N meses sin sonar, ordenadas por cuanto se escucharon ANTES:
+primero las que mas amo y mas abandono. Tres filtros:
+  - `min_plays` (default 5): "la amabas de verdad".
+  - `meses` (default 12): "ya no la pones".
+  - like de al menos un anio: lo recien likeado no se juzga, no ha tenido
+    tiempo de ser abandonado.
+
+`POST /tracks/unlike` es **la unica accion destructiva de toda la app**, y se
+trato como tal: nunca se dispara sola, sale siempre de una seleccion explicita,
+la UI pide confirmacion aparte con el conteo, y el tope son 200 por llamada
+(en tandas, porque no se deshace solo).
+
+**Y NO escribe ninguna calificacion, a proposito.** Marcar estas canciones con
+una D automaticamente seria poner en la DB un juicio que Angel no hizo:
+*abandonada no es lo mismo que mala*, y en esa lista hay clasicos suyos. Quedo
+escrito en el codigo, en `CLAUDE.md` y en la propia UI.
+
+**Codigo:** `backend/models.py` (`UnlikeRequest`), `backend/routes/tracks.py`
+(`abandoned_queue`, `unlike_tracks`, `backfill_playlist`),
+`frontend/src/pages/AbandonedPage.jsx` (nuevo), ruta `/abandoned`, panel de
+sonando y boton "Escuchar 50" en `BackfillPage.jsx`, dos tarjetas nuevas en
+Herramientas, y `api.js`.
+
+**BUG ATRAPADO ANTES DE PROBAR NADA:** `backfill_playlist` llama a
+`backfill_queue()` y `abandoned_queue()` como funciones normales de Python. Los
+defaults de esas funciones estan declarados como `Query(3000, ...)`, y una
+llamada que no pasa por FastAPI recibe **el objeto Query en vez del numero** —
+`get_all_liked_tracks(limit=<objeto Query>)` habria reventado en la primera
+llamada real. Arreglado pasando los argumentos explicitos, con la razon escrita
+al lado para que no se "limpie" despues.
+
+**Verificacion: 79 comprobaciones** (21 captura + 12 tipos de MySQL + 23
+backfill + 23 nuevas), sin red y sin MySQL. Las que importan de esta tanda: la
+que sigue escuchando NO sale como abandonada; 2 plays no cuenta como "la
+amabas"; un like de hace un mes no se juzga; sin historial queda fuera; aflojar
+o apretar el criterio cambia la lista; el unlike deduplica, no llama a Spotify
+con lista vacia, rechaza mas de 200, y **se verifico por inspeccion del codigo
+fuente que no escribe ningun rating**; la playlist se crea la primera vez,
+guarda su id, se reutiliza la segunda, reproduce con `context_uri` (no
+canciones sueltas) y se recrea si la borraron desde Spotify.
+`npm run build` OK (1588 modulos).
+
+**PENDIENTES:**
+
+- [ ] Vista de las 317 que escucha y no tiene likeadas. Es la unica de las tres
+      vistas del analisis que falta.
+- [ ] Seccion 7, los mixes. Primer paso, 5 min: **verificar si
+      `/recommendations` sigue vivo para esta app**.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-04 (sesion: cola de backfill, "califica lo que si escuchas")
 
 **Maquina: PC `AngelPC`.** Misma sesion que el cambio a Cloud Scheduler.

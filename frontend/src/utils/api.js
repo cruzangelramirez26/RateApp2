@@ -92,6 +92,23 @@ export const api = {
   // de Spotify (~47 llamadas para 2,300).
   getBackfillQueue: () => request('/tracks/backfill/queue'),
 
+  // Limpieza de Me Gusta: las ABANDONADAS. No son "las menos escuchadas" (esas
+  // no existen: la mediana de un Me Gusta suyo son 22 escuchas), son las que
+  // amó hace años y lleva 12+ meses sin poner.
+  getAbandoned: (meses = 12, minPlays = 5) =>
+    request(`/tracks/abandoned/queue?meses=${meses}&min_plays=${minPlays}`),
+  // Única acción destructiva de la app: siempre desde una selección explícita.
+  unlikeTracks: (trackIds) => request('/tracks/unlike', {
+    method: 'POST',
+    body: JSON.stringify({ track_ids: trackIds }),
+  }),
+  // Arma una playlist real con lo primero de la cola y la reproduce, para no
+  // ir canción por canción. Reutiliza siempre la misma playlist.
+  buildQueuePlaylist: (source = 'backfill', limit = 50, play = true) =>
+    request(`/tracks/backfill/playlist?source=${source}&limit=${limit}&play=${play}`, {
+      method: 'POST',
+    }),
+
   // Migración de cuatrimestre
   getMigrationCandidates: () => request('/tracks/migrate/candidates'),
   migrateTracks: (trackIds, toCuatrimestre) => request('/tracks/migrate', {

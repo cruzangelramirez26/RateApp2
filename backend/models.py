@@ -83,6 +83,16 @@ class MigrateRequest(BaseModel):
     to_cuatrimestre: str
 
 
+class UnlikeRequest(BaseModel):
+    """Quitar el like de Spotify a varias canciones (limpieza de Me Gusta).
+
+    No lleva rating a proposito: abandonada no es lo mismo que mala, y marcar
+    estas canciones con una calificacion seria escribir en la DB un juicio que
+    el usuario no hizo.
+    """
+    track_ids: list[str]
+
+
 class PlayContextRequest(BaseModel):
     """Reproducir un track DENTRO del contexto de una playlist."""
     track_id: str
