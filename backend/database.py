@@ -629,20 +629,35 @@ def reindex_listening_keys(chunk: int = 1000) -> dict:
     Existe para no obligar a re-correr el import de 156 MB (que ademas pide la
     contrasena de MySQL a mano): la tabla ya guarda name y artist, asi que la
     clave se puede derivar de lo que hay.
+
+    Usa INSERT ... ON DUPLICATE KEY UPDATE y NO `executemany` con UPDATE, y la
+    diferencia no es de estilo: el conector agrupa los INSERT en una sola
+    sentencia multi-valor, pero los UPDATE los manda de uno en uno. Con 24k
+    filas a ~80 ms de viaje eso son mas de 30 MINUTOS, y el request de Cloud Run
+    muere antes. Medido: la primera version se quedo colgada. Asi son ~24
+    viajes y termina en segundos.
+
+    Ningun track_id se inserta de verdad: todos salen de la propia tabla, asi
+    que siempre entran por la rama del duplicado.
     """
     import utils
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("SELECT track_id, name, artist FROM listening_stats")
         filas = cur.fetchall()
-        pares = [(utils.listening_key(r[1], r[2]), r[0]) for r in filas]
+        pares = [(r[0], utils.listening_key(r[1], r[2])) for r in filas]
         for i in range(0, len(pares), chunk):
-            cur.executemany(
-                "UPDATE listening_stats SET match_key = %s WHERE track_id = %s",
-                pares[i:i + chunk])
+            lote = pares[i:i + chunk]
+            marks = ",".join(["(%s,%s)"] * len(lote))
+            plano = [v for par in lote for v in par]
+            cur.execute(
+                "INSERT INTO listening_stats (track_id, match_key) VALUES "
+                + marks +
+                " ON DUPLICATE KEY UPDATE match_key = VALUES(match_key)",
+                plano)
             conn.commit()
         cur.close()
-    return {"filas": len(pares), "claves_unicas": len({p[0] for p in pares})}
+    return {"filas": len(pares), "claves_unicas": len({p[1] for p in pares})}
 
 
 def get_listening_for(tracks: list, chunk: int = 500) -> dict:
