@@ -71,10 +71,43 @@ nuevo de Me Gusta, y `Eso Y Mas` casa con `Eso Y Mas` acentuado. Tres tests
 viejos fallaron por stubs desactualizados (apuntaban a `get_listening_many`);
 **se corrigieron los tests, no el codigo**.
 
+**RESULTADO EN PRODUCCION.** El reindex corrio en **3 segundos**: 23,926
+filas, 21,373 claves unicas. Los ceros falsos desaparecieron.
+
+```
+                        antes   despues
+con 0 escuchas             17         0
+sin dato (muestran ?)       -         1   (Lose Yourself, Eminem)
+hasta 2 escuchas           34         9
+hasta 5 escuchas          113        76
+hasta 10 escuchas         404       316
+```
+
+**CONTRA stats.fm NO CUADRA EXACTO, y la razon esta medida:**
+
+  - `LUCES DE COLORES`: la app dice **18**, stats.fm **19**. En el export hay
+    **23** reproducciones, pero solo 18 pasan de 30 s; las otras cinco duraron
+    9s, 6s, 17s, 8s y 2s. La app usa el umbral de 30 s (`UMBRAL_PLAY_MS`), que
+    es el que Spotify usa para contar un stream. **Diferencia de definicion,
+    no un error.** Si algun dia Angel quiere que cuadre con stats.fm es una
+    linea, pero se le recomendo NO hacerlo: contar un salto de 2 segundos como
+    escucha ensucia justo la metrica con la que limpia.
+  - `Eso Y Mas`: la app dice **4** y stats.fm **3**, y aqui la app va MEJOR: el
+    export trae 3 y la cuarta es la que Angel escucho antier, capturada por el
+    cron. De paso confirma que la captura automatica funciona.
+
+**BUG QUE SALIO AL CORRER EL REINDEX POR PRIMERA VEZ:** se quedaba colgado y el
+request de Cloud Run moria. `executemany` con **UPDATE** no se agrupa — el
+conector manda una sentencia por fila, o sea 24k viajes de ~80 ms: mas de 30
+minutos. **Es el mismo error que se habia evitado a proposito en
+`import_historial.py`** y que aqui se repitio. Arreglado con
+`INSERT ... ON DUPLICATE KEY UPDATE`, que si se agrupa: 24 viajes, 3 segundos.
+La prueba tiene una asercion que falla si alguien vuelve a poner executemany
+con UPDATE ahi.
+
 **PENDIENTES:**
 
-- [ ] **Correr el reindex en produccion** tras el deploy, y volver a comprobar
-      LUCES DE COLORES contra stats.fm.
+- [x] **Reindex CORRIDO y verificado** (ver arriba).
 - [ ] Vista de las 317 que escucha y no tiene likeadas.
 - [ ] Seccion 7, los mixes. Primer paso: verificar si `/recommendations` sigue
       vivo para esta app.
