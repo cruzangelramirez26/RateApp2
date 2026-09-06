@@ -857,6 +857,63 @@ def listening_reindex():
     return database.reindex_listening_keys()
 
 
+@router.get("/diag/spotify-endpoints")
+def diag_spotify_endpoints():
+    """DIAGNOSTICO TEMPORAL. Solo lectura, no escribe nada.
+
+    Responde la pregunta que quedo pendiente 6 sesiones seguidas: si
+    /recommendations sigue vivo para esta app o si Spotify ya lo cerro por
+    estar en development mode (deprecacion de nov 2024).
+
+    Tambien reporta si el scope user-top-read esta presente, que es lo que
+    /me/top/tracks necesita para el mix por ventanas.
+    """
+    import spotipy
+
+    sp = spotify.get_client()
+    out = {}
+
+    # Un seed real de su propia cuenta: /recommendations exige semillas validas,
+    # y con un id inventado un 404 no distinguiria "endpoint muerto" de
+    # "semilla mala".
+    seed = None
+    try:
+        saved = sp.current_user_saved_tracks(limit=1)
+        items = saved.get("items") or []
+        if items:
+            seed = (items[0].get("track") or {}).get("id")
+    except Exception as e:
+        out["seed_error"] = str(e)[:200]
+    out["seed_track"] = seed
+
+    if seed:
+        try:
+            # Llamada cruda en vez de sp.recommendations(): mide el endpoint
+            # HTTP tal cual, sin que el wrapper de spotipy medie ni pueda
+            # faltar el metodo segun la version.
+            rec = sp._get("recommendations", seed_tracks=seed, limit=5)
+            out["recommendations"] = {
+                "status": 200,
+                "vivo": True,
+                "devolvio": len(rec.get("tracks") or []),
+            }
+        except spotipy.SpotifyException as e:
+            out["recommendations"] = {
+                "status": e.http_status,
+                "vivo": False,
+                "msg": str(e.msg)[:200],
+            }
+        except Exception as e:
+            out["recommendations"] = {"vivo": False, "error": str(e)[:200]}
+    else:
+        out["recommendations"] = {"error": "sin seed, no se pudo probar"}
+
+    out["scope_actual"] = spotify.SCOPE
+    out["tiene_user_top_read"] = "user-top-read" in spotify.SCOPE
+
+    return out
+
+
 @router.get("/listening/{track_id}")
 def listening_for_track(track_id: str,
                         name: str = Query("", description="para emparejar por nombre"),
