@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
     database.ensure_table()
     database.ensure_config_table()
     database.ensure_listening_table()
+    database.ensure_listening_events_table()
     yield
 
 

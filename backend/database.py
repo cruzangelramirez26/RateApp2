@@ -733,3 +733,204 @@ def get_listening_for(tracks: list, chunk: int = 500) -> dict:
             "last_played": row[5].isoformat() if row[5] else None,
         }
     return porTrack
+
+
+# ---------------------------------------------------------------------------
+# Serie temporal de escuchas  (ventanas de 30 dias / 1 anio / historico)
+# ---------------------------------------------------------------------------
+#
+# POR QUE EXISTE ESTA TABLA APARTE DE listening_stats.
+# `listening_stats` es un AGREGADO: una fila por cancion con el total de plays
+# y first/last_played. Sirve para "cuanto he escuchado esto en la vida", pero
+# NO puede contestar "cuantas veces en los ultimos 30 dias", porque no guarda
+# cuando ocurrio cada reproduccion. El sintoma concreto: una cancion escuchada
+# 200 veces en 2021 y UNA vez ayer se ve tan reciente como una que suena 50
+# veces este mes.
+#
+# Aqui va una fila por reproduccion, que es lo que hace medibles las ventanas.
+#
+# TRES DECISIONES QUE IMPORTAN:
+#
+# 1. PK (track_id, played_at) -> IDEMPOTENCIA GRATIS. La captura corre cada 15
+#    min y siempre pide las ultimas 50 reproducciones, o sea re-ve lo que ya
+#    guardo. Con esta PK, re-insertar no duplica. El doble conteo es un error
+#    silencioso y permanente, asi que se cierra en el esquema y no en la logica.
+#
+# 2. match_key, igual que listening_stats. Spotify da IDs distintos a la misma
+#    cancion; cruzar solo por track_id ya costo ~12,000 reproducciones perdidas
+#    una vez. Toda consulta de ventana agrupa por clave, no por id.
+#
+# 3. Tabla ANGOSTA y separada: no guarda name/artist (viven en
+#    listening_stats, y duplicarlos en 118k filas es desperdicio) y ninguna
+#    query existente la toca, asi que load_all() y los tiempos de carga quedan
+#    exactamente igual.
+
+def ensure_listening_events_table():
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS listening_events (
+                track_id   VARCHAR(64)  NOT NULL,
+                played_at  DATETIME     NOT NULL,
+                ms_played  INT          NOT NULL DEFAULT 0,
+                match_key  VARCHAR(255) NULL DEFAULT NULL,
+                PRIMARY KEY (track_id, played_at),
+                INDEX idx_ev_played (played_at),
+                INDEX idx_ev_key_played (match_key, played_at)
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+        """)
+        conn.commit()
+        cur.close()
+
+
+def add_events_batch(rows: list, chunk: int = 1000) -> int:
+    """Guarda reproducciones individuales. Idempotente por PK.
+
+    OJO CON EL LOTE: se usa INSERT (no UPDATE) a proposito. `executemany` con
+    UPDATE no se agrupa — el conector manda una sentencia por fila, y con la DB
+    en us-east-1 (~80 ms por viaje) 118k filas serian horas. Ya paso una vez
+    con el reindex. Con INSERT si se agrupa: ~119 viajes.
+
+    IGNORE, no ON DUPLICATE KEY UPDATE: una reproduccion ya guardada es un
+    hecho inmutable, no hay nada que actualizar.
+    """
+    if not rows:
+        return 0
+    sql = ("INSERT IGNORE INTO listening_events "
+           "(track_id, played_at, ms_played, match_key) VALUES (%s, %s, %s, %s)")
+    escritas = 0
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for i in range(0, len(rows), chunk):
+            parte = rows[i:i + chunk]
+            cur.executemany(sql, [
+                (r["track_id"], r["played_at"], int(r.get("ms_played") or 0),
+                 r.get("match_key")
+                 or _utils().listening_key(r.get("name"), r.get("artist")))
+                for r in parte
+            ])
+            escritas += len(parte)
+        conn.commit()
+        cur.close()
+    return escritas
+
+
+def get_events_summary() -> dict:
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*), COUNT(DISTINCT match_key), "
+                    "MIN(played_at), MAX(played_at) FROM listening_events")
+        row = cur.fetchone()
+        cur.close()
+    return {
+        "eventos": int(row[0] or 0),
+        "canciones": int(row[1] or 0),
+        "primera": row[2].isoformat() if row[2] else None,
+        "ultima": row[3].isoformat() if row[3] else None,
+    }
+
+
+def _corte(dias):
+    """Fecha de corte de una ventana. None = historico (sin filtro)."""
+    if not dias:
+        return None
+    from datetime import datetime, timedelta
+    return datetime.utcnow() - timedelta(days=int(dias))
+
+
+def get_top_window(dias=None, limit: int = 100) -> list:
+    """Las mas escuchadas de una ventana: 30 dias, 1 anio, o historico.
+
+    ESTO ES LO QUE HACE POSIBLE EL MIX POR VENTANAS y lo que el agregado no
+    podia contestar.
+
+    Agrupa por match_key (no por track_id) para no subcontar las canciones que
+    Spotify reparte entre varios IDs. Resuelve name/artist en UNA segunda
+    query contra listening_stats en vez de una por cancion: la DB esta en
+    us-east-1 y una query por fila serian ~80 ms cada una.
+    """
+    corte = _corte(dias)
+    sql = ("SELECT match_key, COUNT(*), SUM(ms_played), MAX(played_at), "
+           "MIN(played_at), SUBSTRING_INDEX(GROUP_CONCAT(track_id), ',', 1) "
+           "FROM listening_events ")
+    args = []
+    if corte:
+        sql += "WHERE played_at >= %s "
+        args.append(corte)
+    sql += ("GROUP BY match_key ORDER BY COUNT(*) DESC, MAX(played_at) DESC "
+            "LIMIT %s")
+    args.append(int(limit))
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(sql, tuple(args))
+        filas = cur.fetchall()
+
+        claves = [f[0] for f in filas if f[0]]
+        nombres = {}
+        if claves:
+            marks = ",".join(["%s"] * len(claves))
+            # La misma clave puede tener varias filas (un id por reedicion);
+            # basta cualquiera para el nombre visible.
+            cur.execute(
+                "SELECT match_key, MAX(name), MAX(artist) FROM listening_stats "
+                "WHERE match_key IN (" + marks + ") GROUP BY match_key",
+                tuple(claves))
+            for r in cur.fetchall():
+                nombres[r[0]] = (r[1], r[2])
+        cur.close()
+
+    salida = []
+    for f in filas:
+        nom, art = nombres.get(f[0], (None, None))
+        salida.append({
+            "match_key": f[0],
+            "track_id": f[5],
+            "name": nom,
+            "artist": art,
+            "plays": int(f[1] or 0),
+            "ms_total": int(f[2] or 0),
+            "last_played": f[3].isoformat() if f[3] else None,
+            "first_played": f[4].isoformat() if f[4] else None,
+        })
+    return salida
+
+
+def get_window_plays_for(tracks: list, dias=None, chunk: int = 500) -> dict:
+    """Plays dentro de una ventana para una lista dada -> {track_id: plays}.
+
+    El equivalente de get_listening_for() pero acotado en el tiempo. Existe por
+    la misma razon: una query por cancion dentro de un loop son ~80 ms cada
+    una, o sea 40 s para 500 canciones.
+    """
+    if not tracks:
+        return {}
+    import utils
+    corte = _corte(dias)
+
+    claves = {}
+    for t in tracks:
+        tid = t.get("track_id") or t.get("id")
+        if tid:
+            claves[tid] = utils.listening_key(t.get("name"), t.get("artist"))
+
+    unicas = sorted({k for k in claves.values() if k and k != "|"})
+    porClave = {}
+    with get_conn() as conn:
+        cur = conn.cursor()
+        for i in range(0, len(unicas), chunk):
+            parte = unicas[i:i + chunk]
+            marks = ",".join(["%s"] * len(parte))
+            sql = ("SELECT match_key, COUNT(*) FROM listening_events "
+                   "WHERE match_key IN (" + marks + ") ")
+            args = list(parte)
+            if corte:
+                sql += "AND played_at >= %s "
+                args.append(corte)
+            sql += "GROUP BY match_key"
+            cur.execute(sql, tuple(args))
+            for row in cur.fetchall():
+                porClave[row[0]] = int(row[1] or 0)
+        cur.close()
+
+    return {tid: porClave.get(k, 0) for tid, k in claves.items()}

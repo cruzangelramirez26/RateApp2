@@ -376,6 +376,7 @@ def listening_capture():
     items = (result or {}).get("items") or []
 
     agg = {}
+    eventos = []          # serie temporal, ver database.listening_events
     newest = cursor or ""
     considered = 0
     for item in items:
@@ -403,6 +404,16 @@ def listening_capture():
             }
         a["plays"] += 1
         a["ms_total"] += int(t.get("duration_ms") or 0)
+        # La misma reproduccion, ademas, como fila propia: es lo unico que
+        # permite contestar "cuantas veces en los ultimos 30 dias". El agregado
+        # de arriba no puede, porque suma sin guardar cuando.
+        eventos.append({
+            "track_id": tid,
+            "played_at": _iso_to_mysql(played_at),
+            "ms_played": int(t.get("duration_ms") or 0),
+            "name": a["name"],
+            "artist": a["artist"],
+        })
         mp = _iso_to_mysql(played_at)
         if mp and (a["first_played"] is None or mp < a["first_played"]):
             a["first_played"] = mp
@@ -410,6 +421,8 @@ def listening_capture():
             a["last_played"] = mp
 
     written = database.add_listening_batch(list(agg.values())) if agg else 0
+    # Idempotente por PK (track_id, played_at): re-capturar no duplica.
+    eventos_escritos = database.add_events_batch(eventos) if eventos else 0
     if newest and newest != cursor:
         database.set_config(LISTENING_CURSOR_KEY, newest)
 
@@ -418,6 +431,7 @@ def listening_capture():
         "returned_by_spotify": len(items),
         "new_plays": considered,
         "tracks_touched": written,
+        "events_written": eventos_escritos,
         "cursor": newest or None,
     }
 
@@ -857,61 +871,25 @@ def listening_reindex():
     return database.reindex_listening_keys()
 
 
-@router.get("/diag/spotify-endpoints")
-def diag_spotify_endpoints():
-    """DIAGNOSTICO TEMPORAL. Solo lectura, no escribe nada.
+@router.get("/listening/window")
+def listening_window(dias: int = Query(30, description="0 = historico"),
+                     limit: int = Query(100, ge=1, le=1000)):
+    """Las mas escuchadas de una ventana de tiempo.
 
-    Responde la pregunta que quedo pendiente 6 sesiones seguidas: si
-    /recommendations sigue vivo para esta app o si Spotify ya lo cerro por
-    estar en development mode (deprecacion de nov 2024).
-
-    Tambien reporta si el scope user-top-read esta presente, que es lo que
-    /me/top/tracks necesita para el mix por ventanas.
+    OJO CON EL ORDEN DE RUTAS: esta va ANTES de /listening/{track_id}, si no la
+    parametrizada se la come. Ya paso con summary y capture.
     """
-    import spotipy
+    d = None if not dias or int(dias) <= 0 else int(dias)
+    return {
+        "dias": d,
+        "items": database.get_top_window(dias=d, limit=int(limit)),
+    }
 
-    sp = spotify.get_client()
-    out = {}
 
-    # Un seed real de su propia cuenta: /recommendations exige semillas validas,
-    # y con un id inventado un 404 no distinguiria "endpoint muerto" de
-    # "semilla mala".
-    seed = None
-    try:
-        saved = sp.current_user_saved_tracks(limit=1)
-        items = saved.get("items") or []
-        if items:
-            seed = (items[0].get("track") or {}).get("id")
-    except Exception as e:
-        out["seed_error"] = str(e)[:200]
-    out["seed_track"] = seed
-
-    if seed:
-        try:
-            # Llamada cruda en vez de sp.recommendations(): mide el endpoint
-            # HTTP tal cual, sin que el wrapper de spotipy medie ni pueda
-            # faltar el metodo segun la version.
-            rec = sp._get("recommendations", seed_tracks=seed, limit=5)
-            out["recommendations"] = {
-                "status": 200,
-                "vivo": True,
-                "devolvio": len(rec.get("tracks") or []),
-            }
-        except spotipy.SpotifyException as e:
-            out["recommendations"] = {
-                "status": e.http_status,
-                "vivo": False,
-                "msg": str(e.msg)[:200],
-            }
-        except Exception as e:
-            out["recommendations"] = {"vivo": False, "error": str(e)[:200]}
-    else:
-        out["recommendations"] = {"error": "sin seed, no se pudo probar"}
-
-    out["scope_actual"] = spotify.SCOPE
-    out["tiene_user_top_read"] = "user-top-read" in spotify.SCOPE
-
-    return out
+@router.get("/listening/events-summary")
+def listening_events_summary():
+    """Cuanta serie temporal hay guardada. Solo MySQL, no toca Spotify."""
+    return database.get_events_summary()
 
 
 @router.get("/listening/{track_id}")
