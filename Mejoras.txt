@@ -312,7 +312,7 @@ le planteo a Angel el 2026-08-25 el costo de las tres opciones y descarto
 recalificar — sobre 167 A+ de perla 2026 no hay forma de distinguir cuales
 fueron el workaround y cuales sinceras, esa distincion solo vive en su cabeza.
 
-## 7. Mixes entre varias personas  [DECIDIDO 2026-09-01, sin empezar]
+## 7. Mixes entre varias personas  [EN CURSO 2026-09-06 - la serie temporal ya esta]
 Planteado por Angel el 2026-09-01: "poder hacer merge con alguien mas", tipo
 Blend de Spotify pero mas alla de las canciones en comun — que cruce los Me
 Gusta Y las mas escuchadas de los ultimos 30 dias de cada quien.
@@ -348,16 +348,52 @@ LIMITES DE SPOTIFY (no dependen de nosotros):
   - short_term de /me/top/tracks = ultimas ~4 semanas. Es exactamente el
     "mas escuchadas de los ultimos 30 dias" que pidio.
 
-LO QUE **NO** SE PUEDE, y hay que verificarlo antes de prometerlo:
-Angel tambien pidio "canciones que nos podrian gustar a todos" — descubrimiento,
-no interseccion. Spotify deprecó en noviembre 2024 los endpoints
-/recommendations y /audio-features para apps nuevas o en development mode, que
-eran justo las dos piezas para eso.
-  - [ ] VERIFICAR contra la app real antes de planear encima: pegarle a
-        /recommendations con el token actual y ver si devuelve 403/404. Es una
-        llamada de prueba, 5 min. NO construir nada encima hasta saberlo.
-  - Si esta muerto, el plan B es cruzar artistas y generos compartidos y jalar
-    top tracks de esos artistas. Decente, pero no es el motor de Spotify.
+DESCUBRIMIENTO: MUERTO, VERIFICADO EL 2026-09-06.  [x]
+Se le pego a /recommendations con el token real de Angel y una semilla real de
+sus Me Gusta (23uZ2cVSSecPQBhKtU9xSY):
+
+    status 404 — vivo: false
+
+404 y no 403: Spotify no contesta "prohibido", hace como si el endpoint nunca
+hubiera existido. Es la firma de la deprecacion de nov 2024 para apps en
+development mode. La semilla era real, asi que NO es un falso negativo por
+seed mala. El endpoint de diagnostico se quito en el mismo push.
+
+Y NO IMPORTA, porque Angel lo descarto antes de saberlo:
+  "el de recommendations era un comentario, no es lo que busco al 100%,
+   me parece mejor que el mix sea de las canciones favoritas de los ultimos
+   30 dias, el ultimo anio u historico. tipo algo mas real que de
+   recommendations."
+
+EL DISEÑO QUE GANO: ventanas de escucha REAL, no un motor de sugerencias.
+
+EL OBSTACULO NO ERA SPOTIFY, ERA LA APP.  [RESUELTO 2026-09-06]
+`listening_stats` es un AGREGADO: no guarda cuando paso cada reproduccion, asi
+que no podia contestar "cuantas veces en los ultimos 30 dias". Una cancion de
+200 plays en 2021 y UNA vez ayer se veia igual de reciente que una que suena 50
+veces este mes — un mix de "ultimos 30 dias" habria salido lleno de nostalgia
+disfrazada de novedad.
+
+Hecho: tabla `listening_events` (una fila por reproduccion), la captura de cada
+15 min ya la alimenta, y `import_eventos.py` rellena 2018-2026 desde los JSON.
+Endpoints `GET /tracks/listening/window?dias=` y `/listening/events-summary`.
+
+Lo que queda disponible, medido sobre el export real:
+
+    ventana        reproducciones   canciones
+    30 dias                   882         564
+    90 dias                 2,720       1,388
+    1 anio                 17,060       4,276
+    2 anios                35,595       6,856
+    historico             118,729      17,869
+
+ASIMETRIA QUE HAY QUE TENER PRESENTE AL DISEÑAR EL MIX:
+las ventanas de Angel y las de los demas NO son las mismas.
+  - Angel: cualquier ventana, con `listening_events`.
+  - Los demas: solo lo que da /me/top/tracks — short_term (~4 semanas),
+    medium_term (~6 meses) y long_term. **NO existe ventana de 12 meses**, asi
+    que "el ultimo anio" que pidio solo se puede para el; para ellos lo mas
+    cercano son 6 meses.
 
 ACTUALIZACION SEMANAL: la infraestructura ya existe. El cron de GitHub Actions
 (.github/workflows/keep-awake.yml) ya corre cada 10 min; un workflow semanal que

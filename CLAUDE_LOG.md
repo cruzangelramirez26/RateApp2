@@ -2,6 +2,187 @@
 
 ---
 
+## 2026-09-06 (sesion: el mix se arma con escuchas reales, no con recommendations)
+
+**Maquina: laptop del trabajo** (la del `cramirez@joffroy.com`). Segunda vez que
+se trabaja aqui; ver abajo lo de las versiones.
+
+Angel abrio con *"entonces si podremos meter el mix?"*, o sea la seccion 7.
+
+**1) EL PENDIENTE DE 6 SESIONES, CERRADO: `/recommendations` ESTA MUERTO.**
+
+Arrastrado desde el 2026-09-02 y repetido en seis entradas del log sin que
+nadie lo corriera. Nunca se habia llamado desde la app — el grep confirmo que
+la palabra solo existia en `Mejoras.txt` y en este changelog.
+
+Se resolvio con un endpoint de diagnostico temporal, desplegado y luego
+retirado:
+
+```
+seed_track      : 23uZ2cVSSecPQBhKtU9xSY   (real, de sus Me Gusta)
+recommendations : status 404 — vivo: false
+user-top-read   : ausente del scope
+```
+
+Dos cosas hacen que el resultado sea confiable. **La semilla era real**, sacada
+de sus propios Me Gusta: con un id inventado, un 404 no distingue "endpoint
+muerto" de "semilla mala". Y es **404, no 403** — Spotify no contesta
+"prohibido", hace como si el endpoint nunca hubiera existido, que es la firma
+de la deprecacion de nov 2024 para apps en development mode.
+
+**2) ANGEL CAMBIO EL DISEÑO, Y PARA BIEN.** Antes de ver el resultado dijo:
+
+  *"el de recommendations era un comentario, no es lo que busco al 100%, me
+  parece mejor que el mix sea de las canciones favoritas de los ultimos 30
+  dias, el ultimo anio u historico. tipo algo mas real que de recommendations."*
+
+O sea descarto el motor de sugerencias por su cuenta y pidio escucha real. La
+verificacion, que parecia el bloqueador de la seccion 7, acabo siendo un
+tramite: confirmo que el camino que el ya habia descartado tampoco existia.
+
+**3) EL OBSTACULO NO ERA SPOTIFY, ERA LA APP — y estaba escondido.**
+
+`listening_stats` es un **agregado**: una fila por cancion con el total de plays
+y `first/last_played`. **No guarda cuando ocurrio cada reproduccion**, asi que
+no puede contestar "cuantas veces en los ultimos 30 dias", que es justo lo que
+Angel acababa de pedir.
+
+El sintoma es engañoso y por eso vale anotarlo: una cancion con **200 plays en
+2021 y UNA sola vez ayer** se ve tan "reciente" como una que suena 50 veces
+este mes. Un mix de "ultimos 30 dias" armado sobre el agregado habria salido
+lleno de nostalgia disfrazada de novedad, sin que nada se viera roto.
+
+La buena noticia es que el dato existia: los JSON del export siguen en
+`historial/` con el timestamp de cada reproduccion. Estaba colapsado, no
+perdido.
+
+**LO QUE SE CONSTRUYO: `listening_events`,** una fila por reproduccion. Tres
+decisiones y las tres son defensa contra errores que este proyecto YA PAGO:
+
+- **PK `(track_id, played_at)` + `INSERT IGNORE`.** La idempotencia vive en el
+  **esquema**, no en la logica. La captura corre cada 15 min y siempre re-ve
+  reproducciones ya guardadas; el doble conteo es un error silencioso y
+  permanente, del que nadie se entera hasta que los numeros ya derivaron.
+- **`match_key`.** Toda consulta de ventana agrupa por clave, nunca por
+  `track_id`. Cruzar por id ya costo ~12,000 reproducciones perdidas el
+  2026-09-04, y una tabla nueva era la oportunidad perfecta de repetirlo.
+- **`INSERT`, nunca `executemany` con `UPDATE`.** Con UPDATE el conector manda
+  una sentencia por fila: 118,729 filas x ~80 ms a `us-east-1` son **horas**.
+  Ya paso con el reindex. Con INSERT se agrupa: ~119 viajes.
+
+Ademas la tabla es **angosta** (no duplica name/artist, que viven en
+`listening_stats`) e **independiente**: `load_all()` no la toca y ninguna query
+existente cambia, o sea los tiempos de carga que Angel pidio no descomponer
+quedan literalmente igual.
+
+**Codigo:** `backend/database.py` — `ensure_listening_events_table`,
+`add_events_batch`, `get_top_window`, `get_window_plays_for`,
+`get_events_summary`, `_corte`. `backend/main.py` — la tabla en el lifespan.
+`backend/routes/tracks.py` — la captura ahora ademas guarda la serie, mas
+`GET /tracks/listening/window?dias=` y `/listening/events-summary`.
+`backend/scripts/import_eventos.py` (nuevo), hermano de `import_historial.py`.
+
+Lo que queda disponible, medido sobre el export real:
+
+```
+ventana        reproducciones   canciones
+30 dias                   882         564
+90 dias                 2,720       1,388
+1 anio                 17,060       4,276
+2 anios                35,595       6,856
+historico             118,729      17,869
+```
+
+Los 118,729 eventos coinciden exacto con el `plays` del agregado, porque se usa
+**el mismo umbral de 30 s**: asi `COUNT(*)` de una ventana significa lo mismo
+que `plays` y los dos numeros nunca se contradicen entre pantallas.
+
+**ASIMETRIA QUE HAY QUE TENER PRESENTE AL DISEÑAR EL MIX**, y no es obvia: las
+ventanas de Angel y las de los demas **no son las mismas**. De el hay serie
+completa desde 2018, o sea cualquier ventana. De los demas solo hay
+`/me/top/tracks`: `short_term` (~4 semanas), `medium_term` (~6 meses) y
+`long_term`. **No existe ventana de 12 meses**, asi que "el ultimo anio" que
+pidio solo se puede calcular para el; para ellos lo mas cercano son 6 meses.
+Es limite de Spotify, no del diseño.
+
+**4) EL FALSO POSITIVO QUE CASI SE CUELA, y es variante NUEVA de uno viejo.**
+
+Al verificar el deploy, `GET /tracks/listening/events-summary` devolvio JSON
+valido:
+
+```
+{"track_id":"events-summary","found":false,"plays":0,...}
+```
+
+Eso **no es el endpoint nuevo**: es la ruta parametrizada
+`/listening/{track_id}` tragandose la cadena `"events-summary"` como si fuera
+un id de cancion. La revision vieja seguia arriba.
+
+El 2026-09-02 ya habia mordido un falso positivo parecido — ahi era el fallback
+del SPA devolviendo `index.html` con 200 — y de eso salio la regla "verificar
+que la respuesta sea JSON, no que el status sea 200". **Esa regla no alcanza**:
+aqui la respuesta ERA JSON. La regla buena es **buscar una llave que solo exista
+en la respuesta nueva** (aqui `"eventos"`).
+
+Es la tercera vez que la ruta parametrizada de `/listening/` causa un problema,
+asi que las dos rutas nuevas se registraron **antes** de ella y hay pruebas que
+lo comprueban contra el router real de FastAPI, no contra el orden del texto.
+
+**Verificacion: 50 comprobaciones, sin red y sin MySQL** (36 de logica con la
+capa de `mysql.connector` stubeada + 14 importando la app de verdad, 54 rutas).
+Las que importan: los lotes van en INSERT y nunca en UPDATE; `INSERT IGNORE`
+para que re-capturar no duplique; `match_key` se calcula del nombre+artista y
+acentos/mayusculas caen en la misma clave; `get_top_window` agrupa por clave y
+resuelve nombres en **2 queries, no N+1**; historico no filtra por fecha; la que
+no aparece en la ventana cuenta 0 y **no se omite**; y FastAPI ve
+`/listening/window` antes que `/listening/{track_id}`.
+
+`import_eventos.py --dry-run` corrio contra los 156 MB reales: 187,577 filas
+procesadas en **1.1 s**.
+
+**UNA PRUEBA FALLO Y EL EQUIVOCADO ERA LA PRUEBA**, como el 2026-09-04:
+comprobaba que el mount del SPA fuera la ultima ruta, pero `backend/static`
+solo lo crea el build de Docker, asi que en local no se monta. Se corrigio la
+prueba, no el codigo.
+
+**NOTA DE MAQUINA (la regla de las dos maquinas, otra vez).** Esta laptop no
+tenia ni `fastapi` ni `spotipy`. Se instalaron, y el detalle importa: `pip
+install fastapi` trajo la **0.141.1**, donde `include_router` guarda las rutas
+anidadas en vez de aplanadas — la app real reportaba **6 rutas en vez de 54** y
+parecia que nada se habia registrado. No era el codigo: era la version. Con la
+fijada en `requirements.txt` (`fastapi==0.115.0`) todo salio verde. Mismo patron
+que el `pandas 2.2.2` vs `3.0.5` del 2026-09-03. **Al verificar en esta laptop,
+instalar las versiones fijadas, no las ultimas.**
+
+**PENDIENTES:**
+
+- [x] **`/recommendations` — VERIFICADO MUERTO** (404). Cerrado.
+- [x] **Desplegado y verificado en produccion** (commit `9b72587`):
+      `events-summary` -> `{"eventos":0,...}` y `window` -> `{"dias":30,"items":[]}`
+      responden con la forma nueva, el diag temporal ya cae al SPA, y
+      `/tracks/stats` sigue devolviendo los 1,312 tracks, o sea nada se rompio.
+      La tabla se creo sola en el lifespan.
+- [ ] **CORRER `import_eventos.py`.** Lo tiene que hacer Angel, porque necesita
+      la contrasena: `$env:MYSQL_PASSWORD = '...'` y luego
+      `python backend/scripts/import_eventos.py`. Hasta entonces la tabla
+      existe pero solo tiene lo que capture el cron de aqui en adelante, o sea
+      las ventanas largas saldran vacias. Es idempotente, se puede correr sin
+      miedo.
+- [ ] El mix en si. El muro sigue siendo **auth mono-usuario**: un solo
+      `TOKEN_KEY` en `config`, asi que hoy un amigo que entre a `/auth/login`
+      **saca a Angel de su propia app**. Bloquea los dos modos, no solo el
+      persistente.
+- [ ] Scope `user-top-read` para `/me/top/tracks`. **Obliga a Angel a
+      re-loguearse** (`validate_token` descarta el token al que le falta un
+      scope), asi que conviene meterlo junto con la cirugia de auth y no antes.
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] `/tracks/abandoned/queue` sigue sin usarse por la UI.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-04 (sesion: el conteo de escuchas estaba mal)
 
 **Maquina: PC `AngelPC`.**

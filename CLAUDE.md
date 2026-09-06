@@ -24,7 +24,7 @@ Arquitectura completa: [`ARQUITECTURA.md`](ARQUITECTURA.md) — stack, modelo de
 
 ## Base de datos MySQL
 
-Tres tablas:
+Cuatro tablas:
 
 **`tracks`** — track_id, name, artist, album, added_at, rating, manual_order, cuatrimestre_override
 - `added_at`: fecha de primera calificación. **Nunca se pisa al re-calificar** (upsert solo la escribe en INSERT, no en UPDATE).
@@ -39,6 +39,16 @@ Tres tablas:
 - **Es independiente de `tracks` a propósito.** `load_all()` no la toca y ninguna query existente cambia, así que no afecta los tiempos de carga.
 - **REGLA: nunca `get_listening()` dentro de un loop.** La DB está en `us-east-1` (~80 ms por viaje), así que 500 canciones a query por cabeza son 40 segundos. Para listas se usa `get_listening_many()`, con un solo `IN (...)`.
 - Los JSON crudos del export viven en `historial/`, que está en `.gitignore` **y** `.dockerignore`: son 156 MB y cada fila trae `ip_addr`.
+
+**`listening_events`** — la **serie temporal**: una fila por reproducción (track_id, played_at, ms_played, match_key)
+- Existe porque `listening_stats` es un **agregado** y no puede contestar *"cuántas veces la escuché en los últimos 30 días"*: suma sin guardar cuándo pasó cada cosa. El síntoma es engañoso — una canción con 200 plays en 2021 y **una sola vez ayer** se ve tan reciente como una que suena 50 veces este mes.
+- **PK compuesta `(track_id, played_at)` + `INSERT IGNORE`.** Ahí vive la idempotencia: la captura corre cada 15 min y siempre re-ve reproducciones ya guardadas. El doble conteo es silencioso y permanente, así que se cierra en el **esquema**, no en la lógica.
+- **Guarda `match_key`, igual que `listening_stats`.** Toda consulta de ventana agrupa por clave, nunca por `track_id` — cruzar por id ya costó ~12,000 reproducciones perdidas una vez.
+- **Mismo umbral de 30 s** que el agregado, a propósito: así `COUNT(*)` de una ventana significa exactamente lo mismo que `plays`, y los dos números nunca se contradicen entre pantallas.
+- Consultas: `get_top_window(dias, limit)` para las más escuchadas de una ventana (`dias=None` → histórico) y `get_window_plays_for(tracks, dias)` para listas. **Las dos resuelven en 2 queries, nunca N+1** — la misma regla del `us-east-1`.
+- Tabla **angosta y separada**: no duplica name/artist (viven en `listening_stats`), `load_all()` no la toca y ninguna query existente cambia.
+- Se rellena con `backend/scripts/import_eventos.py`, hermano de `import_historial.py`: local, con la contraseña en `$env:MYSQL_PASSWORD`, y es idempotente. Son ~118,729 eventos.
+- **Ventanas que NO existen del lado de Spotify:** `/me/top/tracks` solo da `short_term` (~4 semanas), `medium_term` (~6 meses) y `long_term`. **No hay ventana de 12 meses**, así que "el último año" solo se puede calcular para Angel, con esta tabla.
 
 ## Constantes clave
 
