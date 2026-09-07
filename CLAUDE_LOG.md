@@ -2,6 +2,125 @@
 
 ---
 
+## 2026-09-07 (sesion: el import corrido, y tres cosas que salieron de los numeros)
+
+**Maquina: laptop del trabajo.** Angel corrio `import_eventos.py` y mando la
+captura del terminal. Salieron tres cosas de mirar los numeros, y una **corrige
+una afirmacion equivocada de ayer**.
+
+**EL IMPORT CORRIO BIEN.** 118,729 eventos procesados en 1.4 s, subidos en
+lotes de 1000 en **21 s**. La contrasena la saco el de Secret Manager y la puso
+en su propia shell: el valor no paso por Claude, igual que el 2026-09-03.
+
+**1) LOS 902 QUE "FALTABAN" ERAN 917 DUPLICADOS, Y LA CUENTA CIERRA EXACTA.**
+
+El script dijo que mandaba 118,729 y la base reporto 117,827. Se midio en vez de
+suponer:
+
+```
+eventos del export con umbral : 118,729
+pares (track_id, played_at) unicos : 117,812   -> 917 colapsados por la PK
+en la base                    : 117,827  = 117,812 + 15 del cron   ✓
+```
+
+**Son duplicados exactos del export, no escuchas perdidas.** El mismo
+`track_id` con el **mismo segundo**, repetido hasta 4 veces:
+
+```
+x4  3iq3AG31l8l2L1x1valVVI  2018-09-03 16:56:50
+x4  5mGu63Zp0QmY585W5ZTKie  2020-02-22 05:15:54
+x4  5SkiVFWCP3NPEgNk3PaL2I  2022-01-14 07:33:05
+```
+
+Es fisicamente imposible escuchar una cancion 4 veces empezando en el mismo
+instante; lo mas probable es solapamiento entre los archivos del export
+(`2019.json`, `2019_1.json`, `2019_2.json`...). 872 pares tenian al menos una
+copia. Colapsarlos es exactamente para lo que existe la PK.
+
+**Y AQUI LA CORRECCION.** Ayer se escribio, tanto en `CLAUDE.md` como en este
+log, que `COUNT(*)` de una ventana coincidiria **exacto** con `plays` del
+agregado. **No coincide, y el juicio se invierte:**
+
+```
+plays del agregado : 118,869   <- SI cuenta los 917 duplicados
+eventos            : 117,827   <- los descarta
+```
+
+O sea **los eventos son los fieles y el agregado viene inflado ~0.8%**, no al
+contrario. Corregido en `CLAUDE.md` para que el dia que los dos numeros se vean
+distintos en dos pantallas no se busque un bug que no existe.
+
+**2) HUECO REAL EN LA SERIE: 2 -> 6 de septiembre, ~125 reproducciones.**
+
+Sale de la misma aritmetica. El cron metio **140** reproducciones al agregado
+desde que termina el export (1 sep 23:34), pero solo **15** a los eventos —
+porque el codigo que guarda la serie se desplego el 6. Esos ~125 plays estan en
+`listening_stats` y **no** en `listening_events`.
+
+**Es irrecuperable**: `recently-played` solo devuelve las ultimas 50 y esos dias
+ya pasaron; rellenarlo pediria otro export y 30 dias de espera. Pero **se
+autocorrige**: conforme pase el tiempo el hueco sale solo de la ventana de 30
+dias. Mientras tanto esa ventana va ~13% corta (871 medidos contra ~996 reales).
+Documentado en `CLAUDE.md` para que no se lea como un bug.
+
+**3) BUG PROPIO, Y ESTABA EN PRODUCCION: `datetime.utcnow()` deprecado.**
+
+El terminal de Angel lo delato — `DeprecationWarning ... import_eventos.py:95`.
+Pero el grep encontro que **el mismo llamado estaba en `database.py:838`, dentro
+de `_corte()`**, o sea en el camino que corre en Cloud Run **en cada consulta de
+ventana**. El warning del script era lo visible; el de produccion era el que
+importaba.
+
+**El detalle que hacia el arreglo no-trivial:** el reemplazo obvio,
+`datetime.now(timezone.utc)`, devuelve un datetime **tz-aware**, y ese valor se
+manda como parametro a MySQL contra una columna `DATETIME` **sin zona**. Eso
+desplaza la hora o truena al comparar — **es el mismo detalle que ya mordio el
+2026-08-21** con el bloque de novedades (`utils.now_utc()` aware contra
+`added_at` naive). Arreglado con
+`datetime.now(timezone.utc).replace(tzinfo=None)`, que mantiene el naive de
+siempre, con la razon escrita al lado.
+
+Verificado corriendo con `-W error::DeprecationWarning`: `_corte(30)` sale
+naive (`tzinfo: None`), `_corte(0)` sigue dando `None` (historico), y compara
+contra un naive sin reventar.
+
+**Verificacion: las 50 comprobaciones de ayer siguen verdes** (36 + 14) despues
+del cambio.
+
+**ESTADO REAL DE LA SERIE, medido en produccion:**
+
+```
+eventos   : 117,827
+canciones : 15,925        <- por match_key, no por track_id
+desde     : 2018-01-28T16:59:27
+hasta     : 2026-09-07T06:49:19
+```
+
+Las **15,925 canciones contra las 17,869 track_ids** del script **no son un
+error, son la prueba de que `match_key` trabaja**: 1,944 ids resultaron ser
+reediciones de canciones que ya estaban. Es justo el subconteo que costo ~12,000
+reproducciones el 2026-09-04, ahora colapsado como debe ser.
+
+**PENDIENTES:**
+
+- [x] **`import_eventos.py` CORRIDO** por Angel. 117,827 eventos en la base.
+- [x] **`datetime.utcnow()`** fuera del codigo, incluido el de produccion.
+- [ ] El mix en si. Sigue bloqueado por **auth mono-usuario**: un solo
+      `TOKEN_KEY` en `config`, asi que hoy un amigo que entre a `/auth/login`
+      **saca a Angel de su propia app**.
+- [ ] Scope `user-top-read`. Obliga a re-loguearse, conviene junto con la
+      cirugia de auth.
+- [ ] **Nada consume las ventanas todavia.** Los endpoints existen y la tabla
+      esta llena, pero ninguna pantalla los usa. Es lo mas barato que queda con
+      valor visible, y no necesita nada de auth.
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] `/tracks/abandoned/queue` sigue sin usarse por la UI.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-06 (sesion: el mix se arma con escuchas reales, no con recommendations)
 
 **Maquina: laptop del trabajo** (la del `cramirez@joffroy.com`). Segunda vez que
@@ -93,9 +212,11 @@ ventana        reproducciones   canciones
 historico             118,729      17,869
 ```
 
-Los 118,729 eventos coinciden exacto con el `plays` del agregado, porque se usa
-**el mismo umbral de 30 s**: asi `COUNT(*)` de una ventana significa lo mismo
-que `plays` y los dos numeros nunca se contradicen entre pantallas.
+Se usa **el mismo umbral de 30 s** que el agregado para que las dos cifras
+midan lo mismo. **CORREGIDO AL DIA SIGUIENTE:** aqui se afirmo que coincidirian
+exacto y **no coinciden** — la PK colapso 917 duplicados del export que el
+agregado si cuenta, asi que los eventos son los fieles y `plays` viene inflado
+~0.8%. Ver la entrada del 2026-09-07.
 
 **ASIMETRIA QUE HAY QUE TENER PRESENTE AL DISEÑAR EL MIX**, y no es obvia: las
 ventanas de Angel y las de los demas **no son las mismas**. De el hay serie

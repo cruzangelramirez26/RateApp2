@@ -834,8 +834,13 @@ def _corte(dias):
     """Fecha de corte de una ventana. None = historico (sin filtro)."""
     if not dias:
         return None
-    from datetime import datetime, timedelta
-    return datetime.utcnow() - timedelta(days=int(dias))
+    from datetime import datetime, timedelta, timezone
+    # naive a proposito: played_at es DATETIME de MySQL (sin zona), y pasarle un
+    # datetime tz-aware desplaza la hora o truena al comparar. Es el mismo
+    # detalle que mordio en el bloque de novedades el 2026-08-21.
+    # utcnow() esta deprecado y se va a quitar de Python, de ahi el rodeo.
+    return (datetime.now(timezone.utc).replace(tzinfo=None)
+            - timedelta(days=int(dias)))
 
 
 def get_top_window(dias=None, limit: int = 100) -> list:

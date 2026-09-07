@@ -40,7 +40,7 @@ import json
 import time
 import argparse
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 UMBRAL_PLAY_MS = 30000
 
@@ -92,7 +92,7 @@ def cargar_eventos(carpeta):
 
 def reporte_ventanas(eventos):
     """Lo que quedara disponible por ventana, que es el punto del ejercicio."""
-    ahora = datetime.utcnow()
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
     print("\n  Lo que se podra consultar:")
     print("  %-12s %15s %18s" % ("ventana", "reproducciones", "canciones"))
     print("  " + "-" * 47)
