@@ -2,6 +2,220 @@
 
 ---
 
+## 2026-09-09 (sesion: la migracion mostraba 70 de 303, y los nombres dejan de ser el id)
+
+**Maquina: PC `AngelPC`.** Dos quejas de Angel y un hallazgo que no venia en
+ninguna de las dos.
+
+**1) LA PANTALLA DE MIGRACION ENSENABA 70 CANCIONES Y LA PLAYLIST TIENE 303.**
+
+Angel: *"lo de migrar canciones de playlist no esta respetando ni el orden de
+la playlist anterior (lo de novedades) ni me muestra las canciones que ya habia
+migrado de la playlist anterior"*. Las dos cosas eran bugs reales y las dos son
+**de lectura**: la playlist destino ya se ordenaba bien y la origen nunca se
+toca.
+
+Medido en produccion antes de tocar nada:
+
+```
+playlist Miel en Spotify        303 canciones
+la pantalla ofrecia migrar       70
+no aparecian                    233
+```
+
+**La causa: `get_migration_candidates` implementaba la mitad de la regla que
+esta escrita en `CLAUDE.md`.** Una cancion es de un cuatrimestre si su
+`added_at` cae en el rango de meses **O** si su `cuatrimestre_override` apunta
+ahi. La query solo miraba la fecha:
+
+```sql
+WHERE YEAR(added_at) = 2026 AND MONTH(added_at) BETWEEN 5 AND 8
+```
+
+Asi que las **~176** que Angel migro de Perla -> Miel el cuatrimestre pasado
+—que viven en Miel por override y estan fechadas en marzo/abril— quedaban
+invisibles. Son literalmente "las canciones que ya habia migrado de la playlist
+anterior" que el reclamo. Otras **~66** ya tenian `override='latte'`, o sea ya
+las habia movido en esta tanda, y el filtro tambien las escondia: no habia
+forma de ver que ya se hizo.
+
+**Ahora salen las dos cosas**: las migrables y, marcadas y con el checkbox
+muerto, las que ya estan en Latte (`get_migrated_out`). Angel eligio verlas sin
+poder tocarlas.
+
+**LIMITE QUE NO SE PUEDE ESQUIVAR, y quedo escrito en el codigo:**
+`cuatrimestre_override` es **un solo campo, sin historia**. Una cancion que fue
+perla -> miel -> latte hoy dice `latte` y esta fechada en marzo, o sea es
+**indistinguible** de una que fue perla -> latte directo. Solo se recuperan las
+que nacieron en el cuatrimestre origen. Y ojo con la etiqueta: `rate_track`
+pone el override solo cuando una cancion historica sube a TOP_SET, asi que lo
+correcto es decir **"ya esta en Latte"**, no "ya la migraste" — pudo llegar ahi
+sin abrir esta pantalla.
+
+**EL ORDEN: no se recalcula, se lee.** La lista ordenaba por rating desc +
+fecha desc. Ese criterio replicaba la playlist **hasta el 2026-08-21**, cuando
+el orden real gano el bloque de novedades, y nadie actualizo esta pantalla. El
+orden real de Miel hoy:
+
+```
+pos 1-21   A+   <- bloque de novedades congelado
+pos 22-29  A
+pos 30-33  B+
+pos 34+    A+ historicas, luego A, B+, B...
+```
+
+**Reproducirlo aqui habria sido adivinar**: `_novedad_dias` devuelve `None`
+para un cuatrimestre historico, y la ventana de 45 dias que produjo ese orden
+era relativa a agosto. Se leen las **posiciones reales** de la playlist origen
+y se ordena por ahi. De paso, las que no estan en la playlist (las 7 C, que
+`rate_track` saca del cuatrimestre) caen al final marcadas, en vez de mezclarse
+arriba por rating. Si Spotify no contesta, la pantalla sale igual y avisa que
+el orden no es el de la playlist.
+
+**Verificado en produccion despues del deploy: 246 migrables + 68 ya marcadas,
+con `orden_playlist: true`.** Antes: 70.
+
+**Verificacion: 31 comprobaciones sin red y sin MySQL.** El metodo vale la pena
+anotarlo: **la SQL real que emite `database.py` se captura y se ejecuta contra
+SQLite** con `YEAR`/`MONTH` registradas como funciones de usuario, o sea se
+prueba la query de produccion y no una parafrasis. `npm run build` OK (1588).
+
+Commit `e11b06a`.
+
+**2) LOS NOMBRES DE LAS PLAYLISTS: EL PROBLEMA NO ERAN LOS NOMBRES.**
+
+Angel: *"necesitamos cambiar los nombres de las playlist y las portadas porque
+nunca conecte. quiero que me ayudes a evaluar opciones"*.
+
+Antes de proponer nombres se hizo el inventario, y ahi cambio el diagnostico:
+**el nombre visible y el identificador interno eran la misma palabra**,
+repartida en **cinco mapas** (dos `_CUATRI_DISPLAY` en el backend, tres en el
+frontend) que se limitaban a capitalizar el id.
+
+**Eso ya mentia en produccion**, aunque nadie lo hubiera notado: en 2025 los
+cuatrimestres se llamaban **Savia / Lirio / Marea**, y Herramientas igual decia
+"Perla". El bug estaba latente y se iba a hacer visible en enero de 2027.
+
+Se le presentaron tres opciones con su costo real y eligio la **B**:
+
+| | Que implica | Costo |
+|---|---|---|
+| A | Renombrar solo 2026 a mano | 15 min, el problema vuelve cada anio |
+| **B** | **Separar nombre de identificador, fuente unica** | **medio dia** |
+| C | Renombrar tambien los identificadores | alto, con migracion de datos |
+
+**C se descarto sin dudar y la razon importa:** `perla` / `miel` / `latte` no
+son solo codigo — estan **dentro de la columna `cuatrimestre_override` de
+MySQL, en filas reales**. Renombrarlos costaria una migracion de datos a cambio
+de **cero** beneficio visible, porque esos strings nadie los ve.
+
+**Lo construido:** `config.CUATRI_NOMBRES` (anio -> slot -> nombre + color) es
+la unica fuente. `utils.cuatri_info()` / `nombre_cuatri()` traducen. El mapa
+viaja en **`/playlists/distribution`**, y eso fue deliberado: el frontend ya
+primea esa llamada al arrancar y la cachea, asi que los nombres llegan **sin
+una peticion nueva** ni asincronia extra en las pantallas que solo quieren
+pintar una etiqueta. `frontend/src/utils/cuatrimestres.js` (nuevo) guarda lo
+que llego, con un fallback estatico para que nada salga en blanco antes de que
+responda.
+
+Cambiar los nombres de un anio es ahora **una entrada**, y la portada se deriva
+sola: `/portadas/<anio>/<Nombre>.jpg`. Cuando Angel haga las portadas con
+Design, basta con que el archivo se llame igual que el nombre.
+
+**Angel decidio nombrar al INICIO del cuatrimestre**, no al cierre: se le habia
+sugerido lo contrario (que nombrar cuatro meses que todavia no vives es dificil
+que conecte) y dijo *"yo digo que nombremos playlist al inicio"*. El sistema no
+impone ninguna de las dos.
+
+**Verificacion: 22 comprobaciones**, incluida una que renombra latte 2026 a
+"Cobre" y comprueba que el **identificador no se movio** y que
+`get_cuatrimestre` sigue devolviendo `latte`. `npm run build` OK (1589).
+Verificado en produccion: `/playlists/distribution` ya trae el mapa y
+`2025/perla` dice **Savia**.
+
+**Una prueba fallo y la equivocada era la prueba** (el patron de siempre en
+este repo): buscaba la palabra "Savia" en cualquier linea del frontend y pegaba
+con los **comentarios** que explican el cambio. Ahora busca la forma
+`: 'Savia'` de un objeto literal, o sea dato y no prosa.
+
+Commit `716095a`.
+
+**3) LA PLAYLIST DE LAS MENOS ESCUCHADAS: "se queda sin hacer nada". SI SE
+ESTA ARMANDO.**
+
+Angel: *"cuando quiero hacer la playlist de las menos escuchadas no se hace, se
+queda sin hacer nada"*. Se fue a los logs de Cloud Run antes de tocar codigo, y
+el sintoma no era el que parecia:
+
+```
+23:13:00  POST /tracks/backfill/playlist?source=cleanup  200 OK
+23:13:08  POST ...                                        200 OK
+23:13:19  POST ...                                        200 OK
+```
+
+Tres clics seguidos (o sea Angel insistiendo) y **las tres respondieron bien**.
+Comprobado ademas llamando al endpoint con `play=false`: creo/actualizo la
+playlist `6TWVXuYK9EHT1FD7rxIIm0` ("Limpiar Me Gusta - revisar", privada) en
+0.5 s.
+
+**Lo que falla es la reproduccion, y lo que lo vuelve invisible es la UI.**
+`now-playing` confirma que no hay ningun dispositivo de Spotify activo, asi que
+`start_playback` no tiene donde sonar. Y el backend devuelve el link en
+`spotify_url` — **que el frontend tira a la basura**. O sea la playlist queda
+armada con su tramo exacto y no hay forma de llegar a ella. De ahi "no hizo
+nada".
+
+**HALLAZGO QUE NO VENIA EN NINGUNA QUEJA, Y ES PEOR:**
+
+```
+mysql.connector.errors.PoolError: Failed getting connection; pool exhausted
+```
+
+En `load_all()`, o sea en el camino que corre en cada operacion. La causa:
+`App.jsx` dispara **9 peticiones en paralelo** al arrancar (likedAll, recent,
+recentlyPlayed, distribution + las 5 playlists que esta encadena) contra un
+pool de **5** conexiones. Cada endpoint sincrono de FastAPI corre en su propio
+hilo y toma una conexion.
+
+**No es esporadico**: los 500 salen en rafagas de 3-4 peticiones **en el mismo
+segundo**, y estan el 5, 6, 8 y 9 de septiembre. El de anoche fue a las
+**23:11:59**, un minuto antes de sus clics.
+
+**Los dos arreglos quedaron propuestos y SIN respuesta**, asi que no se toco
+nada:
+  - el link "Abrir en Spotify" cuando no logra reproducir (las tres paginas de
+    colas: Limpiar, Backfill, Abandonadas);
+  - subir `pool_size` de 5 a ~16 en `database.py:13`.
+
+Y quedo una pregunta abierta que decide si hay un tercer problema: **si al
+picarle sale algun mensaje abajo (rojo o verde) o de verdad no aparece nada**.
+Si no aparece nada, el toast tambien esta roto.
+
+**Nota:** la prueba dejo 3 canciones sueltas en esa playlist. Se reemplazan
+solas en el proximo uso.
+
+**PENDIENTES:**
+
+- [x] **Migracion arreglada y verificada en produccion** (246 vs 70).
+- [x] **Nombres separados del identificador**, con fuente unica.
+- [ ] **Decidir los nombres nuevos de 2026** (y las portadas, que Angel hara
+      con Design). El codigo ya solo espera una entrada en
+      `config.CUATRI_NOMBRES`.
+- [ ] **El link a la playlist cuando no hay dispositivo** — propuesto, sin OK.
+- [ ] **`pool_size` de 5 a 16** — propuesto, sin OK. Es un 500 recurrente en
+      produccion, no cosmetico.
+- [ ] Contestar si el toast de la pagina de limpieza se ve o no.
+- [ ] El mix. Sigue bloqueado por **auth mono-usuario**.
+- [ ] Scope `user-top-read`, junto con la cirugia de auth.
+- [ ] **Nada consume las ventanas de escucha todavia.**
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] `/tracks/abandoned/queue` sigue sin usarse por la UI.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-07 (sesion: el import corrido, y tres cosas que salieron de los numeros)
 
 **Maquina: laptop del trabajo.** Angel corrio `import_eventos.py` y mando la
