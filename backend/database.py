@@ -329,19 +329,67 @@ _CUATRI_MONTHS = {
 
 def get_migration_candidates(from_cuatri: str, from_year: int) -> list[dict]:
     """
-    Return tracks whose added_at falls in from_cuatri/from_year that haven't
-    been migrated out yet. Excludes D-rated and unrated tracks.
+    Canciones que HOY viven en from_cuatri y todavia se pueden migrar.
+    Excluye D y sin calificar.
+
+    Implementa la regla completa de CLAUDE.md: una cancion es de un
+    cuatrimestre si su `added_at` cae en el rango de meses, O si su
+    `cuatrimestre_override` apunta ahi. Antes esta query solo miraba la fecha,
+    asi que las que llegaron por migracion (perla -> miel) quedaban invisibles:
+    medido el 2026-09-07, la playlist de Miel tenia 303 canciones y la pantalla
+    ofrecia 70.
+
+    El override manda sobre la fecha, no se suma a ella: una cancion fechada en
+    miel pero con override='latte' ya se fue, y aqui no debe volver a salir
+    (para esas esta get_migrated_out).
     """
     start_m, end_m = _CUATRI_MONTHS[from_cuatri]
     with get_conn() as conn:
         cur = conn.cursor(dictionary=True)
         cur.execute(
             """SELECT * FROM tracks
-               WHERE YEAR(added_at) = %s
-                 AND MONTH(added_at) BETWEEN %s AND %s
-                 AND (cuatrimestre_override IS NULL OR cuatrimestre_override = %s)
-                 AND rating NOT IN ('D', '')""",
-            (from_year, start_m, end_m, from_cuatri),
+               WHERE rating NOT IN ('D', '')
+                 AND rating IS NOT NULL
+                 AND (
+                       cuatrimestre_override = %s
+                    OR (cuatrimestre_override IS NULL
+                        AND YEAR(added_at) = %s
+                        AND MONTH(added_at) BETWEEN %s AND %s)
+                 )""",
+            (from_cuatri, from_year, start_m, end_m),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+
+
+def get_migrated_out(from_cuatri: str, from_year: int, to_cuatri: str) -> list[dict]:
+    """
+    Canciones que estuvieron en from_cuatri y HOY ya estan en to_cuatri.
+    Se muestran marcadas y bloqueadas, para que la pantalla de migracion
+    ensene el estado completo del cuatrimestre y no solo lo que falta.
+
+    LIMITE CONOCIDO, y por eso el criterio es la fecha: `cuatrimestre_override`
+    es un solo campo sin historia. Una cancion que fue perla -> miel -> latte
+    hoy dice 'latte' y esta fechada en marzo, o sea es indistinguible de una
+    que fue perla -> latte directo. Esas no se pueden recuperar aqui; solo
+    salen las que nacieron en from_cuatri (fecha dentro del rango).
+
+    Ademas: llegar a to_cuatri no implica que el usuario usara esta pantalla.
+    `rate_track` pone el override solo cuando una cancion historica sube a
+    TOP_SET, asi que la etiqueta correcta es "ya esta en X", no "ya la migraste".
+    """
+    start_m, end_m = _CUATRI_MONTHS[from_cuatri]
+    with get_conn() as conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            """SELECT * FROM tracks
+               WHERE rating NOT IN ('D', '')
+                 AND rating IS NOT NULL
+                 AND cuatrimestre_override = %s
+                 AND YEAR(added_at) = %s
+                 AND MONTH(added_at) BETWEEN %s AND %s""",
+            (to_cuatri, from_year, start_m, end_m),
         )
         rows = cur.fetchall()
         cur.close()

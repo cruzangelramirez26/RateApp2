@@ -1401,7 +1401,16 @@ _CUATRI_DISPLAY = {"perla": "Perla", "miel": "Miel", "latte": "Latte"}
 
 @router.get("/migrate/candidates")
 def get_migrate_candidates():
-    """Return tracks from the previous cuatrimestre that haven't been migrated yet."""
+    """
+    Estado completo del cuatrimestre anterior: lo que todavia se puede migrar y
+    lo que ya se fue al actual.
+
+    El ORDEN sale de la playlist real en Spotify, no se recalcula. Reproducirlo
+    aqui seria adivinar: el bloque de novedades de la playlist origen se congelo
+    con una ventana relativa a cuando ese cuatrimestre era el actual, y hoy
+    `_novedad_dias` le devuelve None por ser historica. Leer las posiciones da
+    exactamente lo que el usuario ve, sin ventanas ni fechas de por medio.
+    """
     current_cuatri = utils.get_cuatrimestre(utils.now_utc())
     prev_cuatri = utils.CUATRIMESTRE_PREV.get(current_cuatri)
 
@@ -1410,12 +1419,40 @@ def get_migrate_candidates():
 
     from_year = utils.now_utc().year
     candidates = database.get_migration_candidates(prev_cuatri, from_year)
+    migrated = database.get_migrated_out(prev_cuatri, from_year, current_cuatri)
+
+    for c in candidates:
+        c["migrated"] = False
+    for c in migrated:
+        c["migrated"] = True
+
+    rows = candidates + migrated
+
+    # Orden = posicion en la playlist origen. Las que no estan en ella (las C,
+    # que rate_track saca del cuatrimestre) van al final en vez de mezclarse
+    # arriba por rating.
+    from_playlist_id = config.DISTRIBUTION_PLAYLISTS.get(prev_cuatri)
+    orden_playlist = False
+    if from_playlist_id:
+        try:
+            sp_ids = spotify.get_playlist_track_ids(spotify.get_client(), from_playlist_id)
+            pos = {tid: i for i, tid in enumerate(sp_ids)}
+            for r in rows:
+                r["en_playlist"] = r["track_id"] in pos
+            rows.sort(key=lambda r: pos.get(r["track_id"], len(pos)))
+            orden_playlist = True
+        except Exception:
+            for r in rows:
+                r.setdefault("en_playlist", None)
+    else:
+        for r in rows:
+            r["en_playlist"] = None
 
     # Enrich with album art (smallest thumbnail) via Spotify
-    if candidates:
+    if rows:
         try:
             sp = spotify.get_client()
-            ids = [c["track_id"] for c in candidates]
+            ids = [c["track_id"] for c in rows]
             image_map = {}
             for chunk in utils.chunk_list(ids, 50):
                 result = sp.tracks(chunk)
@@ -1423,21 +1460,24 @@ def get_migrate_candidates():
                     if t:
                         images = (t.get("album") or {}).get("images") or []
                         image_map[t["id"]] = images[-1].get("url") if images else None
-            for c in candidates:
+            for c in rows:
                 c["image"] = image_map.get(c["track_id"])
         except Exception:
-            for c in candidates:
+            for c in rows:
                 c.setdefault("image", None)
 
     # Serialize datetimes
-    for c in candidates:
+    for c in rows:
         if c.get("added_at") and hasattr(c["added_at"], "isoformat"):
             c["added_at"] = c["added_at"].isoformat()
 
     return {
-        "candidates": candidates,
+        "candidates": rows,
         "from_cuatri": prev_cuatri,
         "to_cuatri": current_cuatri,
+        "migrables": len(candidates),
+        "ya_migradas": len(migrated),
+        "orden_playlist": orden_playlist,
     }
 
 

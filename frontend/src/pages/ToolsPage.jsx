@@ -17,7 +17,7 @@ export default function ToolsPage() {
   const [aplusCandidates, setAplusCandidates] = useState([]);
   const [selectedAplusIds, setSelectedAplusIds] = useState(new Set());
   const [migData, setMigData] = useState(null);
-  const [migSort, setMigSort] = useState('rating');
+  const [migSort, setMigSort] = useState('playlist');
   const [migSelectedIds, setMigSelectedIds] = useState(new Set());
   const [migSearch, setMigSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -146,6 +146,11 @@ export default function ToolsPage() {
 
   const sortedMigCandidates = useMemo(() => {
     if (!migData?.candidates?.length) return [];
+    // 'playlist' = el orden que ya trae el backend, que son las posiciones
+    // reales en Spotify. Ordenar aqui por rating+fecha era el criterio de mayo
+    // y dejo de replicar la playlist el 2026-08-21, cuando el orden real gano
+    // el bloque de novedades.
+    if (migSort === 'playlist') return migData.candidates;
     return [...migData.candidates].sort((a, b) => {
       if (migSort === 'recent') return new Date(b.added_at) - new Date(a.added_at);
       const rd = (RATING_ORDER_MAP[b.rating] ?? -1) - (RATING_ORDER_MAP[a.rating] ?? -1);
@@ -164,8 +169,14 @@ export default function ToolsPage() {
     );
   }, [sortedMigCandidates, migSearch]);
 
+  // Las ya migradas se ensenan pero no se tocan.
+  const migMigrables = useMemo(
+    () => filteredMigCandidates.filter(c => !c.migrated),
+    [filteredMigCandidates],
+  );
+
   const toggleMigAll = () => {
-    const visibleIds = filteredMigCandidates.map(c => c.track_id);
+    const visibleIds = migMigrables.map(c => c.track_id);
     const allVisible = visibleIds.every(id => migSelectedIds.has(id));
     setMigSelectedIds(prev => {
       const next = new Set(prev);
@@ -707,9 +718,13 @@ export default function ToolsPage() {
                 }
                 setMigData(data);
                 setMigSelectedIds(new Set());
-                return data.candidates.length > 0
-                  ? `${data.candidates.length} canciones de ${CUATRI_DISPLAY[data.from_cuatri]} disponibles.`
-                  : `No hay canciones en ${CUATRI_DISPLAY[data.from_cuatri]} para migrar.`;
+                const migrables = data.migrables ?? data.candidates.length;
+                const ya = data.ya_migradas ?? 0;
+                if (data.candidates.length === 0) {
+                  return `No hay canciones en ${CUATRI_DISPLAY[data.from_cuatri]} para migrar.`;
+                }
+                return `${migrables} por migrar de ${CUATRI_DISPLAY[data.from_cuatri]}` +
+                  (ya > 0 ? ` · ${ya} ya en ${CUATRI_DISPLAY[data.to_cuatri]}.` : '.');
               })}
               disabled={!!actionLoading}>
               Buscar candidatos
@@ -732,7 +747,7 @@ export default function ToolsPage() {
                 {CUATRI_DISPLAY[migData.from_cuatri]} → {CUATRI_DISPLAY[migData.to_cuatri]}
               </span>
               <div style={{ display: 'flex', gap: '4px' }}>
-                {['rating', 'recent'].map(s => (
+                {['playlist', 'rating', 'recent'].map(s => (
                   <button key={s}
                     style={{
                       padding: '3px 10px', borderRadius: '12px', border: '1px solid',
@@ -742,7 +757,7 @@ export default function ToolsPage() {
                       color: migSort === s ? 'var(--accent)' : 'var(--text-muted)',
                     }}
                     onClick={() => setMigSort(s)}>
-                    {s === 'rating' ? 'Calificación' : 'Recientes'}
+                    {s === 'playlist' ? 'Playlist' : s === 'rating' ? 'Calificación' : 'Recientes'}
                   </button>
                 ))}
               </div>
@@ -767,12 +782,13 @@ export default function ToolsPage() {
               marginBottom: '8px',
             }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                {migSelectedIds.size} / {migData.candidates.length} seleccionadas
+                {migSelectedIds.size} / {migData.migrables ?? migData.candidates.length} seleccionadas
+                {(migData.ya_migradas > 0) && ` · ${migData.ya_migradas} ya en ${CUATRI_DISPLAY[migData.to_cuatri]}`}
                 {migSearch.trim() && ` · mostrando ${filteredMigCandidates.length}`}
               </span>
               <button className="btn btn-sm" style={{ fontSize: '0.72rem', padding: '3px 12px' }}
                 onClick={toggleMigAll}>
-                {filteredMigCandidates.every(c => migSelectedIds.has(c.track_id)) ? 'Desmarcar visibles' : 'Marcar visibles'}
+                {migMigrables.length > 0 && migMigrables.every(c => migSelectedIds.has(c.track_id)) ? 'Desmarcar visibles' : 'Marcar visibles'}
               </button>
             </div>
 
@@ -785,13 +801,15 @@ export default function ToolsPage() {
                   display: 'flex', alignItems: 'center', gap: '8px',
                   padding: '6px 0',
                   borderBottom: i < filteredMigCandidates.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                  cursor: 'pointer', userSelect: 'none',
-                  opacity: migSelectedIds.has(c.track_id) ? 1 : 0.45,
+                  cursor: c.migrated ? 'default' : 'pointer', userSelect: 'none',
+                  opacity: c.migrated ? 0.5 : (migSelectedIds.has(c.track_id) ? 1 : 0.45),
                   transition: 'opacity 0.15s',
                 }}>
                   <input type="checkbox"
-                    checked={migSelectedIds.has(c.track_id)}
+                    checked={c.migrated || migSelectedIds.has(c.track_id)}
+                    disabled={!!c.migrated}
                     onChange={() => {
+                      if (c.migrated) return;
                       setMigSelectedIds(prev => {
                         const next = new Set(prev);
                         if (next.has(c.track_id)) next.delete(c.track_id); else next.add(c.track_id);
@@ -817,6 +835,16 @@ export default function ToolsPage() {
                       {c.name}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.migrated && (
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)', marginRight: '6px' }}>
+                          ya en {CUATRI_DISPLAY[migData.to_cuatri]}
+                        </span>
+                      )}
+                      {c.en_playlist === false && (
+                        <span style={{ fontFamily: 'var(--font-mono)', marginRight: '6px' }}>
+                          fuera de la playlist
+                        </span>
+                      )}
                       {c.album}
                     </div>
                   </div>
