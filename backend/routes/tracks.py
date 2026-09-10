@@ -1396,9 +1396,6 @@ def aplus_apply(req: AplusApplyRequest):
 
 # ─── Migración de cuatrimestre ───────────────────────────────────
 
-_CUATRI_DISPLAY = {"perla": "Perla", "miel": "Miel", "latte": "Latte"}
-
-
 @router.get("/migrate/candidates")
 def get_migrate_candidates():
     """
@@ -1524,7 +1521,7 @@ def migrate_tracks(req: MigrateRequest):
 
     _order_playlist(sp, cuatri_id, min_rating_order=1)
 
-    label = _CUATRI_DISPLAY.get(to_cuatri, to_cuatri.capitalize())
+    label = utils.nombre_cuatri(to_cuatri)
     return {
         "migrated": len(req.track_ids),
         "message": f"{len(req.track_ids)} canciones migradas a {label}.",

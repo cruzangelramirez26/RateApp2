@@ -1,28 +1,25 @@
 import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
+import { cuatriInfo, nombreCuatri } from '../utils/cuatrimestres';
 import { useToast } from '../hooks/useToast';
 
 const RATING_ORDER = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
+// Fallback para un cuatrimestre sin bautizar; el nombre bueno sale de
+// cuatriInfo (backend). No agregar anios aqui.
 const CUATRI_LABEL = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
 const CUATRI_DATE  = { perla: 'Ene–Abr', miel: 'May–Ago', latte: 'Sep–Dic' };
 
-// Year-specific names, colors, and cover images per cuatrimestre
-const CUATRI_META = {
-  '2025-perla': { label: 'Savia', color: '#cfd8be', img: '/portadas/2025/Savia.jpg' },
-  '2025-miel':  { label: 'Lirio', color: '#efdffc', img: '/portadas/2025/Lirio.jpg' },
-  '2025-latte': { label: 'Marea', color: '#bde8f3', img: '/portadas/2025/Marea.jpg' },
-  '2026-perla': { label: 'Perla', color: '#5ba8d4', img: '/portadas/2026/Perla.jpg' },
-  '2026-miel':  { label: 'Miel',  color: '#f5c542', img: '/portadas/2026/Miel.jpg' },
-  '2026-latte': { label: 'Latte', color: '#e8a83e', img: '/portadas/2026/Latte.jpg' },
-};
-
+// Los nombres, colores y portadas ya no viven aqui: son datos del backend
+// (config.CUATRI_NOMBRES), y llegan en /playlists/distribution. Ver
+// utils/cuatrimestres.js. Antes habia tres copias de este mapa en el frontend
+// y dos en el backend, y cambiar de anio obligaba a tocar las cinco.
 function getCuatriMeta(year, cuatri) {
-  const key = `${year}-${cuatri}`;
-  return CUATRI_META[key] || {
-    label: CUATRI_LABEL[cuatri] || cuatri,
-    color: 'var(--text-muted)',
-    img: null,
+  const info = cuatriInfo(cuatri, Number(year));
+  return {
+    label: info.nombre || CUATRI_LABEL[cuatri] || cuatri,
+    color: info.color || 'var(--text-muted)',
+    img: info.img || null,
   };
 }
 
@@ -136,7 +133,7 @@ export default function StatsPage() {
         <MetricCard
           label="Total Rated"
           value={timeFilter === 'todo' ? (stats?.total || 0) : filteredTotal}
-          sub={timeFilter === 'todo' ? 'todas las épocas' : CUATRI_LABEL[currentCuatri]}
+          sub={timeFilter === 'todo' ? 'todas las épocas' : nombreCuatri(currentCuatri)}
         />
         <MetricCard
           label="Promedio"

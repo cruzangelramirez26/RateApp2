@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { api } from './utils/api';
 import { preloadCache } from './utils/preloadCache';
+import { setCuatriMap } from './utils/cuatrimestres';
 import { ToastProvider } from './hooks/useToast';
 import { ThemeProvider } from './hooks/useTheme';
 import NavBar from './components/NavBar';
@@ -28,6 +29,9 @@ export default function App() {
           preloadCache.prime('recentlyPlayed', () => api.getRecentlyPlayed());
           preloadCache.prime('distribution', async () => {
             const dist = await api.getDistribution();
+            // Los nombres de los cuatrimestres viajan aqui: una sola peticion,
+            // la que ya se hacia. Ver utils/cuatrimestres.js.
+            setCuatriMap(dist);
             ['perla', 'miel', 'latte', 'anual'].forEach(k => {
               if (dist[k]) preloadCache.prime(`playlist_${k}`, () => api.getPlaylistTracks(dist[k]));
             });

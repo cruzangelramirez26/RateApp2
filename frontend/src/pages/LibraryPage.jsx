@@ -7,22 +7,21 @@ import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import ListeningModal from '../components/ListeningModal';
 import { useToast } from '../hooks/useToast';
+import { nombreCuatri } from '../utils/cuatrimestres';
 
+// Los chips de cuatrimestre se etiquetan con el nombre del anio en curso
+// (nombreCuatri), no con el identificador: en 2025 estos tres se llamaban
+// Savia, Lirio y Marea.
 const QUICK_PLAYLISTS = [
   { label: 'Me Gusta', key: 'liked' },
-  { label: 'Perla',   key: 'perla' },
-  { label: 'Miel',    key: 'miel' },
-  { label: 'Latte',   key: 'latte' },
+  { key: 'perla' },
+  { key: 'miel' },
+  { key: 'latte' },
   { label: 'Galería', key: 'anual' },
   { label: '<3333',   key: 'calificar' },
 ];
 
 const RATING_ORDER = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
-const YEAR_NAMES = {
-  2025: { perla: 'Savia', miel: 'Lirio', latte: 'Marea' },
-  2026: { perla: 'Perla', miel: 'Miel', latte: 'Latte' },
-};
-
 function computeCuatrimestre(track) {
   if (track.cuatrimestre_override) return track.cuatrimestre_override;
   const dateStr = track.db_added_at;
@@ -45,8 +44,7 @@ function getCuatriLabel(track) {
     const dt = track.db_added_at ? new Date(track.db_added_at) : null;
     year = dt && !isNaN(dt.getTime()) ? dt.getFullYear() : new Date().getFullYear();
   }
-  const names = YEAR_NAMES[year];
-  return (names && names[cuatri]) || cuatri;
+  return nombreCuatri(cuatri, year);
 }
 
 function exportCSV(tracks) {
@@ -262,7 +260,7 @@ export default function LibraryPage() {
             color: activeChip === key ? 'var(--on-accent)' : 'var(--text-muted)',
             cursor: 'pointer', transition: 'all 0.15s',
           }}>
-            {label}
+            {label ?? nombreCuatri(key)}
           </button>
         ))}
       </div>

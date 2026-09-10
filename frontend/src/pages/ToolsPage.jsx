@@ -5,9 +5,12 @@ import { api } from '../utils/api';
 import ThemeToggle from '../components/ThemeToggle';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
 import { useToast } from '../hooks/useToast';
+import { nombreCuatri } from '../utils/cuatrimestres';
 
 const RATING_ORDER_MAP = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
-const CUATRI_DISPLAY = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
+// El nombre visible ya no se arma capitalizando el identificador (eso decia
+// "Perla" aunque el cuatrimestre se llamara Savia): sale de nombreCuatri, que
+// lee lo que mando el backend.
 const REORDER_RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C'];
 
 export default function ToolsPage() {
@@ -441,7 +444,7 @@ export default function ToolsPage() {
               fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
               marginBottom: '12px',
             }}>
-              {CUATRI_DISPLAY[reorderData.cuatri] ?? reorderData.cuatri?.toUpperCase()}
+              {nombreCuatri(reorderData.cuatri) ?? reorderData.cuatri?.toUpperCase()}
               {reorderPendingChanges > 0 && (
                 <span style={{
                   marginLeft: '10px', background: 'var(--rating-b-plus-dim)',
@@ -721,10 +724,10 @@ export default function ToolsPage() {
                 const migrables = data.migrables ?? data.candidates.length;
                 const ya = data.ya_migradas ?? 0;
                 if (data.candidates.length === 0) {
-                  return `No hay canciones en ${CUATRI_DISPLAY[data.from_cuatri]} para migrar.`;
+                  return `No hay canciones en ${nombreCuatri(data.from_cuatri)} para migrar.`;
                 }
-                return `${migrables} por migrar de ${CUATRI_DISPLAY[data.from_cuatri]}` +
-                  (ya > 0 ? ` · ${ya} ya en ${CUATRI_DISPLAY[data.to_cuatri]}.` : '.');
+                return `${migrables} por migrar de ${nombreCuatri(data.from_cuatri)}` +
+                  (ya > 0 ? ` · ${ya} ya en ${nombreCuatri(data.to_cuatri)}.` : '.');
               })}
               disabled={!!actionLoading}>
               Buscar candidatos
@@ -733,7 +736,7 @@ export default function ToolsPage() {
         ) : migData.candidates.length === 0 ? (
           <div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-              No hay canciones en {CUATRI_DISPLAY[migData.from_cuatri] ?? migData.from_cuatri} para migrar.
+              No hay canciones en {nombreCuatri(migData.from_cuatri) ?? migData.from_cuatri} para migrar.
             </p>
             <button className="btn btn-sm" onClick={() => setMigData(null)}>Volver</button>
           </div>
@@ -744,7 +747,7 @@ export default function ToolsPage() {
               marginBottom: '10px', flexWrap: 'wrap', gap: '8px',
             }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                {CUATRI_DISPLAY[migData.from_cuatri]} → {CUATRI_DISPLAY[migData.to_cuatri]}
+                {nombreCuatri(migData.from_cuatri)} → {nombreCuatri(migData.to_cuatri)}
               </span>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {['playlist', 'rating', 'recent'].map(s => (
@@ -783,7 +786,7 @@ export default function ToolsPage() {
             }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                 {migSelectedIds.size} / {migData.migrables ?? migData.candidates.length} seleccionadas
-                {(migData.ya_migradas > 0) && ` · ${migData.ya_migradas} ya en ${CUATRI_DISPLAY[migData.to_cuatri]}`}
+                {(migData.ya_migradas > 0) && ` · ${migData.ya_migradas} ya en ${nombreCuatri(migData.to_cuatri)}`}
                 {migSearch.trim() && ` · mostrando ${filteredMigCandidates.length}`}
               </span>
               <button className="btn btn-sm" style={{ fontSize: '0.72rem', padding: '3px 12px' }}
@@ -837,7 +840,7 @@ export default function ToolsPage() {
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.migrated && (
                         <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)', marginRight: '6px' }}>
-                          ya en {CUATRI_DISPLAY[migData.to_cuatri]}
+                          ya en {nombreCuatri(migData.to_cuatri)}
                         </span>
                       )}
                       {c.en_playlist === false && (
@@ -873,7 +876,7 @@ export default function ToolsPage() {
                   setMigSearch('');
                   return res.message;
                 })}>
-                Mover {migSelectedIds.size > 0 ? migSelectedIds.size : ''} a {CUATRI_DISPLAY[migData.to_cuatri]}
+                Mover {migSelectedIds.size > 0 ? migSelectedIds.size : ''} a {nombreCuatri(migData.to_cuatri)}
               </button>
               <button
                 className="btn btn-sm"
@@ -902,10 +905,10 @@ export default function ToolsPage() {
               onClick={() => doAction(`order-${c}`, async () => {
                 const dist = await api.getDistribution();
                 await api.orderPlaylist(dist[c], 1);
-                return `${CUATRI_DISPLAY[c]} ordenada`;
+                return `${nombreCuatri(c)} ordenada`;
               })}
               disabled={!!actionLoading}>
-              Ordenar {CUATRI_DISPLAY[c]}
+              Ordenar {nombreCuatri(c)}
             </button>
           ))}
           <button
@@ -934,7 +937,7 @@ export default function ToolsPage() {
                   return res.message;
                 })}
                 disabled={!!actionLoading}>
-                Reconstruir {CUATRI_DISPLAY[c]}
+                Reconstruir {nombreCuatri(c)}
               </button>
             ))}
             <button

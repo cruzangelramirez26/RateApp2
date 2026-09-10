@@ -2,6 +2,8 @@
 from datetime import datetime, timezone
 import pandas as pd
 
+import config
+
 # Previous cuatrimestre in the cycle. Latte has no defined next for now.
 CUATRIMESTRE_PREV = {
     "perla": None,
@@ -19,6 +21,32 @@ def get_cuatrimestre(dt: datetime) -> str:
         return "miel"
     else:
         return "latte"
+
+
+def cuatri_info(cuatri: str, year: int | None = None) -> dict:
+    """
+    Nombre y color con que se muestra un cuatrimestre en un anio dado.
+
+    Unico lugar del backend que traduce identificador -> nombre. Un anio sin
+    bautizar en config.CUATRI_NOMBRES cae al identificador capitalizado, que es
+    feo pero no rompe nada.
+    """
+    if year is None:
+        year = now_utc().year
+    info = (config.CUATRI_NOMBRES.get(year) or {}).get(cuatri)
+    nombre = (info or {}).get("nombre") or (cuatri or "").capitalize()
+    return {
+        "cuatri": cuatri,
+        "year": year,
+        "nombre": nombre,
+        "color": (info or {}).get("color"),
+        "img": (info or {}).get("img") or f"/portadas/{year}/{nombre}.jpg",
+    }
+
+
+def nombre_cuatri(cuatri: str, year: int | None = None) -> str:
+    """Solo el nombre visible. Atajo de cuatri_info para armar mensajes."""
+    return cuatri_info(cuatri, year)["nombre"]
 
 
 def safe_to_datetime(x, utc=True):

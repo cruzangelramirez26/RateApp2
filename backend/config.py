@@ -31,6 +31,37 @@ DISTRIBUTION_PLAYLISTS = {
     "marea_archivo": os.getenv("PL_MAREA_ARCHIVO", "2VvxQF4XrjpkDo4QmNRjTQ"),
 }
 
+# ─── Como se LLAMA cada cuatrimestre ─────────────────────────────────────
+#
+# LA FUENTE DE VERDAD DE LOS NOMBRES ES ESTE MAPA, y no hay otra. Antes el
+# nombre visible y el identificador interno eran la misma palabra, asi que
+# habia tres copias de un `_CUATRI_DISPLAY` que se limitaban a capitalizar el
+# id. Eso ya mentia: en 2025 los cuatrimestres se llamaban Savia/Lirio/Marea y
+# Herramientas igual decia "Perla".
+#
+# `perla` / `miel` / `latte` son IDENTIFICADORES, no nombres: viven en el
+# codigo, en el SQL de stats y — lo que los vuelve caros de cambiar — dentro de
+# la columna `cuatrimestre_override` de MySQL, en filas reales. Nunca se
+# muestran. El nombre que ve el usuario cambia cada anio y solo se toca aqui.
+#
+# Anio nuevo = una entrada nueva. Un anio sin bautizar cae al identificador
+# capitalizado en vez de romperse.
+#
+# La portada se deriva del nombre: /portadas/<anio>/<Nombre>.jpg. Si el archivo
+# no coincide con el nombre, se pone "img" explicito.
+CUATRI_NOMBRES = {
+    2025: {
+        "perla": {"nombre": "Savia", "color": "#cfd8be"},
+        "miel":  {"nombre": "Lirio", "color": "#efdffc"},
+        "latte": {"nombre": "Marea", "color": "#bde8f3"},
+    },
+    2026: {
+        "perla": {"nombre": "Perla", "color": "#5ba8d4"},
+        "miel":  {"nombre": "Miel",  "color": "#f5c542"},
+        "latte": {"nombre": "Latte", "color": "#e8a83e"},
+    },
+}
+
 # Orden "novedades arriba" (ver Mejoras.txt seccion 6)
 #
 # Una cancion de TOP_SET calificada dentro de esta ventana se ordena ENCIMA de

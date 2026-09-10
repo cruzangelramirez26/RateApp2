@@ -6,6 +6,7 @@ import pandas as pd
 import spotify
 import config
 import database
+import utils
 
 router = APIRouter(prefix="/playlists", tags=["playlists"])
 
@@ -28,10 +29,23 @@ def get_my_playlists():
 
 @router.get("/distribution")
 def get_distribution_playlists():
-    """Return the configured distribution playlist IDs."""
+    """IDs de las playlists fijas + como se llaman los cuatrimestres.
+
+    Los nombres viajan aqui, y no en un endpoint aparte, porque el frontend ya
+    primea esta llamada al arrancar (App.jsx) y la cachea: asi el mapa de
+    nombres llega sin una peticion nueva y sin asincronia extra en las
+    pantallas que solo quieren pintar una etiqueta.
+    """
+    ahora = utils.now_utc()
     return {
         "calificar": config.CALIFICAR_PLAYLIST_ID,
         **config.DISTRIBUTION_PLAYLISTS,
+        # {"2026": {"perla": {nombre, color, img}, ...}, ...}
+        "cuatrimestres": {
+            str(anio): {c: utils.cuatri_info(c, anio) for c in slots}
+            for anio, slots in config.CUATRI_NOMBRES.items()
+        },
+        "actual": {"year": ahora.year, "cuatri": utils.get_cuatrimestre(ahora)},
     }
 
 
@@ -45,7 +59,6 @@ def order_playlist(playlist_id: str, min_rating_order: Optional[int] = None):
 
 
 _MONTH_RANGES = {"perla": (1, 4), "miel": (5, 8), "latte": (9, 12)}
-_CUATRI_DISPLAY = {"perla": "Perla", "miel": "Miel", "latte": "Latte"}
 
 
 @router.post("/rebuild/anual")
@@ -162,7 +175,7 @@ def rebuild_playlist(cuatri: str):
     sp = spotify.get_client()
     spotify.replace_playlist(sp, playlist_id, track_ids)
 
-    label = _CUATRI_DISPLAY.get(cuatri, cuatri.capitalize())
+    label = utils.nombre_cuatri(cuatri, target_year)
     return {
         "ok": True,
         "count": len(track_ids),
