@@ -279,6 +279,139 @@ primera — el comportamiento de antes. 10 comprobaciones solo para esa funcion.
 
 Commits `f590b5f`, `e847032` y `21813fb`. **82 comprobaciones** en la sesion.
 
+**5) LAS VENTANAS DE ESCUCHA, USADAS POR FIN.**
+
+La tabla `listening_events` se lleno el 2026-09-07 con 118 mil reproducciones y
+llevaba **dos semanas** sin que ninguna pantalla la tocara — el pendiente que
+se venia arrastrando como "lo mas barato que queda con valor visible". Angel:
+*"que ventanas? pero dale"*. O sea no se acordaba de que eran, asi que primero
+se le explico con sus propios datos y luego se construyo.
+
+**QUE SON, dicho corto:** `listening_stats` guarda **totales**, asi que no
+puede contestar "que traes escuchando". Una cancion con 200 plays en 2021 y
+**una sola vez ayer** se ve igual de reciente que una que suena 50 veces este
+mes. `listening_events` guarda **cuando** paso cada reproduccion, asi que si
+puede. Es lo que Angel pidio el 2026-09-06 para el mix — y **la version de un
+solo usuario no necesita nada de la cirugia de auth** que lo bloquea.
+
+**Lo construido:** pantalla `/window` ("Mis mas escuchadas"), con cuatro
+ventanas —30 dias, 90, un anio, historico—, y por cancion: puesto, portada,
+plays **de esa ventana**, horas, desde que anio la escucha y cuantas veces en
+total. Filtro de texto, "solo sin calificar", los 7 botones de calificar, y
+**"Escuchar 50"**, que arma la playlist real de ese periodo. O sea el mix.
+
+Entra por **Herramientas**, sin tab propia: la barra movil ya tiene 5 items.
+Es la misma decision que se tomo con `/backfill`.
+
+**LA TRAMPA QUE HABRIA ARRUINADO LA PANTALLA, y es la razon de la mitad del
+codigo.** El `first_played` que devuelve `get_top_window` es la primera escucha
+**DENTRO de la ventana**, o sea a lo mas 30 dias atras. Calificar con esa fecha
+una cancion que Angel descubrio en 2019 la vuelve **nueva** para `rate_track`:
+cuatrimestre actual + Galeria Anual + Me Gusta, y encima **arriba de todo** por
+el bloque de novedades.
+
+Es exactamente el desastre del 2026-09-04 — y **desde esta pantalla seria
+PEOR**, porque las de aqui son justo las que mas suenan, o sea las que Angel
+mas querria calificar. El backend manda `suggested_added_at` con la primera
+escucha **de verdad**, que sale del agregado en **una** query
+(`get_listening_for`, que suma por `match_key`). La pantalla califica siempre
+en **soft** y con esa fecha, igual que `/backfill`.
+
+**Y quedo fijado por prueba:** hay comprobaciones que **fallan** si alguien
+cambia `rateTrackSoft` por `rateTrack`, si quita `added_at`, o si manda `null`
+en vez de `undefined` (mandar null fecharia en hoy). La pantalla ademas pinta
+el anio de la primera escucha, que es el dato que hace visible por que
+calificar ahi es seguro.
+
+**BUG PROPIO QUE ATRAPO LA VERIFICACION, y estaba en CINCO LUGARES MAS.** La
+prueba de la ventana fallo con `rating: 'None'` — la **cadena**. El rating se
+limpiaba con `str(v).strip()` y un filtro contra `"nan"`, pero un rating NULL
+llega del DataFrame como `NaN` **o** como `None` segun el dtype que pandas le
+infiera a la columna, y `str(None)` da `"None"`, que es **verdadera** y pasa el
+filtro. Consecuencia: la UI pintaria "None" como si fuera una calificacion y el
+filtro de "solo sin calificar" dejaria de encontrar esas canciones.
+
+Con `"nan"` ya habia pasado el 2026-05-01 (el filtro `!= "D"` dejaba pasar los
+NULL) y se tapo **en seis sitios por separado**; `"None"` era el mismo bug sin
+tapar, esperando el dtype adecuado. Ahora hay un solo `_rating_limpio()` y los
+seis lo usan, y cubre `None`, `NaN`, `"nan"`, `"None"`, `"null"`, `"<NA>"` y
+los espacios.
+
+**Detalles que evitan bugs conocidos:**
+
+- La playlist de la ventana tiene su **propia clave en `config`**. Si
+  compartiera la de limpieza, abrir una vista pisaria la playlist que la otra
+  dejo sonando — la regla del 2026-09-04.
+- Reusa `QueuePlaylistLink`, el banner de esta misma sesion, para el caso de no
+  haber dispositivo. No se reinvento el manejo del fallo.
+- Las portadas van en **un solo `sp.tracks()`** por lote de 50, nunca una
+  llamada por cancion, y con `images[-1]` porque son miniaturas. Y es
+  **no-fatal**: sin Spotify la lista sale igual, porque los numeros son de
+  MySQL.
+- **Una clave de cache por ventana** (`window_30`, `window_90`...): son
+  consultas distintas y cambiar de pestana no debe volver a esperar la que ya
+  se pidio.
+- Los botones por fila mandan **su indice**, no el evento. Es el bug que se
+  arreglo hoy mismo en `BackfillPage`, no repetido aqui.
+
+**Verificacion: 61 comprobaciones nuevas** (36 del backend + 25 del cableado),
+sin red y sin MySQL. Las que importan: la fecha sugerida sale del **agregado**
+(2019) y no de la ventana (2026), con el caso peligroso metido a proposito en
+los datos de prueba; `plays` es el de la ventana y el total viaja aparte; una
+sola llamada a `sp.tracks` para toda la lista; sin Spotify la lista sale igual;
+`dias=0` se traduce a `None`; si el agregado no tiene fila cae a la de la
+ventana y **nunca** a `None` (que fecharia en hoy); y `/listening/window` sigue
+registrandose **antes** de `/listening/{track_id}` contra el router real de
+FastAPI — la ruta parametrizada de `/listening/` ya causo tres problemas.
+
+**Una prueba fallo y estaba desactualizada, no equivocada:** afirmaba que
+**exactamente 2** paginas arman playlist de cola. Ahora son 3, y lo bueno es
+que el bucle de esa prueba corrio contra `WindowPage` y paso sus 6
+comprobaciones sola, o sea la pantalla nueva cumple las mismas invariantes que
+las otras dos. Se fijo la lista completa para que cualquier pagina nueva tenga
+que pasar por ahi.
+
+**139 comprobaciones en la sesion.** `npm run build` OK (1591 modulos).
+
+**VERIFICADO EN PRODUCCION, y LA TRAMPA NO ERA TEORICA.** Medido contra sus
+datos de verdad:
+
+```
+ventana      canciones  sin calificar  tiempo   #1
+30 dias          100         32         1.1 s   Vedette (9)
+90 dias          100         26         1.3 s   Gente Comun (22)
+1 anio           100          7         1.2 s   Ojos empapados (72)
+historico        100         72         1.1 s   MAMI 100PRE SABE (160)
+```
+
+**48 de las 100 canciones del top de 30 dias son de antes de 2026.** O sea la
+fecha equivocada habria afectado a **casi la mitad de la pantalla**, no a un
+caso raro:
+
+```
+cancion            la ventana dice   se fecha en    plays
+Ateo               2026-09-20        2021-10-07      3 de 41
+Tanjiro            2026-08-24        2024-08-26      4 de 94
+Cowboy Bebop       2026-08-24        2025-08-05      4 de 52
+```
+
+`Ateo` es el caso de manual: la escucho **ayer**, asi que la ventana la ve
+nueva — y la escucha desde **octubre de 2021**, con 41 plays. Con la fecha de
+la ventana habria entrado a PT.-3, a la Galeria y a Me Gusta. Las que si son
+nuevas (Vedette, Hombre De Bien) se fechan en 2026 como debe ser, o sea el
+mecanismo distingue, no aplana todo hacia atras.
+
+**Higiene de lo que llega:** 0 ratings basura (la prueba del `_rating_limpio`
+sirviendo en produccion), 0 items sin fecha sugerida —o sea ninguno se fecharia
+en hoy— y **100 de 100 con portada**.
+
+**Y UN NUMERO QUE VALE POR SI SOLO:** de sus 100 canciones **mas escuchadas de
+toda la vida**, **72 no estan calificadas** en RateApp. Contra 7 de 100 en la
+ventana de un anio. La app conoce bien lo reciente y esta casi ciega a lo que
+mas ha escuchado historicamente.
+
+Commits `55bd2df` y `ad8e5f2`.
+
 **PENDIENTES:**
 
 - [x] **`pool_size` 5 -> 16, mas reintento.** El 500 recurrente, cerrado.
@@ -292,8 +425,12 @@ Commits `f590b5f`, `e847032` y `21813fb`. **82 comprobaciones** en la sesion.
       toma sola.
 - [ ] El mix. Sigue bloqueado por **auth mono-usuario**.
 - [ ] Scope `user-top-read`, junto con la cirugia de auth.
-- [ ] **Nada consume las ventanas de escucha todavia.** Sigue siendo lo mas
-      barato que queda con valor visible, y no necesita nada de auth.
+- [x] **Las ventanas de escucha, EN USO.** Pantalla `/window` con 30/90/365/
+      historico, y la playlist de cada periodo. Era el pendiente mas viejo con
+      valor visible.
+- [ ] **El mix CON otras personas** sigue bloqueado por auth mono-usuario. El
+      de Angel solo ya esta. Y ojo con la asimetria del 2026-09-06: de los
+      demas solo hay `/me/top/tracks`, que **no tiene ventana de 12 meses**.
 - [ ] Vista de las 317 que escucha y no tiene likeadas.
 - [ ] `/tracks/abandoned/queue` sigue sin usarse por la UI.
 - [ ] `MYSQL_PORT` sigue sin leerse.
