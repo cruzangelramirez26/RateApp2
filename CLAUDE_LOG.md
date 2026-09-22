@@ -104,7 +104,57 @@ buscaba `onClick={escuchar}` y pegaba con el **comentario** que explica el
 arreglo. Es el mismo falso positivo de "Savia" del 2026-09-09. Ahora busca el
 atributo en una linea de JSX real, o sea dato y no prosa.
 
-Commit `feee449`.
+**VERIFICADO EN PRODUCCION, y el pool con los logs en la mano.** El deploy
+subio en ~2:30. El bundle se comprobo por **hash de contenido**: Vite nombra el
+archivo por lo que contiene, asi que servir `index-BVduuoHR.js` — el mismo hash
+que salio del build local — es la prueba de que el frontend nuevo esta arriba y
+no una revision vieja. Ademas se confirmo que la cadena `"Abrir en Spotify"`
+viaja dentro del bundle servido: el hash dice que el archivo cambio, la cadena
+dice que cambio **por esto**.
+
+El pool se probo **reproduciendo la rafaga que lo tumbaba**, contra produccion:
+
+```
+16 peticiones en paralelo a /tracks/stats   ->  16 de 16 en 200, max 0.63 s
+40 peticiones en paralelo (el threadpool)   ->  40 de 40 en 200
+```
+
+Con el pool de 5, 11 de las primeras 16 habrian recibido `PoolError` en el
+acto. Y el detalle que hace la prueba fuerte: las 56 peticiones las atendieron
+**2 instancias**, o sea al menos una vio **mas peticiones concurrentes que
+conexiones en su pool** — el reintento no quedo de adorno.
+
+**HISTORIAL DE `PoolError` EN CLOUD RUN, 25 dias:**
+
+```
+8   2026-09-05
+1   2026-09-06
+3   2026-09-09
+4   2026-09-15   <- 17:25:13, las cuatro en el MISMO segundo
+0   hoy, con 56 peticiones disparadas a proposito
+```
+
+**El del 15 de septiembre no lo sabia nadie**: es posterior a la sesion que
+diagnostico el problema, o sea el 500 siguio vivo seis dias mas despues de
+quedar "propuesto sin respuesta". Las cuatro en el mismo segundo son la firma
+de la rafaga, la misma de los dias 5 y 9.
+
+**Y UN FALSO NEGATIVO QUE CASI SE PUBLICA COMO VERIFICACION.** La primera
+consulta de logs devolvio **0 `PoolError` en 20 dias**, lo cual encajaba
+sospechosamente bien con "ya esta arreglado". Antes de creerselo se pidio lo
+contrario —que la consulta encontrara los `PoolError` **viejos**, que tienen
+que estar ahi— y tambien salio 0. Ahi se vio: `gcloud` **nunca corrio**. Su
+ruta tiene un espacio (`...\Google\Cloud SDK\...`), se partio al invocarla
+desde bash, y `2>/dev/null` se tragaba el error; lo que se estaba contando eran
+lineas de un mensaje de error. Corrido por PowerShell con el operador `&`,
+aparecieron los 16 de arriba.
+
+**La leccion, que es la version dura de la regla del 2026-09-02:** un resultado
+**vacio** no verifica nada por si solo. Hay que comprobar que la consulta
+encuentra lo que **si** deberia estar antes de creerle que no encuentra lo que
+no deberia. Un comando que falla y un sistema sano se ven exactamente igual.
+
+Commits `feee449` y `68f77c2`.
 
 **PENDIENTES:**
 
