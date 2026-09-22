@@ -86,6 +86,11 @@ export const api = {
   // endpoint de play counts. Se mantiene al día con /listening/capture.
   getListening: (trackId) => request(`/tracks/listening/${trackId}`),
   getListeningSummary: () => request('/tracks/listening/summary'),
+  // Las mas escuchadas de una ventana. dias=0 es historico.
+  // Contesta lo que el agregado NO podia: "cuantas veces en los ultimos 30
+  // dias". Sale de listening_events, una fila por reproduccion.
+  getListeningWindow: (dias = 30, limit = 100) =>
+    request(`/tracks/listening/window?dias=${dias}&limit=${limit}`),
 
   // Cola de "califica lo que sí escuchas": los Me Gusta que nunca pasaron por
   // RateApp, ordenados por escuchas reales. Tarda: recorre TODOS los Me Gusta

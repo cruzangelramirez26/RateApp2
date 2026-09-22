@@ -94,8 +94,7 @@ def get_now_playing():
     if not df.empty:
         row = df[df["track_id"] == tid]
         if not row.empty:
-            val = str(row.iloc[0].get("rating", "")).strip()
-            rating = val if val and val.lower() != "nan" else None
+            rating = _rating_limpio(row.iloc[0].get("rating", "")) or None
 
     return {
         "is_playing": is_playing,
@@ -299,8 +298,7 @@ def get_recently_played():
             for tr in tracks:
                 row = df[df["track_id"] == tr["track_id"]]
                 if not row.empty:
-                    val = str(row.iloc[0].get("rating", "")).strip()
-                    tr["rating"] = val if val and val.lower() != "nan" else None
+                    tr["rating"] = _rating_limpio(row.iloc[0].get("rating", "")) or None
 
     return tracks
 
@@ -464,8 +462,7 @@ def backfill_queue(limit: int = Query(3000, ge=1, le=5000)):
     rated = {}
     if not df.empty:
         for _, r in df.iterrows():
-            val = str(r.get("rating", "")).strip()
-            rated[r["track_id"]] = val if val and val.lower() != "nan" else ""
+            rated[r["track_id"]] = _rating_limpio(r.get("rating", ""))
 
     pendientes = [t for t in liked if not rated.get(t.get("id") or t.get("track_id"), "")]
 
@@ -564,8 +561,7 @@ def abandoned_queue(
     ratings = {}
     if not df.empty:
         for _, r in df.iterrows():
-            v = str(r.get("rating", "")).strip()
-            ratings[r["track_id"]] = v if v and v.lower() != "nan" else ""
+            ratings[r["track_id"]] = _rating_limpio(r.get("rating", ""))
 
     escuchas = database.get_listening_for(liked)
 
@@ -652,6 +648,23 @@ def unlike_tracks(req: UnlikeRequest):
 
 # --- Escuchar la cola sin ir cancion por cancion ----------------------------
 
+def _rating_limpio(valor) -> str:
+    """La calificacion tal como debe verse, o "" si no hay ninguna.
+
+    NO ES PARANOIA. `load_all()` arma un DataFrame, y un rating NULL llega como
+    NaN o como None segun el dtype que pandas le infiera a la columna. `str()`
+    los vuelve las CADENAS "nan" y "None", que son VERDADERAS, asi que se
+    cuelan como si fueran una calificacion de verdad: la UI pinta "None" y el
+    filtro de "solo sin calificar" deja de encontrarlas.
+    
+    Con "nan" ya paso el 2026-05-01 (el filtro `!= "D"` dejaba pasar los NULL)
+    y se tapo en seis lugares por separado; "None" era el mismo bug sin tapar,
+    y lo atrapo una prueba de la ventana de escuchas el 2026-09-21.
+    """
+    v = str(valor if valor is not None else "").strip()
+    return "" if v.lower() in ("", "nan", "none", "<na>", "null") else v
+
+
 BACKFILL_PLAYLIST_KEY = "backfill_playlist_id"
 
 
@@ -660,7 +673,7 @@ def backfill_playlist(
     req: Optional[QueuePlaylistRequest] = None,
     limit: int = Query(50, ge=1, le=100),
     play: bool = Query(True),
-    source: str = Query("backfill", pattern="^(backfill|abandoned|cleanup)$"),
+    source: str = Query("backfill", pattern="^(backfill|abandoned|cleanup|window)$"),
 ):
     """Arma una playlist REAL con lo primero de la cola y la reproduce.
 
@@ -692,6 +705,10 @@ def backfill_playlist(
                                     min_plays=ABANDONO_MIN_PLAYS)
         elif source == "cleanup":
             datos = cleanup_queue(limit=3000)
+        elif source == "window":
+            # 30 dias es el default de la pantalla. Argumentos explicitos: una
+            # llamada de Python a Python recibe los Query(...) como objeto.
+            datos = {"tracks": listening_window(dias=30, limit=limit)["items"]}
         else:
             datos = backfill_queue(limit=3000)
         ids = [t["track_id"] for t in datos["tracks"][:limit]]
@@ -704,6 +721,7 @@ def backfill_playlist(
         "abandoned": "Abandonadas — revisar",
         "cleanup": "Limpiar Me Gusta — revisar",
         "backfill": "Por calificar — lo que más escuchas",
+        "window": "Mis más escuchadas — RateApp",
     }
     nombre = NOMBRES.get(source, NOMBRES["backfill"])
     desc = ("Generada por RateApp. Se reemplaza cada vez que la pides, "
@@ -813,8 +831,7 @@ def cleanup_queue(limit: int = Query(3000, ge=1, le=5000)):
     ratings = {}
     if not df.empty:
         for _, r in df.iterrows():
-            v = str(r.get("rating", "")).strip()
-            ratings[r["track_id"]] = v if v and v.lower() != "nan" else ""
+            ratings[r["track_id"]] = _rating_limpio(r.get("rating", ""))
 
     escuchas = database.get_listening_for(liked)   # UNA query con un solo IN
 
@@ -874,15 +891,93 @@ def listening_reindex():
 @router.get("/listening/window")
 def listening_window(dias: int = Query(30, description="0 = historico"),
                      limit: int = Query(100, ge=1, le=1000)):
-    """Las mas escuchadas de una ventana de tiempo.
+    """Las mas escuchadas de una ventana de tiempo, listas para pintar.
+
+    ESTO ES LO QUE EL AGREGADO NO PODIA CONTESTAR. `listening_stats` guarda
+    totales, asi que una cancion con 200 plays en 2021 y UNA sola vez ayer se
+    ve igual de reciente que una que suena 50 veces este mes. Angel lo pidio
+    asi el 2026-09-06: "que el mix sea de las canciones favoritas de los
+    ultimos 30 dias, el ultimo anio o historico".
 
     OJO CON EL ORDEN DE RUTAS: esta va ANTES de /listening/{track_id}, si no la
     parametrizada se la come. Ya paso con summary y capture.
     """
     d = None if not dias or int(dias) <= 0 else int(dias)
+    items = database.get_top_window(dias=d, limit=int(limit))
+
+    # --- calificacion que ya tenga, para saber que FALTA por calificar -------
+    # load_all() es UNA query; sacar el rating de a uno serian ~80 ms por
+    # cancion contra us-east-1.
+    ratings = {}
+    try:
+        df = database.load_all()
+        if not df.empty:
+            for _, r in df.iterrows():
+                ratings[r["track_id"]] = _rating_limpio(r.get("rating", ""))
+    except Exception:
+        ratings = {}
+
+    # --- LA FECHA SUGERIDA SALE DEL AGREGADO, NO DE LA VENTANA --------------
+    # `first_played` que devuelve get_top_window es la primera escucha DENTRO de
+    # la ventana, o sea a lo mas 30 dias atras. Usarla para calificar fecharia
+    # en 2026 una cancion que Angel descubrio en 2019, y entonces
+    # `rate_track` la tratatia como NUEVA: se metria al cuatrimestre actual,
+    # a la Galeria y a Me Gusta. Es exactamente el desastre que /backfill
+    # existe para evitar (ver la entrada del 2026-09-04).
+    #
+    # La primera escucha DE VERDAD vive en listening_stats, y get_listening_for
+    # la resuelve en una query sumando por match_key.
+    historico = {}
+    try:
+        historico = database.get_listening_for(items)
+    except Exception:
+        historico = {}
+
+    for i, it in enumerate(items, start=1):
+        tid = it.get("track_id")
+        h = historico.get(tid) or {}
+        it["rank"] = i
+        it["rating"] = ratings.get(tid, "") or None
+        it["plays_total"] = h.get("plays")
+        it["primera_escucha"] = h.get("first_played")
+        # Si el agregado no tiene fila (no deberia: salen del mismo import),
+        # la del evento es lo unico que se sabe, y sigue siendo mejor que hoy.
+        it["suggested_added_at"] = h.get("first_played") or it.get("first_played")
+        it["spotify_url"] = f"https://open.spotify.com/track/{tid}" if tid else None
+
+    # --- portada, en lotes de 50 y NUNCA fatal ------------------------------
+    # Mismo patron que /recent y que los candidatos de migracion. Se toma la
+    # imagen mas chica (images[-1], 64 px) porque son miniaturas de lista.
+    if items:
+        try:
+            sp = spotify.get_client()
+            ids = [it["track_id"] for it in items if it.get("track_id")]
+            imgs = {}
+            for chunk in utils.chunk_list(ids, 50):
+                res = sp.tracks(chunk)
+                for t in (res.get("tracks") or []):
+                    if t:
+                        album = (t.get("album") or {})
+                        ii = album.get("images") or []
+                        imgs[t["id"]] = {
+                            "image": ii[-1].get("url") if ii else None,
+                            "album": album.get("name", ""),
+                        }
+            for it in items:
+                extra = imgs.get(it.get("track_id")) or {}
+                it["image"] = extra.get("image")
+                it["album"] = extra.get("album", "")
+        except Exception:
+            # Sin Spotify la lista sale igual: los numeros son de MySQL.
+            for it in items:
+                it.setdefault("image", None)
+                it.setdefault("album", "")
+
     return {
         "dias": d,
-        "items": database.get_top_window(dias=d, limit=int(limit)),
+        "total": len(items),
+        "sin_calificar": sum(1 for it in items if not it.get("rating")),
+        "items": items,
     }
 
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon, Headphones, HeartOff } from 'lucide-react';
+import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon, Headphones, HeartOff, TrendingUp } from 'lucide-react';
 import { api } from '../utils/api';
 import ThemeToggle from '../components/ThemeToggle';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
@@ -221,6 +221,29 @@ export default function ToolsPage() {
     <div className="page">
       <div className="page-header">
         <div className="page-title">Herramientas</div>
+      </div>
+
+      {/* -- Mis mas escuchadas por ventana ----------------------------------- */}
+      <div className="card fade-in" style={{ padding: '20px', marginBottom: '16px' }}>
+        <div style={{
+          fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase',
+          letterSpacing: '0.06em', fontWeight: 600, marginBottom: '12px',
+          fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          <TrendingUp size={14} />
+          Mis más escuchadas
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.6 }}>
+          Lo que de verdad traes sonando, por periodo: últimos 30 días, 90 días,
+          un año o todo tu historial. Sale de tus 118 mil reproducciones reales,
+          no del total de siempre — una canción que amabas en 2021 y pusiste una
+          vez ayer ya no se cuela como novedad. Puedes armar la playlist de ese
+          periodo y calificar desde ahí; calificar <strong>solo cataloga</strong>.
+        </p>
+        <button className="btn" onClick={() => navigate('/window')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <TrendingUp size={14} /> Ver por periodo
+        </button>
       </div>
 
       {/* -- Califica lo que si escuchas -------------------------------------- */}
