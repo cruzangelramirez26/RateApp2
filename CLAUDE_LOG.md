@@ -97,22 +97,46 @@ instalar nada a mano. Salen al target-dir de fuera de OneDrive, asi que **no
 tocan el repo ni la cuota de sincronizacion** — el arreglo del 2026-08-25
 sigue haciendo su trabajo.
 
-**LO UNICO SIN VERIFICAR, y es honesto decirlo:** los **tres items del menu de
-la bandeja** necesitan un clic humano. El que importa es *Iniciar con Windows*,
-porque es el unico camino que **escribe en el registro de Windows**. Queda para
-que Angel lo pique y se confirme mirando `HKCU\Software\Microsoft\WindowsCurrentVersion\Run`.
+**EL MENU, VERIFICADO EN LA APP INSTALADA.** Era lo unico que no se podia
+probar sin un clic humano. Angel instalo con el NSIS, pico los tres items y
+confirmo que *Mostrar RateApp* y *Salir* responden. El que importa es *Iniciar
+con Windows*, porque es el **unico camino que escribe en el registro**, y quedo
+asi:
 
-**OJO AL PRENDERLO:** el autostart registra **la ruta del ejecutable que esta
-corriendo**. Si se prende desde el `RateApp.exe` del directorio de compilacion
-y despues se instala en Program Files, el registro apunta a la ruta vieja. Hay
-que prenderlo **desde la app instalada**.
+```
+Run\RateApp      C:\Users\cruza\AppData\Local\RateApp\RateApp.exe --iniciado-por-windows
+StartupApproved  02 00 00 00 00 00 00 00 00 00 00 00      <- habilitado
+```
+
+Dos cosas se comprueban en ese renglon, y las dos eran riesgos reales: apunta
+al exe **instalado** (`AppData\Local\RateApp`) y no al del directorio de
+compilacion, y **lleva el argumento**, o sea al iniciar sesion la app se queda
+en la bandeja en vez de saltar a la cara. La segunda clave es la de
+`StartupApproved`, que es donde el Administrador de tareas de Windows guarda si
+la entrada esta habilitada: `02` es habilitada.
+
+**HUBO UNA FALSA ALARMA ANTES DE ESO**, y vale anotarla porque es el error de
+metodo de esta manana al reves: al revisar el registro no habia entrada, y se
+empezo a leer el codigo de `auto-launch` buscando por que `enable()` fallaba
+**en silencio**. No fallaba nada: Angel habia abierto el menu pero **el clic no
+se habia dado**. Antes de recompilar nada instrumentado se le pregunto que
+veia, y se resolvio en un mensaje. **Preguntarle al usuario que ve en pantalla
+es mas barato que instrumentar el binario**, y aqui habria costado un ciclo
+entero de compilar, reinstalar y pedir otro clic.
+
+**OJO SI ALGUNA VEZ SE REINSTALA:** el autostart guarda **la ruta del
+ejecutable que estaba corriendo al prenderlo**. El NSIS reinstala en el mismo
+sitio, asi que no molesta; pero el **MSI** instala en Program Files y la entrada
+del registro seguiria apuntando a la ruta vieja. Si se cambia de instalador,
+apagar y volver a prender el toggle.
 
 Commits `b9c6013` y este log.
 
 **PENDIENTES DE LA APP NATIVA:**
 
 - [x] **Bandeja, cerrar-a-bandeja, autostart e instalador.** Fase 1 cerrada.
-- [ ] **Picarle a "Iniciar con Windows"** y confirmar la entrada del registro.
+- [x] **"Iniciar con Windows" PROBADO** en la app instalada: la entrada del
+      registro quedo con la ruta correcta y con el argumento de la bandeja.
 - [ ] **Icono propio.** Sigue el generico de Tauri. Cuando Angel diga, sale del
       badge A+ (`#1DB954`) o de una imagen suya.
 - [ ] Fase 2: teclas multimedia globales. Los endpoints del player ya existen;
