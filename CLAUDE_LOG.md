@@ -410,7 +410,7 @@ toda la vida**, **72 no estan calificadas** en RateApp. Contra 7 de 100 en la
 ventana de un anio. La app conoce bien lo reciente y esta casi ciega a lo que
 mas ha escuchado historicamente.
 
-Commits `55bd2df` y `ad8e5f2`.
+Commits `55bd2df` y `942c144`.
 
 **PENDIENTES:**
 
