@@ -2,6 +2,131 @@
 
 ---
 
+## 2026-09-21 (sesion: los dos bugs que ya se veian en produccion)
+
+**Maquina: PC `AngelPC`.** Doce dias sin tocar el repo. Angel abrio con "en que
+nos quedamos?" y, al repasarle los pendientes, con "dale los dos": los dos
+arreglos que la sesion del 9 dejo **propuestos y sin respuesta**.
+
+**Antes de tocar nada se midio produccion, y de ahi salio un dato bueno:**
+
+```
+/health          200 en 0.22 s
+/auth/status     autenticado, Angel RG
+eventos          118,203   (117,827 el 7 sep)
+agregado         119,245 plays
+ultima escucha   el mismo dia
+```
+
+La diferencia agregado/eventos sigue siendo **exactamente 1,042**, la misma que
+el 7 de septiembre. O sea **no hay deriva nueva**: el cron escribe las dos
+tablas a la par y la idempotencia de la PK se sostiene sola desde entonces. Es
+la unica forma de comprobarlo sin volver a contar todo.
+
+**1) EL POOL DE 5 ERA UN 500 EN PRODUCCION.**
+
+`App.jsx` dispara 9 peticiones en paralelo al arrancar contra un pool de **5**,
+y cada endpoint sincrono de FastAPI corre en su propio hilo, o sea toma una
+conexion. Las rafagas de `PoolError: pool exhausted` dentro de `load_all()`
+estan en los logs del 5, 6, 8 y 9 de septiembre.
+
+`pool_size` 5 -> **16**. **Pero el numero solo no cierra el hoyo, y eso es lo
+que hace el arreglo distinto del propuesto:** 32 es el tope duro de
+`mysql.connector` (`CNX_POOL_MAXSIZE`, verificado en la version instalada) y el
+threadpool de FastAPI son **40 hilos**, asi que puede pedir mas conexiones de
+las que el pool puede tener **jamas**. Subir a 16 solo mueve el umbral.
+
+Por eso ademas se reintenta (`_acquire`, 4 intentos x 150 ms):
+`get_connection()` **no espera** — falla en el acto cuando el pool esta vacio.
+Pero una rafaga se drena en milisegundos, porque cada conexion vuelve al pool
+al terminar su query. Esperar 0.45 s en el peor caso es mejor que un 500.
+
+**El pool agotado de verdad sigue levantando el error, a proposito:**
+reintentar para siempre esconderia una fuga de conexiones, que es peor que un
+500 porque no se entera nadie.
+
+**2) "LA PLAYLIST DE LAS MENOS ESCUCHADAS NO SE HACE". SI SE HACIA.**
+
+Ya estaba diagnosticado el 9: el endpoint respondio **200 las tres veces** que
+Angel le pico y armaba la playlist en 0.5 s; lo que falla es la reproduccion,
+porque sin dispositivo activo `start_playback` no tiene donde sonar. Y lo que
+volvia el fallo invisible: el backend devuelve el link en `spotify_url` y **el
+frontend lo tiraba a la basura**, asi que la playlist quedaba armada con su
+tramo exacto y sin forma de llegar a ella.
+
+`frontend/src/components/QueuePlaylistLink.jsx` (nuevo) es un banner que **se
+queda** con "Abrir en Spotify". Solo aparece cuando `playing` viene en false:
+si ya esta sonando seria ruido.
+
+**DOS COSAS QUE CORRIGEN EL DIAGNOSTICO DE LA SESION PASADA**, las dos por
+haber leido el codigo en vez de fiarse del log:
+
+- **El toast SI existe y SI dice el error.** `r.error || 'Playlist lista, pero
+  no se pudo reproducir'`, en rojo, 5 s. La pregunta que quedo abierta —"¿sale
+  algun mensaje **abajo**?"— estaba mal planteada: el toast sale **arriba a la
+  derecha** (`.toast-container` es `top: 16px; right: 16px`). Lo mas probable
+  es que Angel si lo vio. Asi que el banner **no reemplaza** al toast, lo
+  complementa: el toast se va en 5 s y el link tiene que sobrevivir a eso.
+- **Son DOS paginas, no tres.** El log del 9 decia "las tres paginas de colas";
+  `AbandonedPage` ya no existe, la reemplazo `CleanupPage` el 2026-09-04. Solo
+  `BackfillPage` y `CleanupPage` llaman a `buildQueuePlaylist`, y hay una
+  prueba que lo fija.
+
+**3) BUG QUE NO VENIA EN NINGUNA QUEJA, y estaba en el mismo boton.**
+
+`BackfillPage:218` tenia `onClick={escuchar}`, asi que React le pasaba **el
+evento** como parametro `desde`:
+
+```js
+lista.slice(evento, evento + 50)   // -> slice(NaN, NaN) -> []
+`#${evento + 1}`                   // -> "#[object Object]1"
+```
+
+No se veia roto porque el backend cae a "las primeras 50 de la cola" cuando
+`track_ids` llega vacio — pero eso **ignora el filtro de "solo activas"**, o
+sea el boton no mandaba el tramo que Angel estaba viendo, que es justo lo que
+se construyo el 2026-09-04. Se comprobo en node, no de memoria.
+
+**Verificacion: 37 comprobaciones, sin red y sin MySQL** (12 del pool con la
+capa de `mysql.connector` stubeada + 25 del cableado del link). Las que
+importan: las **9 peticiones en paralelo** que tumbaban produccion pasan sin
+`PoolError`; **40 hilos contra 16 conexiones** no revientan ninguna y el pool
+queda intacto al final; el pool agotado de verdad **si** levanta el error y lo
+intenta 4 veces, no 1; la conexion vuelve al pool aunque la query truene; el
+banner **no** sale cuando si esta sonando; un fallo de red limpia el banner
+viejo en vez de dejar un link muerto; y el `slice` con el evento da array
+vacio. El import se probo contra **mysql-connector-python 9.0.0**, la version
+fijada en `requirements.txt` — la misma que corre en Docker, no la ultima.
+`npm run build` OK (1590 modulos).
+
+**UNA PRUEBA FALLO Y LA EQUIVOCADA ERA LA PRUEBA** (el patron de siempre aqui):
+buscaba `onClick={escuchar}` y pegaba con el **comentario** que explica el
+arreglo. Es el mismo falso positivo de "Savia" del 2026-09-09. Ahora busca el
+atributo en una linea de JSX real, o sea dato y no prosa.
+
+Commit `feee449`.
+
+**PENDIENTES:**
+
+- [x] **`pool_size` 5 -> 16, mas reintento.** El 500 recurrente, cerrado.
+- [x] **El link a la playlist cuando no hay dispositivo.**
+- [x] **Contestada la pregunta del toast**: existe, funciona y sale arriba a la
+      derecha.
+- [ ] **Decidir los nombres nuevos de 2026** (y las portadas, que Angel hara
+      con Design). El codigo ya solo espera una entrada en
+      `config.CUATRI_NOMBRES`.
+- [ ] El mix. Sigue bloqueado por **auth mono-usuario**.
+- [ ] Scope `user-top-read`, junto con la cirugia de auth.
+- [ ] **Nada consume las ventanas de escucha todavia.** Sigue siendo lo mas
+      barato que queda con valor visible, y no necesita nada de auth.
+- [ ] Vista de las 317 que escucha y no tiene likeadas.
+- [ ] `/tracks/abandoned/queue` sigue sin usarse por la UI.
+- [ ] `MYSQL_PORT` sigue sin leerse.
+- [ ] `frontend/package-lock.json` sigue sin versionar.
+- [ ] `.claude/worktrees/` guarda una copia entera del repo de una sesion vieja.
+
+---
+
 ## 2026-09-09 (sesion: la migracion mostraba 70 de 303, y los nombres dejan de ser el id)
 
 **Maquina: PC `AngelPC`.** Dos quejas de Angel y un hallazgo que no venia en
