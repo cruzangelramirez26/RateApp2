@@ -180,6 +180,33 @@ def get_user_playlists(sp: spotipy.Spotify) -> list[dict]:
     return playlists
 
 
+def get_playlist_covers(sp: spotipy.Spotify, ids: dict[str, str]) -> dict[str, str]:
+    """Portada real de cada playlist, {clave: url}.
+
+    Existe para que la portada de un cuatrimestre NO sea un archivo que hay que
+    copiar al repo cada vez: Angel la cambia en Spotify y la app la refleja
+    sola. Antes eran archivos en frontend/public/portadas/ y ya se habian
+    desincronizado —renombro las playlists y la portada de "2026 PT.-3" no
+    existia del lado de la app.
+
+    TOLERANTE POR PLAYLIST: si una falla, se omite esa y las demas salen. El
+    llamador (GET /playlists/distribution) no puede permitirse un 502, porque
+    ese endpoint tambien lleva el mapa de NOMBRES.
+    """
+    covers: dict[str, str] = {}
+    for clave, pid in (ids or {}).items():
+        if not pid:
+            continue
+        try:
+            imgs = sp.playlist_cover_image(pid) or []
+            url = (imgs[0] or {}).get("url") if imgs else None
+            if url:
+                covers[clave] = url
+        except Exception:
+            continue
+    return covers
+
+
 def get_all_liked_tracks(sp: spotipy.Spotify, limit: int = 500, start_offset: int = 0) -> list[dict]:
     """Return up to `limit` most recent liked songs with full metadata, starting at start_offset."""
     tracks = []

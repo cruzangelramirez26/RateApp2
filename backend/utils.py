@@ -35,12 +35,20 @@ def cuatri_info(cuatri: str, year: int | None = None) -> dict:
         year = now_utc().year
     info = (config.CUATRI_NOMBRES.get(year) or {}).get(cuatri)
     nombre = (info or {}).get("nombre") or (cuatri or "").capitalize()
+    # OJO CON EL `in`, no es un `or`: un `img: None` explicito significa "este
+    # cuatrimestre NO tiene respaldo local", y con `or` se caeria al path
+    # derivado. Ademas el path derivado ya no sirve para nombres como
+    # "2026 PT.-1", que no corresponden a ningun archivo.
+    if info and "img" in info:
+        img = info["img"]
+    else:
+        img = f"/portadas/{year}/{nombre}.jpg"
     return {
         "cuatri": cuatri,
         "year": year,
         "nombre": nombre,
         "color": (info or {}).get("color"),
-        "img": (info or {}).get("img") or f"/portadas/{year}/{nombre}.jpg",
+        "img": img,
     }
 
 

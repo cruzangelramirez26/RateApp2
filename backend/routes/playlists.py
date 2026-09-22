@@ -37,14 +37,42 @@ def get_distribution_playlists():
     pantallas que solo quieren pintar una etiqueta.
     """
     ahora = utils.now_utc()
+    # {"2026": {"perla": {nombre, color, img}, ...}, ...}
+    cuatris = {
+        str(anio): {c: utils.cuatri_info(c, anio) for c in slots}
+        for anio, slots in config.CUATRI_NOMBRES.items()
+    }
+
+    # LA PORTADA SALE DE SPOTIFY, que es la unica fuente que no se puede
+    # desincronizar: Angel la cambia alla y la app la refleja sin que nadie
+    # copie un archivo al repo. Los archivos de frontend/public/portadas/ pasan
+    # a ser solo respaldo.
+    #
+    # SOLO PARA EL ANIO ACTUAL, y es un limite real: DISTRIBUTION_PLAYLISTS son
+    # las tres playlists de este anio y de los anios pasados la app no guarda
+    # ningun id. Los historicos se quedan con su archivo local (2025 =
+    # Savia/Lirio/Marea), que es correcto porque ese arte ya no cambia.
+    #
+    # ADITIVO Y NO-FATAL A PROPOSITO: hasta hoy este endpoint no tocaba Spotify,
+    # o sea respondia incluso sin token, y es el que lleva el mapa de NOMBRES
+    # que App.jsx primea al arrancar. Si Spotify se cae o el token murio, tiene
+    # que seguir trayendo los nombres — con la portada de respaldo, no con un
+    # 502. Por eso el try envuelve TAMBIEN al get_client().
+    slots_actuales = cuatris.get(str(ahora.year))
+    if slots_actuales:
+        try:
+            ids = {c: config.DISTRIBUTION_PLAYLISTS.get(c) for c in slots_actuales}
+            sp = spotify.get_client()
+            for c, url in spotify.get_playlist_covers(sp, ids).items():
+                if c in slots_actuales:
+                    slots_actuales[c]["img"] = url
+        except Exception:
+            pass
+
     return {
         "calificar": config.CALIFICAR_PLAYLIST_ID,
         **config.DISTRIBUTION_PLAYLISTS,
-        # {"2026": {"perla": {nombre, color, img}, ...}, ...}
-        "cuatrimestres": {
-            str(anio): {c: utils.cuatri_info(c, anio) for c in slots}
-            for anio, slots in config.CUATRI_NOMBRES.items()
-        },
+        "cuatrimestres": cuatris,
         "actual": {"year": ahora.year, "cuatri": utils.get_cuatrimestre(ahora)},
     }
 

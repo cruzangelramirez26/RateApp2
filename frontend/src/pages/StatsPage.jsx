@@ -5,9 +5,12 @@ import { cuatriInfo, nombreCuatri } from '../utils/cuatrimestres';
 import { useToast } from '../hooks/useToast';
 
 const RATING_ORDER = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
-// Fallback para un cuatrimestre sin bautizar; el nombre bueno sale de
-// cuatriInfo (backend). No agregar anios aqui.
-const CUATRI_LABEL = { perla: 'Perla', miel: 'Miel', latte: 'Latte' };
+// Solo las FECHAS, que son fijas. El nombre visible NO vive aqui: habia un
+// CUATRI_LABEL = {perla: 'Perla', ...} de respaldo y se quito, porque desde que
+// los cuatrimestres de 2026 se llaman "2026 PT.-1/2/3" ese mapa imprimiria un
+// nombre FALSO si alguna vez se disparara. Es el mismo bug de los cinco mapas
+// duplicados, en version latente. cuatriInfo ya cae solo al identificador
+// capitalizado cuando un anio no esta bautizado.
 const CUATRI_DATE  = { perla: 'Ene–Abr', miel: 'May–Ago', latte: 'Sep–Dic' };
 
 // Los nombres, colores y portadas ya no viven aqui: son datos del backend
@@ -17,7 +20,7 @@ const CUATRI_DATE  = { perla: 'Ene–Abr', miel: 'May–Ago', latte: 'Sep–Dic'
 function getCuatriMeta(year, cuatri) {
   const info = cuatriInfo(cuatri, Number(year));
   return {
-    label: info.nombre || CUATRI_LABEL[cuatri] || cuatri,
+    label: info.nombre || cuatri,
     color: info.color || 'var(--text-muted)',
     img: info.img || null,
   };

@@ -24,9 +24,9 @@ const FALLBACK = {
     latte: { nombre: 'Marea', color: '#bde8f3' },
   },
   2026: {
-    perla: { nombre: 'Perla', color: '#5ba8d4' },
-    miel:  { nombre: 'Miel',  color: '#f5c542' },
-    latte: { nombre: 'Latte', color: '#e8a83e' },
+    perla: { nombre: '2026 PT.-1', color: '#5ba8d4' },
+    miel:  { nombre: '2026 PT.-2', color: '#f5c542' },
+    latte: { nombre: '2026 PT.-3', color: '#d04e54' },
   },
 };
 
@@ -58,7 +58,11 @@ export function cuatriInfo(cuatri, year = anioActual()) {
     year,
     nombre,
     color: info?.color ?? null,
-    img: info?.img ?? `/portadas/${year}/${nombre}.jpg`,
+    // OJO CON EL `in`, no es un `??`: la portada de verdad viene de Spotify y
+    // un `img: null` explicito significa "este cuatrimestre no tiene respaldo
+    // local". Con `??` se caeria al path derivado, que ademas ya no existe para
+    // nombres como "2026 PT.-1".
+    img: (info && 'img' in info) ? info.img : `/portadas/${year}/${nombre}.jpg`,
   };
 }
 
