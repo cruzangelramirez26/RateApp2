@@ -198,13 +198,39 @@ def get_playlist_covers(sp: spotipy.Spotify, ids: dict[str, str]) -> dict[str, s
         if not pid:
             continue
         try:
-            imgs = sp.playlist_cover_image(pid) or []
-            url = (imgs[0] or {}).get("url") if imgs else None
+            url = _cover_url(sp.playlist_cover_image(pid) or [])
             if url:
                 covers[clave] = url
         except Exception:
             continue
     return covers
+
+
+# La tira de portada del Dashboard mide 90 px de alto, asi que 300 px alcanza
+# de sobra incluso al doble de densidad.
+COVER_MIN_PX = 300
+
+
+def _cover_url(imgs: list[dict]) -> str | None:
+    """La variante mas LIGERA que todavia se ve bien.
+
+    `playlist_cover_image` devuelve la mas grande primero, y quedarse con esa
+    traia 102 KB para pintar 90 px — por tres cuatrimestres, ~300 KB en el
+    primer paint, en un telefono. La de 300 px pesa 32 KB.
+
+    OJO: para una portada subida a mano Spotify a veces manda `width: null`.
+    Si no se sabe el tamano NO se puede elegir, asi que se cae a la primera,
+    que es la que se usaba antes.
+    """
+    if not imgs:
+        return None
+    conocidas = [i for i in imgs if isinstance((i or {}).get("width"), int)]
+    if conocidas:
+        grandes = sorted((i for i in conocidas if i["width"] >= COVER_MIN_PX),
+                         key=lambda i: i["width"])
+        elegida = grandes[0] if grandes else max(conocidas, key=lambda i: i["width"])
+        return elegida.get("url")
+    return (imgs[0] or {}).get("url")
 
 
 def get_all_liked_tracks(sp: spotipy.Spotify, limit: int = 500, start_offset: int = 0) -> list[dict]:
