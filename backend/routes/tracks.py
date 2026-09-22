@@ -11,6 +11,8 @@ import utils
 from models import (
     RateRequest, TrackOut, StatsOut, AplusApplyRequest, MigrateRequest,
     PlayContextRequest, UnlikeRequest, QueuePlaylistRequest,
+    SeekRequest,
+    LikeRequest,
 )
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
@@ -96,12 +98,18 @@ def get_now_playing():
         if not row.empty:
             rating = _rating_limpio(row.iloc[0].get("rating", "")) or None
 
+    # progress_ms y duration_ms YA venian en la respuesta de Spotify y se
+    # tiraban. Son los que hacen posible la barra de progreso, y no cuestan una
+    # llamada extra. `progress_ms` puede faltar (algunos dispositivos no lo
+    # reportan), asi que el frontend tiene que aguantar None.
     return {
         "is_playing": is_playing,
+        "progress_ms": result.get("progress_ms"),
+        "duration_ms": item.get("duration_ms"),
         "track": {
             "id": tid,
             "name": item.get("name", ""),
-            "artist": artists[0].get("name", ""),
+            "artist": ", ".join(a.get("name", "") for a in artists if a.get("name")),
             "album": (item.get("album") or {}).get("name", ""),
             "image": images[0].get("url") if images else None,
             "spotify_url": (item.get("external_urls") or {}).get("spotify"),
@@ -237,6 +245,54 @@ def player_previous():
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True}
+
+
+@router.post("/player/seek")
+def player_seek(req: SeekRequest):
+    """Mover la reproduccion dentro de la cancion (la barra de progreso)."""
+    if req.position_ms < 0:
+        raise HTTPException(status_code=400, detail="La posicion no puede ser negativa.")
+    sp = spotify.get_client()
+    try:
+        sp.seek_track(req.position_ms)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "position_ms": req.position_ms}
+
+
+@router.get("/saved/{track_id}")
+def is_track_saved(track_id: str):
+    """Dice si una cancion tiene el corazon de Spotify.
+
+    Va en su propio endpoint y NO dentro de `now-playing` a proposito: el
+    reproductor sondea cada pocos segundos, y meterlo ahi le regalaria una
+    llamada extra a Spotify a cada vuelta. Asi solo se pregunta cuando cambia
+    la cancion, o sea una vez cada tres minutos.
+    """
+    sp = spotify.get_client()
+    try:
+        saved = spotify.are_tracks_saved(sp, [track_id])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify no contesto: {e}")
+    return {"track_id": track_id, "saved": bool(saved.get(track_id))}
+
+
+@router.post("/like")
+def like_tracks(req: LikeRequest):
+    """Pone el corazon nativo de Spotify. Gemelo de /unlike.
+
+    No escribe ninguna calificacion: el corazon y el rating son cosas
+    distintas, y solo `rate_track` los mueve juntos.
+    """
+    ids = [t for t in dict.fromkeys(req.track_ids) if t]
+    if not ids:
+        return {"ok": True, "saved": 0}
+    sp = spotify.get_client()
+    try:
+        spotify.save_tracks(sp, ids)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify rechazo el like: {e}")
+    return {"ok": True, "saved": len(ids)}
 
 
 @router.get("/recent")

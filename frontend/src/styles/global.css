@@ -1454,3 +1454,211 @@ body {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ============================================================
+   /player — el reproductor como ruta propia.
+
+   Se usa en tres sitios con el mismo codigo: la ventana flotante nativa del
+   escritorio (Tauri), el PiP del navegador y la propia URL en el celular. Por
+   eso todo es fluido y no hay ningun ancho fijo: la ventana flotante ronda los
+   360px y la del PiP puede ser mas angosta todavia.
+   ============================================================ */
+
+.player-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  min-height: 100vh;
+  box-sizing: border-box;
+  /* Fondo OPACO a proposito: esta ruta vive en su propia ventana, sin el
+     layout de la app que normalmente pinta el fondo. */
+  background: var(--bg-deep);
+  color: var(--text-primary);
+}
+
+.player-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.player-empty-text {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 0;
+}
+
+.player-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.player-art {
+  width: 74px;
+  height: 74px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.player-art-vacia {
+  background: var(--bg-surface);
+}
+
+.player-meta {
+  min-width: 0;          /* sin esto el texto largo estira la caja y rompe el ellipsis */
+  flex: 1;
+}
+
+.player-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-artist {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-meta-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.player-rating-actual {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.player-heart {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.player-heart:hover:not(:disabled) { color: var(--text-primary); }
+.player-heart.is-saved { color: var(--accent); border-color: var(--accent); }
+.player-heart:disabled { opacity: 0.45; cursor: default; }
+
+.player-barra-zona { display: flex; flex-direction: column; gap: 4px; }
+
+.player-barra {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  overflow: hidden;
+  /* Area de toque comoda sin engordar la barra visible. */
+  padding: 6px 0;
+  background-clip: content-box;
+  box-sizing: content-box;
+}
+
+.player-barra-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  /* Igual al reloj local de interpolacion: la barra avanza sola entre polls
+     en vez de dar saltos de 4 segundos. */
+  transition: width 0.5s linear;
+  pointer-events: none;
+}
+
+.player-tiempos {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text-muted);
+}
+
+.player-controles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.player-controles button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.player-controles button:hover { background: var(--bg-card-hover); }
+
+.player-controles .player-btn-grande {
+  width: 42px;
+  height: 42px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.player-ratings {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.player-rating-btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 7px 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s;
+}
+
+.player-rating-btn:hover { transform: translateY(-1px); }
+.player-rating-btn.is-activo { border-width: 2px; }
+
+.player-error {
+  font-size: 0.72rem;
+  color: var(--rating-d);
+  text-align: center;
+}
+
+/* Ventana muy angosta (el PiP chico): la portada estorba mas de lo que aporta. */
+@media (max-width: 260px) {
+  .player-art { width: 52px; height: 52px; }
+  .player-ratings { grid-template-columns: repeat(4, 1fr); }
+}

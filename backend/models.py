@@ -104,6 +104,21 @@ class UnlikeRequest(BaseModel):
     track_ids: list[str]
 
 
+class SeekRequest(BaseModel):
+    """Mover la reproduccion a un punto de la cancion (barra de progreso)."""
+    position_ms: int
+
+
+class LikeRequest(BaseModel):
+    """Poner el corazon de Spotify a UNA cancion, desde el reproductor.
+
+    Es el gemelo de `UnlikeRequest` y tampoco escribe rating: el corazon nativo
+    y la calificacion son dos cosas distintas (ver `CLAUDE.md`), y solo
+    `rate_track` puede moverlos juntos.
+    """
+    track_ids: list[str]
+
+
 class PlayContextRequest(BaseModel):
     """Reproducir un track DENTRO del contexto de una playlist."""
     track_id: str

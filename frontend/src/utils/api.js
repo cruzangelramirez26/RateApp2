@@ -74,6 +74,15 @@ export const api = {
   playerPlay: () => request('/tracks/player/play', { method: 'POST' }),
   playerNext: () => request('/tracks/player/next', { method: 'POST' }),
   playerPrevious: () => request('/tracks/player/previous', { method: 'POST' }),
+  playerSeek: (positionMs) => request('/tracks/player/seek', {
+    method: 'POST',
+    body: JSON.stringify({ position_ms: Math.max(0, Math.round(positionMs)) }),
+  }),
+  isTrackSaved: (trackId) => request(`/tracks/saved/${trackId}`),
+  likeTracks: (trackIds) => request('/tracks/like', {
+    method: 'POST',
+    body: JSON.stringify({ track_ids: trackIds }),
+  }),
   // Reproduce el track DENTRO de la playlist (default <3333>), shuffle off
   playInContext: (trackId, playlistId = null, shuffleOff = true) =>
     request('/tracks/player/play-in-context', {

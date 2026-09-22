@@ -15,6 +15,7 @@ import ToolsPage from './pages/ToolsPage';
 import BackfillPage from './pages/BackfillPage';
 import CleanupPage from './pages/CleanupPage';
 import WindowPage from './pages/WindowPage';
+import PlayerPage from './pages/PlayerPage';
 
 export default function App() {
   const [auth, setAuth] = useState(null);
@@ -77,6 +78,12 @@ export default function App() {
     <ThemeProvider>
       <ToastProvider>
         <BrowserRouter>
+          <Routes>
+            {/* /player va FUERA del layout a proposito: es la ventana flotante
+                del escritorio (y el PiP), mide ~360px y no tiene por que
+                cargar el sidebar ni la barra de tabs. */}
+            <Route path="/player" element={<PlayerPage />} />
+            <Route path="*" element={
           <div className="app-layout">
             <NavBar />
             <div className="main-content">
@@ -94,6 +101,8 @@ export default function App() {
               </Routes>
             </div>
           </div>
+            } />
+          </Routes>
         </BrowserRouter>
       </ToastProvider>
     </ThemeProvider>
