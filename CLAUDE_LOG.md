@@ -2,6 +2,129 @@
 
 ---
 
+## 2026-09-21 (sesion: la app de escritorio deja de ser un cascaron)
+
+**Maquina: PC `AngelPC`.** Segunda tanda del dia. Angel: *"me gustaria seguir
+lo de que sea app nativa de pc"*, o sea la fase 1 de Tauri que quedo abierta el
+2026-08-25 — bandeja, arranque con Windows e instalador, **nunca probado**.
+
+**Tres decisiones suyas, preguntadas antes de tocar codigo:**
+
+| | Se recomendo | Eligio |
+|---|---|---|
+| Icono | el badge A+ verde del sidebar | **dejar el generico por ahora** |
+| La X | ocultar a la bandeja | **ocultar a la bandeja** |
+| Autostart | instalarlo apagado | **instalarlo apagado** |
+
+**EL DETALLE DE ARQUITECTURA QUE MANDO EL DISENO:** la ventana carga una **URL
+remota** (Cloud Run), no archivos locales. Exponerle comandos de Tauri a esa
+pagina exigiria abrirle permisos al origen remoto en las capabilities. Por eso
+**toda la configuracion vive del lado de Rust**, en el menu de la bandeja: no se
+toca el frontend y no se le abre puerta a la pagina.
+
+**LO CONSTRUIDO** (`desktop/src-tauri/src/lib.rs`, de 16 lineas a 133):
+
+- Bandeja con menu **Mostrar RateApp / Iniciar con Windows / Salir**, y clic
+  izquierdo para traer la ventana.
+- **La X oculta, no cierra** (`prevent_close` + `hide`). Salir de verdad es la
+  opcion del menu.
+- **`tauri-plugin-autostart`, apagado de fabrica.** La casilla **lee el
+  registro** en cada clic en vez de invertir su propio valor: si la escritura
+  falla, o si Angel quita la entrada desde el Administrador de tareas de
+  Windows, la casilla no miente.
+- **`tauri-plugin-single-instance`, que no venia en ninguna peticion y es
+  consecuencia directa de la decision #2:** con la ventana oculta, volver a
+  abrir el acceso directo lanzaria una **segunda instancia** — dos iconos en la
+  bandeja y la ventana vieja perdida. Ahora la nueva muere y trae al frente la
+  que ya corria.
+- **Arranque por Windows != doble clic.** El plugin registra un argumento
+  propio (`--iniciado-por-windows`), y con el la app **se queda en la bandeja**
+  en vez de saltar a la cara. Es lo que se espera de un arranque automatico.
+
+**BUG QUE SOLO APARECE AL EMPAQUETAR:** el instalador copiaba **`app.exe`** tal
+cual — el nombre del crate de Cargo. O sea el proceso se veria como "app.exe"
+en el Administrador de tareas y el autostart registraria **ese** nombre en el
+registro, aunque los accesos directos dijeran RateApp. Arreglado con
+`mainBinaryName`. Solo se ve mirando el `main.wxs` que genera WiX; el `tauri
+dev` de agosto jamas lo habria delatado.
+
+**LA PRUEBA ESTABA MAL MEDIDA, Y CASI CUESTA DOS CAMBIOS INVENTADOS.** La
+comprobacion de "arranca escondido" fallaba: con el argumento de autostart la
+ventana **parecia** salir a la cara. Se cambio la config dos veces para
+arreglarlo (`visible: false`, luego `focus: false`) y **seguia fallando**, que
+fue la senal de que el diagnostico estaba mal.
+
+Al enumerar las ventanas top-level del proceso en vez de creerle a PowerShell:
+
+```
+clase 'Tauri Window'            titulo 'RateApp'   visible=False   <- la real
+clase 'com.angelrg.rateapp-sic' titulo '...-siw'   visible=True    <- la falsa
+```
+
+**La segunda es la ventana de mensajes del plugin single-instance.** Es
+top-level y siempre visible, y `Process.MainWindowHandle` de .NET la toma como
+"la ventana principal" **justo cuando la verdadera esta oculta** — o sea el
+falso positivo aparece exactamente en el caso que se queria probar. El codigo
+funcionaba desde la primera version.
+
+Es el mismo patron que ya mordio el 2026-09-04 y el 2026-09-09 ("una prueba
+fallo y la equivocada era la prueba"), pero con una vuelta nueva que conviene
+anotar: **aqui el instrumento de medicion elegia solo cual ventana mirar**. La
+leccion: cuando una prueba de UI falla, primero comprobar que esta mirando el
+objeto que cree.
+
+De los dos cambios, `focus: false` se **revirtio** (no hacia nada demostrable) y
+`visible: false` se **conservo**: nacer invisible y mostrarse en el setup hace
+imposible el parpadeo de un frame en el arranque automatico, mientras que
+ocultar despues lo deja abierto.
+
+**Verificacion: 11 comprobaciones contra el binario RELEASE**, no el de dev, y
+midiendo la ventana por su clase real. Las que importan: la X **no mata el
+proceso** y si oculta la ventana; la segunda instancia deja **1 proceso** y
+reabre la ventana; con el argumento de autostart el proceso vive y la ventana
+**no se ve**; y el registro `HKCU\...\Run` **sigue sin entrada** despues de
+todo, o sea el plugin no se auto-activa. 11 de 11.
+
+**LOS INSTALADORES, POR PRIMERA VEZ:**
+
+```
+RateApp_0.1.0_x64-setup.exe   1.9 MB   (NSIS)
+RateApp_0.1.0_x64_en-US.msi   2.9 MB   (WiX)
+```
+
+El primer `tauri build` se descarga solo WiX 3.14 y NSIS 3.11; no habia que
+instalar nada a mano. Salen al target-dir de fuera de OneDrive, asi que **no
+tocan el repo ni la cuota de sincronizacion** — el arreglo del 2026-08-25
+sigue haciendo su trabajo.
+
+**LO UNICO SIN VERIFICAR, y es honesto decirlo:** los **tres items del menu de
+la bandeja** necesitan un clic humano. El que importa es *Iniciar con Windows*,
+porque es el unico camino que **escribe en el registro de Windows**. Queda para
+que Angel lo pique y se confirme mirando `HKCU\Software\Microsoft\WindowsCurrentVersion\Run`.
+
+**OJO AL PRENDERLO:** el autostart registra **la ruta del ejecutable que esta
+corriendo**. Si se prende desde el `RateApp.exe` del directorio de compilacion
+y despues se instala en Program Files, el registro apunta a la ruta vieja. Hay
+que prenderlo **desde la app instalada**.
+
+Commits `b9c6013` y este log.
+
+**PENDIENTES DE LA APP NATIVA:**
+
+- [x] **Bandeja, cerrar-a-bandeja, autostart e instalador.** Fase 1 cerrada.
+- [ ] **Picarle a "Iniciar con Windows"** y confirmar la entrada del registro.
+- [ ] **Icono propio.** Sigue el generico de Tauri. Cuando Angel diga, sale del
+      badge A+ (`#1DB954`) o de una imagen suya.
+- [ ] Fase 2: teclas multimedia globales. Los endpoints del player ya existen;
+      es trabajo de Rust. **El Spotify de escritorio ya captura esas teclas** y
+      ahi suele estar el conflicto.
+- [ ] Fase 3: ventana flotante always-on-top que reemplace el PiP. **Sigue
+      bloqueada por la seccion 3**: necesita una ruta `/player` de verdad, y
+      hoy el PiP se genera con cadenas de HTML dentro de `NavBar.jsx`.
+- [ ] Android con Capacitor, sin empezar.
+
+---
+
 ## 2026-09-21 (sesion: los dos bugs que ya se veian en produccion)
 
 **Maquina: PC `AngelPC`.** Doce dias sin tocar el repo. Angel abrio con "en que
