@@ -255,7 +255,29 @@ playlist que truena **no tumba a las otras dos**; PT.-3 no inventa
 `/portadas/2026/2026 PT.-3.jpg`; y 2025 no se toca. Las 37 de la tanda anterior
 siguen verdes: **72 en total**. `npm run build` OK (1590 modulos).
 
-Commit `f590b5f`.
+**VERIFICADO EN PRODUCCION:** los tres nombres, las tres portadas saliendo de
+Spotify y respondiendo `200 image/jpeg`, 2025 sin moverse
+(`/portadas/2025/Savia.jpg`) y `actual` seguido en `latte`.
+
+**Y AHI SE VIO UN DESCUIDO PROPIO:** `images[0]` es la variante **mas grande**,
+o sea 640 px y ~100 KB para pintar una tira de **90 px de alto** — por tres
+cuatrimestres, en el primer paint del Dashboard y en un telefono. La de 300 px
+pesa un tercio y a ese tamano se ve igual incluso al doble de densidad. Medido
+despues del arreglo:
+
+```
+              antes    despues
+2026 PT.-1    174 KB    44 KB
+2026 PT.-2    170 KB    43 KB
+2026 PT.-3    102 KB    32 KB
+              446 KB   120 KB
+```
+
+**El caso que habria reventado:** para una portada subida a mano Spotify a
+veces manda `width: null`. Sin tamano no se puede elegir, asi que cae a la
+primera — el comportamiento de antes. 10 comprobaciones solo para esa funcion.
+
+Commits `f590b5f`, `e847032` y `21813fb`. **82 comprobaciones** en la sesion.
 
 **PENDIENTES:**
 
