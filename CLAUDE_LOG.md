@@ -156,15 +156,118 @@ no deberia. Un comando que falla y un sistema sano se ven exactamente igual.
 
 Commits `feee449` y `68f77c2`.
 
+**4) LOS NOMBRES DE 2026, Y LAS PORTADAS DEJAN DE SER ARCHIVOS DEL REPO.**
+
+Angel: *"ya le puse los nombres, se los cambie en spotify"*, con captura de su
+biblioteca. **Pero la app no lee los nombres de Spotify**: desde el 2026-09-09
+`config.CUATRI_NOMBRES` es la fuente unica, y seguia diciendo Perla/Miel/Latte.
+O sea las etiquetas y sus playlists reales estaban desincronizadas en ese
+momento.
+
+**El mapeo no se adivino.** Se cruzaron los ids de `DISTRIBUTION_PLAYLISTS`
+contra `/playlists/mine`, o sea contra su propia cuenta:
+
+```
+perla  41CXGh7OcFkplIo6BF44OJ  ->  "2026 PT.-1"
+miel   5pFFpx2dYnfUdOKW4WBN3y  ->  "2026 PT.-2"
+latte  3DltKEaaDVOchGxfIQlPu9  ->  "2026 PT.-3"
+```
+
+**LO QUE NO VENIA EN SU MENSAJE, y salio de ampliar la captura** (recortar los
+thumbnails a 260 px): **solo cambio el arte de PT.-3**. PT.-1 sigue con las
+conchas y PT.-2 con el frasco de miel — y esas dos imagenes tienen la palabra
+vieja **PINTADA DENTRO**. La de PT.-3 es nueva, oscura, y **no existia del lado
+de la app**: el repo tenia la taza de cafe de `Latte.jpg`.
+
+O sea los archivos de `frontend/public/portadas/` ya se habian desincronizado
+solos. **Por eso la portada ahora sale de Spotify** (`get_playlist_covers`, con
+`sp.playlist_cover_image`) y esos archivos pasan a ser **respaldo**. Angel
+cambia la portada alla y la app la refleja sin que nadie copie nada.
+
+**TRES DECISIONES SUYAS, preguntadas antes de tocar codigo:**
+
+| | Se recomendo | Eligio |
+|---|---|---|
+| Etiqueta | `PT.-1` sin el anio | **`2026 PT.-1`, calco de Spotify** |
+| Portadas | de Spotify | **de Spotify** |
+| Colores | solo cambiar el de PT.-3 | **solo el de PT.-3** |
+
+En la etiqueta fue contra la recomendacion y su razon vale: no traducir
+mentalmente entre la app y Spotify. El costo, que se le dijo antes: la tarjeta
+del Dashboard imprime `2026 PT.-1` con `sep-dic 2026` justo debajo, o sea el
+anio dos veces, y la fila de chips de Biblioteca repite "2026" tres veces.
+
+**DOS LIMITES QUE QUEDARON ESCRITOS EN EL CODIGO:**
+
+- **Solo el anio ACTUAL.** `DISTRIBUTION_PLAYLISTS` son las tres playlists de
+  este anio; de los pasados la app **no guarda ningun id**, asi que no hay a
+  quien preguntarle la portada. 2025 se queda con sus archivos locales, y eso
+  es correcto: ese arte ya no cambia.
+- **ADITIVO Y NO-FATAL, y es el riesgo de verdad de este cambio.** Hasta hoy
+  `/playlists/distribution` **no tocaba Spotify**, o sea respondia incluso sin
+  token — y es el que lleva el mapa de **NOMBRES** que `App.jsx` primea al
+  arrancar. Si se le mete una llamada a Spotify sin red de seguridad, un token
+  muerto deja la app **sin nombres**. El `try` envuelve **tambien al
+  `get_client()`**, no solo a la llamada de portadas.
+
+**EL DETALLE QUE HACIA FALTA PENSAR: `img: None` explicito.** PT.-3 no tiene
+respaldo local a proposito — su arte viejo era la taza de cafe y ya no es su
+portada, asi que **mostrarla seria peor que no mostrar ninguna**. Para eso
+`cuatri_info` usa `"img" in info` y **no** `or`: con `or`, un `None` se caeria
+al path derivado `/portadas/{anio}/{nombre}.jpg`, que ademas ya no existe para
+un nombre como `2026 PT.-1`. El frontend tiene el mismo cuidado (`'img' in
+info`, no `??`).
+
+**EL COLOR DE PT.-3: `#d04e54`, muestreado del arte real.** El dominante crudo
+salio `#7a2025` con **L=0.30**, y ahi se vio el problema: la portada es casi
+toda negra —**194 de 6400 pixeles** tienen color usable— asi que el promedio
+habria dado un acento **invisible sobre el tema oscuro**. Se conservo el tono
+del carmin de las flores (H=357) y se subio a L=0.56. Medido contra los dos
+fondos:
+
+```
+                claro    oscuro
+#d04e54 (PT.-3)  3.89:1   4.05:1   <- el nuevo
+#5ba8d4 (PT.-1)  2.39:1   6.61:1
+#f5c542 (PT.-2)  1.47:1  10.70:1
+```
+
+O sea el nuevo queda **mejor balanceado que los que ya estaban en produccion**.
+PT.-1 y PT.-2 conservan el suyo porque su arte no cambio.
+
+**RESIDUO DEL REFACTOR, encontrado con un grep:** `StatsPage.jsx` tenia
+`CUATRI_LABEL = {perla: 'Perla', miel: 'Miel', latte: 'Latte'}` como respaldo
+de la etiqueta. Hoy no se dispara nunca (`cuatriInfo` siempre devuelve un
+nombre), pero desde que el nombre visible **ya no es** el identificador,
+imprimiria un nombre **falso** si alguna vez lo hiciera. Es el bug de los cinco
+mapas duplicados del 2026-09-09, en version latente. Fuera.
+
+`frontend/public/portadas/2026/Latte.jpg` queda sin referencias. No se borro:
+es arte suyo y no molesta.
+
+**Verificacion: 35 comprobaciones nuevas**, sin red y sin MySQL. Las que
+importan: **el identificador no se movio** (septiembre sigue devolviendo
+`latte`, las claves del mapa siguen siendo `perla/miel/latte`, o sea
+`cuatrimestre_override` intacto, y ningun "PT" se colo como identificador);
+`/distribution` **sin Spotify** sigue trayendo los tres nombres y no revienta,
+ni cuando falla `get_client()` ni cuando falla la llamada de portadas; una
+playlist que truena **no tumba a las otras dos**; PT.-3 no inventa
+`/portadas/2026/2026 PT.-3.jpg`; y 2025 no se toca. Las 37 de la tanda anterior
+siguen verdes: **72 en total**. `npm run build` OK (1590 modulos).
+
+Commit `f590b5f`.
+
 **PENDIENTES:**
 
 - [x] **`pool_size` 5 -> 16, mas reintento.** El 500 recurrente, cerrado.
 - [x] **El link a la playlist cuando no hay dispositivo.**
 - [x] **Contestada la pregunta del toast**: existe, funciona y sale arriba a la
       derecha.
-- [ ] **Decidir los nombres nuevos de 2026** (y las portadas, que Angel hara
-      con Design). El codigo ya solo espera una entrada en
-      `config.CUATRI_NOMBRES`.
+- [x] **Los nombres de 2026: PUESTOS.** `2026 PT.-1/2/3`, calcados de Spotify,
+      y la portada ahora se lee de Spotify en vez de un archivo del repo.
+- [ ] **Las portadas de PT.-1 y PT.-2 todavia dicen "Perla" y "Miel" pintado
+      dentro.** No es codigo: es arte. Cuando las cambie en Spotify, la app las
+      toma sola.
 - [ ] El mix. Sigue bloqueado por **auth mono-usuario**.
 - [ ] Scope `user-top-read`, junto con la cirugia de auth.
 - [ ] **Nada consume las ventanas de escucha todavia.** Sigue siendo lo mas
