@@ -30,3 +30,11 @@ tauri-plugin-autostart = "2"
 # lanzaria una segunda instancia: dos iconos en la bandeja y la ventana vieja
 # perdida. Este plugin mata a la nueva y trae al frente la que ya corria.
 tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+# Los atajos califican sin abrir ninguna ventana, asi que el unico aviso de que
+# la calificacion se guardo es una notificacion del sistema.
+tauri-plugin-notification = "2"
+# Para hablarle al backend desde Rust. Los atajos globales no pueden pasar por
+# el frontend: la pagina es REMOTA (Cloud Run) y darle acceso a comandos de
+# Tauri exigiria abrirle permisos al origen remoto.
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
