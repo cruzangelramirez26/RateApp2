@@ -4,6 +4,7 @@ import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
 import { ratingColor, ratingDim } from '../utils/theme';
 import { useToast } from '../hooks/useToast';
+import QueuePlaylistLink from '../components/QueuePlaylistLink';
 
 /**
  * Limpiar Me Gusta.
@@ -45,6 +46,7 @@ export default function CleanupPage() {
   const [confirmando, setConfirmando] = useState(false);
   const [quitando, setQuitando] = useState(false);
   const [sonando, setSonando] = useState(false);
+  const [linkCola, setLinkCola] = useState(null);
   const [busy, setBusy] = useState(null);
   const [visibles, setVisibles] = useState(60);
   const toast = useToast();
@@ -150,6 +152,11 @@ export default function CleanupPage() {
     try {
       const ids = lista.slice(desde, desde + LOTE).map(t => t.track_id);
       const r = await api.buildQueuePlaylist('cleanup', LOTE, true, ids);
+      // El link solo importa cuando NO pudo reproducir: ahi la playlist quedo
+      // armada con el tramo exacto y sin esto no habia forma de llegar a ella.
+      // Si esta sonando, el banner seria ruido.
+      setLinkCola(r.playing ? null
+        : { url: r.spotify_url, count: r.count, error: r.error });
       toast(
         r.playing
           ? `Sonando ${r.count} canciones desde la #${desde + 1}`
@@ -157,6 +164,7 @@ export default function CleanupPage() {
         r.playing ? 'success' : 'error', 5000,
       );
     } catch (e) {
+      setLinkCola(null);
       toast(e.message || 'No se pudo armar la playlist', 'error');
     } finally { setSonando(false); }
   }
@@ -206,7 +214,9 @@ export default function CleanupPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+      <QueuePlaylistLink info={linkCola} onClose={() => setLinkCola(null)} />
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, marginTop: 12, flexWrap: 'wrap' }}>
         {ORDENES.map(o => (
           <button key={o.key} className="btn"
             onClick={() => { setOrden(o.key); setVisibles(60); }}

@@ -2,12 +2,32 @@
 Database layer — MySQL connection pool + all track queries.
 Uses a connection pool so we don't open/close connections on every request.
 """
+import time
 import mysql.connector
 from mysql.connector import pooling, Error
+from mysql.connector.errors import PoolError
 import pandas as pd
 from contextlib import contextmanager
 from typing import Optional
 import config
+
+# EL POOL DE 5 ERA UN 500 EN PRODUCCION, no una precaucion. App.jsx dispara 9
+# peticiones en paralelo al arrancar (likedAll, recent, recentlyPlayed,
+# distribution + las 5 playlists que esta encadena) y cada endpoint sincrono de
+# FastAPI corre en su propio hilo, o sea toma una conexion. Los logs de Cloud
+# Run del 5, 6, 8 y 9 de septiembre traen rafagas de
+# "PoolError: Failed getting connection; pool exhausted" en el MISMO segundo,
+# dentro de load_all().
+POOL_SIZE = 16
+
+# SUBIR EL NUMERO NO ALCANZA, y por eso hay reintento: 32 es el tope duro de
+# mysql.connector (CNX_POOL_MAXSIZE) y el threadpool de FastAPI son 40 hilos,
+# o sea puede pedir mas conexiones de las que el pool puede tener JAMAS.
+# get_connection() no espera: falla en el acto cuando el pool esta vacio. Pero
+# una rafaga se drena en milisegundos, porque cada conexion vuelve al pool al
+# terminar su query. Esperar 3 x 150 ms es mejor que devolver un 500.
+POOL_RETRIES = 4
+POOL_RETRY_WAIT = 0.15
 
 _pool: Optional[pooling.MySQLConnectionPool] = None
 
@@ -17,7 +37,7 @@ def _get_pool() -> pooling.MySQLConnectionPool:
     if _pool is None:
         _pool = pooling.MySQLConnectionPool(
             pool_name="rateapp",
-            pool_size=5,
+            pool_size=POOL_SIZE,
             pool_reset_session=True,
             host=config.MYSQL_HOST,
             user=config.MYSQL_USER,
@@ -29,10 +49,22 @@ def _get_pool() -> pooling.MySQLConnectionPool:
     return _pool
 
 
+def _acquire():
+    """Toma una conexion del pool, esperando un poco si esta agotado."""
+    pool = _get_pool()
+    for intento in range(POOL_RETRIES):
+        try:
+            return pool.get_connection()
+        except PoolError:
+            if intento == POOL_RETRIES - 1:
+                raise
+            time.sleep(POOL_RETRY_WAIT)
+
+
 @contextmanager
 def get_conn():
     """Context manager that yields a pooled connection and auto-closes."""
-    conn = _get_pool().get_connection()
+    conn = _acquire()
     try:
         yield conn
     finally:

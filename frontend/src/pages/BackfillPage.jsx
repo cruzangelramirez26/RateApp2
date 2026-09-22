@@ -4,6 +4,7 @@ import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
 import { ratingColor, ratingDim } from '../utils/theme';
 import { useToast } from '../hooks/useToast';
+import QueuePlaylistLink from '../components/QueuePlaylistLink';
 
 /**
  * Cola de "califica lo que sí escuchas".
@@ -54,6 +55,7 @@ export default function BackfillPage() {
   const [hechas, setHechas] = useState(0);
   const [visibles, setVisibles] = useState(60);
   const [sonando, setSonando] = useState(false);
+  const [linkCola, setLinkCola] = useState(null);
   const [nowPlaying, setNowPlaying] = useState(null);
   const toast = useToast();
   const tracksRef = useRef([]);
@@ -71,6 +73,11 @@ export default function BackfillPage() {
       // calificar las primeras 50 antes de poder oír las siguientes.
       const ids = lista.slice(desde, desde + 50).map(x => x.track_id);
       const r = await api.buildQueuePlaylist('backfill', 50, true, ids);
+      // El link solo importa cuando NO pudo reproducir: ahi la playlist quedo
+      // armada con el tramo exacto y sin esto no habia forma de llegar a ella.
+      // Si esta sonando, el banner seria ruido.
+      setLinkCola(r.playing ? null
+        : { url: r.spotify_url, count: r.count, error: r.error });
       toast(
         r.playing
           ? `Sonando ${r.count} canciones desde la #${desde + 1}`
@@ -79,6 +86,7 @@ export default function BackfillPage() {
         5000,
       );
     } catch (e) {
+      setLinkCola(null);
       toast(e.message || 'No se pudo armar la playlist', 'error');
     } finally {
       setSonando(false);
@@ -215,7 +223,11 @@ export default function BackfillPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={escuchar} disabled={sonando || !data.tracks.length}
+          {/* onClick={escuchar} pasaba el EVENTO de React como `desde`, asi que
+              lista.slice(evento, evento+50) daba NaN -> array vacio, el backend
+              caia a "las primeras 50 de la cola" (ignorando el filtro de solo
+              activas) y el toast decia "#[object Object]1". */}
+          <button className="btn" onClick={() => escuchar(0)} disabled={sonando || !data.tracks.length}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Play size={14} /> {sonando ? 'Armando…' : 'Escuchar 50'}
           </button>
@@ -224,6 +236,8 @@ export default function BackfillPage() {
           </button>
         </div>
       </div>
+
+      <QueuePlaylistLink info={linkCola} onClose={() => setLinkCola(null)} />
 
       {/* Sonando ahora — con los botones correctos, para no tener que calificar
           desde el widget del sidebar (que usa el flujo completo y sin fecha). */}
