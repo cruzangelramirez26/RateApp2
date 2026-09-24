@@ -44,6 +44,30 @@ cuadro 0. Se midio en el DOM y se capturo con las animaciones apagadas por un
 
 Commit `513714b`.
 
+**SEGUNDA RONDA, con la pantalla ya en produccion.** (Su primera captura era
+la version vieja: Cloud Build todavia compilaba. Se confirmo por el hash del
+bundle servido contra el del build local.) Angel, en 2560 px: *"se ve muy
+desaprovechada la pantalla"*, que la pildora deje ver en grande lo que suena,
+y *"navegar entre las otras canciones, animado"*. Hecho (`1c3d756`):
+
+- **A escala:** portada `clamp(220px, min(28vw, 52vh), 680px)`, titulo hasta
+  128 px, teclas y textos con `vw`; el escenario se centra en vertical y el
+  pie muestra 2-5 tarjetas segun el ancho. Medido sin desborde en 1024x700,
+  1280x720, 1440x900, 1920x1040 y 2560x1392.
+- **Navegar:** ← →, flechas bajo la pila, clic en portadas y en "A
+  continuacion". La pila tiene 2 a cada lado (clases `om2..o2`, con
+  desplazamientos proporcionales a la portada). Calificar a media cola deja
+  al frente la que seguia.
+- **Modo "sonando"** (decision de Angel): la pildora de algo fuera de
+  `<3333>` lo pone en grande y calificable (flujo completo); detras se asoma
+  **la cola de Spotify** (`GET /tracks/player/queue`, sin scope nuevo, notas
+  en una sola lectura) y la cancion nueva pasa al frente sola. Si la nueva es
+  de `<3333>`, regresa a la cola en ella. 7 comprobaciones del endpoint.
+
+**OTRA TRAMPA DEL METODO:** el cambio de cancion "no se seguia". Era el panel
+de pruebas **oculto**: `document.hidden = true` y el Shell no sondea con la
+ventana oculta (a proposito). Forzando `hidden = false` funciono a la primera.
+
 **PENDIENTES:**
 
 - [ ] Que Angel la vea en produccion y en la app de Tauri (no hay que
