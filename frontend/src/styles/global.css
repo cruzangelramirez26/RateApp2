@@ -865,6 +865,12 @@ body {
     justify-content: space-between;
   }
 
+  .sidebar-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .sidebar-footer-status-left {
     display: flex;
     align-items: center;

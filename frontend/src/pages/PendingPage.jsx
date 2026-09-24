@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Music, RefreshCw, PictureInPicture2, List, Square, Play } from 'lucide-react';
+import { Music, RefreshCw, List, Square, Play } from 'lucide-react';
 import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
@@ -7,7 +7,9 @@ import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
 import { RATINGS_ORDEN, ratingDeTecla, esEscritura } from '../utils/ratings';
-import { alternarReproductor, suscribirReproductor, soportaPiP, escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
+// El reproductor flotante se abre SOLO desde el sidebar (en esta pantalla, en
+// la pestana Cola). Aqui solo se escucha lo que se califica alla.
+import { escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
 
 // 1 = A+ … 7 = D en toda la app (ver utils/ratings.js). Aqui iba al reves
 // desde mayo (1 = D) y los atajos globales al derecho: se unifico el 2026-09-23.
@@ -18,7 +20,6 @@ export default function PendingPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [isPiPOpen, setIsPiPOpen] = useState(false);
   const [skippedIds, setSkippedIds] = useState(new Set());
   const [viewMode, setViewMode] = useState('individual'); // 'individual' | 'lista'
   const [calificarId, setCalificarId] = useState(null);   // id de la playlist <3333
@@ -51,12 +52,6 @@ export default function PendingPage() {
       .then(dist => setCalificarId(dist?.calificar ?? null))
       .catch(() => {});
   }, []);
-
-  // El boton de PiP pide EL reproductor en la pestana Cola (utils/reproductor.js).
-  // Ya no se cierra al salir de esta pagina: es la misma ventana del sidebar.
-  useEffect(() => suscribirReproductor(({ abierto, modo }) => {
-    setIsPiPOpen(abierto && modo === 'cola');
-  }), []);
 
   // Lo calificado en el reproductor (u otra ventana) se refleja en la lista.
   useEffect(() => escucharCalificadas((id, rating) => {
@@ -134,14 +129,6 @@ export default function PendingPage() {
 
   handleRateRef.current = handleRate;
   handleSkipRef.current = handleSkip;
-
-  const openPiP = () => {
-    if (!soportaPiP()) {
-      toast('Picture-in-Picture solo funciona en Chrome de escritorio', 'error');
-      return;
-    }
-    alternarReproductor('cola');
-  };
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -327,19 +314,6 @@ export default function PendingPage() {
             title={viewMode === 'individual' ? 'Ver lista' : 'Ver individual'}
           >
             {viewMode === 'individual' ? <List size={14} /> : <Square size={14} />}
-          </button>
-          <button
-            className="btn btn-sm"
-            onClick={openPiP}
-            title="Picture-in-Picture"
-            disabled={loading}
-            style={{
-              opacity: loading ? 0.4 : 1,
-              color: isPiPOpen ? 'var(--accent)' : undefined,
-              borderColor: isPiPOpen ? 'var(--accent)' : undefined,
-            }}
-          >
-            <PictureInPicture2 size={14} />
           </button>
           <button
             className="btn btn-sm"

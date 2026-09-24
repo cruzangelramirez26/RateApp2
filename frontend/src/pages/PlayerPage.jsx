@@ -166,13 +166,6 @@ export default function PlayerPage() {
     const url = new URL(window.location.href);
     url.searchParams.set('modo', modo);
     window.history.replaceState(null, '', url);
-    // Dentro del PiP, avisar a la app que la pestana cambio: si no, el boton
-    // del sidebar seguiria creyendo que esta en Sonando y al picarlo CERRARIA
-    // la ventana en vez de regresarla. (Fuera de un iframe, parent === window
-    // y el mensaje, de otro tipo, se ignora.)
-    if (window.parent !== window) {
-      window.parent.postMessage({ tipo: 'rateapp:modo-actual', modo }, window.location.origin);
-    }
   }, [modo]);
 
   // ── Lo que suena ──────────────────────────────────────────────────

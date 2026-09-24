@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { ListMusic, Clock, Library, Wrench, BarChart3, PictureInPicture2 } from 'lucide-react';
 import { api } from '../utils/api';
 import ThemeToggle from './ThemeToggle';
+import { useToast } from '../hooks/useToast';
 import { RATINGS_ORDEN as RATINGS } from '../utils/ratings';
 import { ratingColor, ratingDim } from '../utils/theme';
-import { alternarReproductor, suscribirReproductor, escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
+import { alternarReproductor, suscribirReproductor, modoParaRuta, escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
 
 
 const NAV_LINKS = [
@@ -25,6 +26,8 @@ export default function NavBar() {
 
   const nowPlayingRef = useRef(null);
   const isPlayingRef = useRef(false);
+  const { pathname } = useLocation();
+  const toast = useToast();
 
   useEffect(() => {
     api.getPending()
@@ -86,11 +89,8 @@ export default function NavBar() {
     }
   }, []);
 
-  // El boton del sidebar pide EL reproductor en la pestana Sonando. Es la
-  // misma ventana que abre Pendientes en la Cola: nunca hay dos.
-  useEffect(() => suscribirReproductor(({ abierto, modo }) => {
-    setIsPiPOpen(abierto && modo === 'sonando');
-  }), []);
+  // EL unico boton del reproductor en toda la app (utils/reproductor.js).
+  useEffect(() => suscribirReproductor(setIsPiPOpen), []);
 
   // Lo que se califica en el reproductor (u otra ventana) se ve aqui al tiro.
   useEffect(() => escucharCalificadas((id, rating) => {
@@ -100,7 +100,16 @@ export default function NavBar() {
     setNowPlaying(updated);
   }), []);
 
-  const openPiP = () => { alternarReproductor('sonando'); };
+  // Abre en la pestana de la pantalla actual: Cola en Pendientes, Sonando en
+  // las demas. Adentro se puede cambiar.
+  const openPiP = async () => {
+    try {
+      const hay = await alternarReproductor(modoParaRuta(pathname));
+      if (!hay) toast('El reproductor flotante solo funciona en Chrome o en la app de escritorio', 'error');
+    } catch (err) {
+      toast(`No se pudo abrir el reproductor: ${err?.message || err}`, 'error');
+    }
+  };
 
   return (
     <>
@@ -190,7 +199,16 @@ export default function NavBar() {
               <span className="sidebar-footer-dot" />
               <span>{nowPlaying ? 'now playing' : 'Connected'}</span>
             </span>
-            <ThemeToggle />
+            <span className="sidebar-footer-actions">
+              <button
+                className={`now-playing-pip-btn${isPiPOpen ? ' active' : ''}`}
+                onClick={openPiP}
+                title="Reproductor flotante"
+              >
+                <PictureInPicture2 size={13} />
+              </button>
+              <ThemeToggle />
+            </span>
           </div>
           {nowPlaying && (
             <div className="now-playing-widget">
@@ -207,13 +225,6 @@ export default function NavBar() {
                     {nowPlaying.rating}
                   </span>
                 )}
-                <button
-                  className={`now-playing-pip-btn${isPiPOpen ? ' active' : ''}`}
-                  onClick={openPiP}
-                  title="Abrir en PiP"
-                >
-                  <PictureInPicture2 size={13} />
-                </button>
               </div>
             </div>
           )}

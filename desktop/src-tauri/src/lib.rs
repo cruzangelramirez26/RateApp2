@@ -43,19 +43,39 @@ fn url_base(app: &AppHandle) -> String {
   .to_string()
 }
 
-/// Abre —o reenfoca— la ventana flotante del reproductor.
+/// La marca con la que la pagina sabe que corre dentro de la app de escritorio
+/// (`enEscritorio()` en `frontend/src/utils/reproductor.js`). Se inyecta en cada
+/// carga, antes que el codigo de la pagina.
+const SCRIPT_ESCRITORIO: &str = "window.__RATEAPP_ESCRITORIO__ = true;";
+
+/// La ruta centinela del boton del reproductor. La pagina navega aqui y Rust
+/// CANCELA la navegacion, asi que nunca llega a cargarse. Ver `al_navegar`.
+const RUTA_REPRODUCTOR: &str = "/__escritorio/reproductor";
+
+/// Abre —o reenfoca— la ventana flotante del reproductor, y si se pide un
+/// `modo` ("sonando" | "cola") la pone en esa pestana.
 ///
 /// Es always-on-top a proposito: reemplaza al PiP del navegador, cuya gracia era
 /// justamente quedarse encima de lo que estes haciendo. Y `skip_taskbar` para no
 /// ocupar un lugar en la barra de tareas al lado de la ventana principal.
-fn abrir_player(app: &AppHandle) {
+fn abrir_player(app: &AppHandle, modo: Option<&str>) {
   if let Some(win) = app.get_webview_window(VENTANA_PLAYER) {
+    if let Some(modo) = modo {
+      // /player escucha este mensaje para cambiar de pestana sin recargar
+      // (es el mismo que le manda el PiP de Chrome). `modo` ya viene validado.
+      let _ = win.eval(&format!(
+        "window.postMessage({{tipo:'rateapp:modo',modo:'{modo}'}}, window.location.origin)"
+      ));
+    }
     let _ = win.show();
     let _ = win.unminimize();
     let _ = win.set_focus();
     return;
   }
-  let url = format!("{}/player", url_base(app));
+  let url = match modo {
+    Some(modo) => format!("{}/player?modo={modo}", url_base(app)),
+    None => format!("{}/player", url_base(app)),
+  };
   let destino = match url.parse() {
     Ok(u) => WebviewUrl::External(u),
     Err(_) => return,
@@ -71,6 +91,54 @@ fn abrir_player(app: &AppHandle) {
   if let Err(err) = r {
     log::error!("no se pudo abrir el reproductor flotante: {err}");
   }
+}
+
+/// El boton del reproductor de la app: un interruptor, igual que en Chrome. Si
+/// la flotante esta a la vista la oculta; si no, la abre en `modo`.
+fn alternar_player(app: &AppHandle, modo: &str) {
+  if let Some(win) = app.get_webview_window(VENTANA_PLAYER) {
+    let visible = win.is_visible().unwrap_or(false) && !win.is_minimized().unwrap_or(false);
+    if visible {
+      let _ = win.hide();
+      return;
+    }
+  }
+  abrir_player(app, Some(modo));
+}
+
+/// Vigila las navegaciones de la ventana principal. Devuelve false para
+/// cancelar una.
+///
+/// **Por que una navegacion y no un comando de Tauri:** la pagina es REMOTA
+/// (Cloud Run), y darle acceso a comandos exigiria abrirle permisos a ese
+/// origen en las capabilities — la misma razon por la que los atajos hablan con
+/// el backend por HTTP. Una navegacion no pide ningun permiso: la pagina intenta
+/// ir a `RUTA_REPRODUCTOR`, aqui se cancela y se abre la ventana. La app no se
+/// mueve de pantalla.
+///
+/// Hasta el 2026-09-23 el boton pedia el PiP de Chrome, que en WebView2 no
+/// existe, y no hacia nada: el reproductor solo se abria con Ctrl+Alt+P.
+fn al_navegar(app: &AppHandle, url: &tauri::Url) -> bool {
+  if url.path() != RUTA_REPRODUCTOR {
+    return true;
+  }
+  // Solo del propio origen: otra pagina no tiene por que abrir ventanas aqui.
+  let mismo_origen = url_base(app)
+    .parse::<tauri::Url>()
+    .map(|base| base.origin() == url.origin())
+    .unwrap_or(false);
+  if !mismo_origen {
+    return true;
+  }
+  let modo = match url.query_pairs().find(|(k, _)| k == "modo").map(|(_, v)| v.into_owned()) {
+    Some(m) if m == "cola" => "cola",
+    _ => "sonando",
+  };
+  // Se difiere al ciclo principal: crear una ventana DENTRO del callback de
+  // navegacion de WebView2 puede trabar el hilo en Windows.
+  let handle = app.clone();
+  let _ = app.run_on_main_thread(move || alternar_player(&handle, modo));
+  false
 }
 
 /// Califica lo que suena, sin abrir ninguna ventana.
@@ -199,7 +267,7 @@ pub fn run() {
           };
           match accion {
             "__mostrar" => mostrar_ventana(app),
-            "__player" => abrir_player(app),
+            "__player" => abrir_player(app, None),
             rating => {
               let handle = app.clone();
               tauri::async_runtime::spawn(calificar_lo_que_suena(handle, rating));
@@ -216,6 +284,23 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      // La ventana principal se crea AQUI y no desde la config
+      // (`"create": false`), porque la config no deja colgarle el script de la
+      // marca ni el vigilante de navegacion del boton del reproductor.
+      let config_main = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .expect("tauri.conf.json no trae la ventana main");
+      let handle = app.handle().clone();
+      WebviewWindowBuilder::from_config(app.handle(), &config_main)?
+        .initialization_script(SCRIPT_ESCRITORIO)
+        .on_navigation(move |url| al_navegar(&handle, url))
+        .build()?;
 
       // La ventana NACE invisible (`"visible": false` en tauri.conf.json) y se
       // muestra aqui. Ocultarla en el setup no sirve: en Windows el runtime la
@@ -299,7 +384,7 @@ pub fn run() {
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {
           "mostrar" => mostrar_ventana(app),
-          "player" => abrir_player(app),
+          "player" => abrir_player(app, None),
           "autostart" => {
             let manager = app.autolaunch();
             let activo = manager.is_enabled().unwrap_or(false);
