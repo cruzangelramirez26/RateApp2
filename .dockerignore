@@ -59,3 +59,8 @@ Thumbs.db
 historial/
 # El instalador de la app de escritorio (desktop/copiar-instalador.mjs).
 instalador/
+
+# La app de Android (Capacitor). Igual que desktop/: no participa del build
+# del servidor, y su node_modules y el proyecto de Gradle solo engordarian el
+# contexto.
+mobile/

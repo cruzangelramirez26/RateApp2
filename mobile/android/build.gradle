@@ -1,0 +1,36 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    // Los artefactos de Gradle NO pueden vivir dentro de OneDrive: son cientos
+    // de MB que se reescriben en cada build, OneDrive no lee .gitignore, y
+    // bloquea archivos mientras sincroniza (puede tronar un build a media
+    // corrida). La misma trampa que desktop/.cargo/config.toml. Aplica tambien
+    // a capacitor-android, que vive en node_modules.
+    layout.buildDirectory = file("${System.getenv('LOCALAPPDATA')}/rateapp-android-build/${project.name}")
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

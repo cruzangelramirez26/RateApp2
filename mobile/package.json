@@ -1,0 +1,19 @@
+{
+  "name": "rateapp-mobile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cascaron nativo (Capacitor) de RateApp para Android. La WebView carga la app que ya corre en Cloud Run: no hay frontend local que construir.",
+  "scripts": {
+    "sync": "cap sync android",
+    "build": "cap sync android && node gradle.mjs assembleDebug && node copiar-apk.mjs",
+    "apk": "node copiar-apk.mjs",
+    "cap": "cap"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "appId": "com.angelrg.rateapp",
+  "appName": "RateApp",
+  "webDir": "www",
+  "server": {
+    "url": "https://rateapp-1043427819721.us-east4.run.app",
+    "allowNavigation": ["accounts.spotify.com"]
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
