@@ -2,6 +2,96 @@
 
 ---
 
+## 2026-09-23 y 24 (sesion: el rediseño de escritorio, del lienzo a la fase 1)
+
+**Maquina: PC `AngelPC`.** Angel pidio *"rediseñar todo"* con mas
+personalidad: jugar con las portadas, el difuminado del PiP, animaciones,
+minimalista y sin neon. Y una regla que manda todo lo demas: **escritorio y
+movil van con diseños separados, el movil no debe estorbarle al web.**
+
+**1) EL LIENZO.** Se diseño primero en un artifact de tipo Design, con datos
+reales de produccion (solo lectura): su cola `<3333>`, sus mas escuchadas del
+mes, las portadas de 2026 PT.-1/2/3 y sus numeros. Link:
+https://claude.ai/artifact/2SqmThJQnKWCvdvWRAvmu9 (privado). Pantallas:
+Calificar (interactiva), Biblioteca, Escuchas, Resumen, Herramientas,
+Reproductor y una de opciones de tipografia.
+
+Tres rondas de feedback, y lo que quedo decidido:
+
+- **Tipografia: DM Sans.** La serifa (Instrument Serif) le parecio
+  *"anticuada"*. Solo el "01" gigante de Escuchas se queda en serifa: ese si
+  le encanto. Eligio DM Sans entre cuatro (Geist, DM Sans, Bricolage, Unbounded).
+- **Sin vinilo girando.** Detras de la portada ahora se asoman las siguientes
+  de la cola, como pila.
+- **Las notas SIN colores.** No quiso *"el circulito de color con la letra en
+  grande"*. Quedo una cajita (`<Nota>`): B+/A/A+ rellenas (las que entran a
+  playlists), B/C+/C solo contorno, D punteada. Todo en escala de crema.
+- **Tarjetas horizontales** (portada + nombre + artista + nota) para "Recien
+  calificadas" y "A continuacion": los nombres sueltos bajo portadas chicas
+  *"parecen escritos encima en Word"*.
+- **Botones de calificar rectangulares**, poco redondeados.
+- **Featurings** junto al artista principal, mas chicos y tenues.
+- **Recientes se queda en el riel** aunque el lienzo no la traia.
+- **Escritorio = solo oscuro.** El claro se queda en el movil.
+- Su favorita: Escuchas. El reproductor flotante lo va a revisar el aparte.
+
+La orilla gastada de la portada de "Futuro / Luz y Sombra" NO es del diseño:
+asi viene el arte. Se reviso la imagen antes de contestarle.
+
+**2) EL PLAN, aprobado.** Una **capa de escritorio aparte** en vez de
+reestilizar las pantallas: `useEscritorio()` (>= 1024 px, navegador y Tauri)
+decide el marco, y cada pantalla tendra su vista de escritorio compartiendo la
+logica en hooks. Fases: 1 base y armazon, 2 Calificar (con el campo de
+featurings en `spotify.py`, hoy solo guarda `artists[0]`), 3 Escuchas,
+4 Biblioteca, 5 Resumen, 6 Herramientas (+ backfill y limpieza al estilo
+nuevo), 7 Reproductor.
+
+**Por que asi y no con media queries:** hay una app de Android (`mobile/`,
+Capacitor) cargando la MISMA pagina de Cloud Run, y otra sesion trabajando en
+ella con cambios sin commitear. Con el Shell aparte, en un telefono no se monta
+nada nuevo. Esta sesion no toco `mobile/`.
+
+**3) FASE 1, HECHA** (`components/escritorio/`, `styles/escritorio.css`):
+
+- `Shell`: fondo con la portada de lo que suena difuminada (se funde al
+  cambiar; una pantalla puede pedir otra con `usePortadaDeFondo`), barra de
+  arriba y riel. Pone la clase `escritorio` en `<html>`.
+- `BarraSuperior`: marca, buscador y, **solo en Tauri**, min/max/cerrar con
+  `data-tauri-drag-region`. En escritorio REEMPLAZA a `BarraVentana`
+  (App.jsx no pinta las dos); en carga/login y en ventanas < 1024 sigue la de
+  siempre.
+- `Buscador` (Ctrl+K): busca en lo que `preloadCache` ya tiene (Me Gusta +
+  calificado reciente), sin pegarle al backend por tecla. Abre en Spotify.
+- `Riel`: Calificar (con el numero de las SIN nota de `<3333>` —el sidebar
+  viejo contaba las 26, calificadas incluidas—), Recientes, Biblioteca,
+  Escuchas, Resumen, Herramientas y el boton del reproductor.
+- Los tokens de `html.escritorio` visten tambien a las pantallas viejas, que ya
+  se ven dentro del marco oscuro mientras llega su version.
+
+**Verificado en navegador** contra un backend de mentiras con sus datos reales:
+el marco a 1440x900, el buscador ("carin" -> 3 de Carin Leon con su nota),
+la navegacion por el riel y que **a 800 px vuelve el layout de siempre** (sin
+clase `escritorio`, con sidebar). El fondo parecia no salir: la portada de
+PAPARAZZI es casi negra; con otra portada se ve. `npm run build` OK (1611).
+
+**NO VERIFICADO:** dentro de la app de Tauri (botones de ventana y arrastre
+en la barra nueva). Es el mismo mecanismo que `BarraVentana`, pero no se probo.
+
+Commit `2df828e`.
+
+**PENDIENTES:**
+
+- [ ] **Que Angel lo vea en produccion y en la app instalada** (no hace falta
+      reinstalar: la pagina viene de Cloud Run).
+- [ ] Fase 2: Calificar + featurings.
+- [ ] En escritorio ya no hay widget de "sonando ahora" en el riel (vivia en el
+      sidebar viejo). Calificar lo trae en su fase; revisar si hace falta en
+      las demas.
+- [ ] La tarjeta "Apariencia" de Herramientas no hace nada en escritorio (es
+      solo oscuro). Se resuelve en la fase 6.
+
+---
+
 ## 2026-09-23 (sesion: la barra de titulo propia en la app de escritorio)
 
 **Maquina: PC `AngelPC`.** Angel, con captura de la app de Claude al lado:
