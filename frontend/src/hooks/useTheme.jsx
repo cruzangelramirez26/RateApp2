@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { loadMode, saveMode, resolveTheme, applyTheme } from '../utils/theme';
+import { loadMode, saveMode, resolveTheme, applyTheme, THEME_KEY } from '../utils/theme';
 
 /**
  * Estado del tema, compartido por toda la app.
@@ -41,6 +41,18 @@ export function ThemeProvider({ children }) {
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, [mode]);
+
+  // Otra ventana cambio el tema. `/player` vive en documentos aparte —el PiP del
+  // navegador (un iframe) y la ventana flotante de Tauri—, y sin esto se quedaban
+  // con el tema que tenian al abrirse. El navegador dispara `storage` en todas
+  // las OTRAS ventanas del mismo origen cuando una escribe en localStorage.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === THEME_KEY) setModeState(loadMode());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const setMode = useCallback((next) => {
     setModeState(next);

@@ -1662,3 +1662,15 @@ body {
   .player-art { width: 52px; height: 52px; }
   .player-ratings { grid-template-columns: repeat(4, 1fr); }
 }
+
+/* Ventana baja (el PiP que antes era "horizontal"): se compacta sola en vez de
+   depender de un toggle a mano. Reemplaza el boton de vertical/horizontal que
+   tenia el PiP viejo de NavBar. */
+@media (max-height: 290px) {
+  .player-page { gap: 8px; padding: 10px 12px; }
+  .player-art { width: 50px; height: 50px; }
+  .player-meta-fila { margin-top: 4px; }
+  .player-controles button { width: 30px; height: 30px; }
+  .player-controles .player-btn-grande { width: 34px; height: 34px; }
+  .player-rating-btn { padding: 5px 0; }
+}

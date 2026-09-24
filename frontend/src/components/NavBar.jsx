@@ -3,7 +3,6 @@ import { NavLink } from 'react-router-dom';
 import { ListMusic, Clock, Library, Wrench, BarChart3, PictureInPicture2 } from 'lucide-react';
 import { api } from '../utils/api';
 import ThemeToggle from './ThemeToggle';
-import { useTheme } from '../hooks/useTheme';
 import { pipThemeCss, ratingColor, ratingDim } from '../utils/theme';
 
 const RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
@@ -16,176 +15,33 @@ const NAV_LINKS = [
   { to: '/tools',     end: false, icon: Wrench,    label: 'Herramientas' },
 ];
 
-const PIP_DEFAULT_SIZE = { vertical: [300, 420], horizontal: [420, 190] };
+// El PiP ya no dibuja nada por su cuenta: carga /player en un iframe (ver
+// PlayerPage.jsx). Antes eran ~130 lineas de HTML en cadenas reescritas con
+// innerHTML en cada poll — de ahi el parpadeo — y un toggle vertical/horizontal
+// hecho a mano. /player es fluido, asi que el toggle sobra: el layout lo decide
+// el tamano real de la ventana.
 const PIP_SIZE_KEY = 'rateapp_np_pip_size';
-const PIP_MIN_W = 200;
-const PIP_MIN_H = 120;
+const PIP_DEFAULT = [360, 330];
+const PIP_MIN_W = 220;
+const PIP_MIN_H = 200;
 
-function loadPipSizes() {
+function loadPipSize() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PIP_SIZE_KEY) || '{}');
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch { return {}; }
-}
-
-function pipSizeFor(layout) {
-  const saved = loadPipSizes()[layout];
-  if (Array.isArray(saved) && saved.length === 2 &&
-      Number.isFinite(saved[0]) && Number.isFinite(saved[1]) &&
-      saved[0] >= PIP_MIN_W && saved[1] >= PIP_MIN_H) {
-    return saved;
-  }
-  return PIP_DEFAULT_SIZE[layout] || PIP_DEFAULT_SIZE.vertical;
-}
-
-function savePipSize(layout, w, h) {
-  if (!layout) return;
-  if (!Number.isFinite(w) || !Number.isFinite(h) || w < PIP_MIN_W || h < PIP_MIN_H) return;
-  try {
-    const sizes = loadPipSizes();
-    sizes[layout] = [Math.round(w), Math.round(h)];
-    localStorage.setItem(PIP_SIZE_KEY, JSON.stringify(sizes));
+    const s = JSON.parse(localStorage.getItem(PIP_SIZE_KEY) || 'null');
+    // Formato viejo: {vertical: [w, h], horizontal: [w, h]}. Se hereda el
+    // vertical, que es el unico que cabe el reproductor completo.
+    const v = Array.isArray(s) ? s : s?.vertical;
+    if (Array.isArray(v) && v.length === 2 && v.every(Number.isFinite)
+        && v[0] >= PIP_MIN_W && v[1] >= PIP_MIN_H) {
+      return v;
+    }
   } catch {}
+  return PIP_DEFAULT;
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function ctrlBtn(icon, fn) {
-  return `<button onclick="window.${fn}()"
-    style="padding:4px 10px;border:1px solid var(--border-medium);border-radius:6px;
-    cursor:pointer;font-size:0.85rem;background:transparent;color:var(--text-muted);transition:all 0.15s;"
-    onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-    onmouseout="this.style.borderColor='var(--border-medium)';this.style.color='var(--text-muted)'">
-    ${icon}
-  </button>`;
-}
-
-function renderNowPlayingPiP(pip, track, isPlaying, layout = 'vertical') {
-  if (!track) {
-    pip.document.body.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-        height:100%;color:var(--text-primary);gap:10px;font-family:system-ui;background:var(--bg-deep)">
-        <div style="font-size:1.8rem">🎵</div>
-        <div style="font-size:0.82rem;color:var(--text-muted)">Nada reproduciendo</div>
-      </div>`;
-    return;
-  }
-
-  const toggleBtn = `
-    <button onclick="window.__npToggleLayout()"
-      title="${layout === 'vertical' ? 'Vista horizontal' : 'Vista vertical'}"
-      style="padding:3px 6px;border:1px solid var(--border-medium);border-radius:5px;
-      cursor:pointer;font-size:0.72rem;background:transparent;color:var(--text-muted);
-      transition:all 0.15s;line-height:1;"
-      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
-      onmouseout="this.style.borderColor='var(--border-medium)';this.style.color='var(--text-muted)'">
-      ${layout === 'vertical' ? '↔' : '↕'}
-    </button>`;
-
-  const ratingBtns = RATINGS.map(r => {
-    const c = ratingColor(r);
-    const active = track.rating === r;
-    const pad = layout === 'horizontal' ? '3px 7px' : '5px 10px';
-    const fs  = layout === 'horizontal' ? '0.72rem' : '0.78rem';
-    return `<button onclick="window.__npRate('${r}')"
-      style="padding:${pad};border:1.5px solid ${active ? c : 'var(--border-medium)'};
-      border-radius:7px;cursor:pointer;font-size:${fs};font-weight:700;
-      font-family:'Space Mono',monospace;
-      background:${active ? ratingDim(r) : 'transparent'};
-      color:${active ? c : 'var(--text-muted)'};transition:all 0.15s;"
-      onmouseover="this.style.borderColor='${c}';this.style.color='${c}'"
-      onmouseout="this.style.borderColor='${active ? c : 'var(--border-medium)'}';this.style.color='${active ? c : 'var(--text-muted)'}'">
-      ${r}</button>`;
-  }).join('');
-
-  const imgSize = layout === 'horizontal' ? 80 : 118;
-  const imgRadius = layout === 'horizontal' ? 8 : 10;
-  const imgHtml = track.image
-    ? `<img src="${escapeHtml(track.image)}" style="width:${imgSize}px;height:${imgSize}px;object-fit:cover;
-        border-radius:${imgRadius}px;box-shadow:var(--shadow-md);flex-shrink:0" />`
-    : `<div style="width:${imgSize}px;height:${imgSize}px;border-radius:${imgRadius}px;background:var(--bg-surface);
-        display:flex;align-items:center;justify-content:center;font-size:${layout==='horizontal'?'1.5':'2'}rem;flex-shrink:0">🎵</div>`;
-
-  if (layout === 'horizontal') {
-    pip.document.body.innerHTML = `
-      <div style="display:flex;flex-direction:column;height:100%;background:var(--bg-deep);
-        padding:10px 12px;gap:8px;box-sizing:border-box;
-        font-family:'DM Sans',system-ui,sans-serif;color:var(--text-primary);">
-
-        <div style="display:flex;gap:10px;align-items:center;flex:1;min-height:0">
-          ${imgHtml}
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
-            <div style="font-weight:700;font-size:0.85rem;line-height:1.2;
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              ${escapeHtml(track.name)}
-            </div>
-            <div style="color:var(--text-secondary);font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              ${escapeHtml(track.artist)}
-            </div>
-            <div style="display:flex;gap:5px;align-items:center;margin-top:4px">
-              ${ctrlBtn('⏮', '__npPrev')}
-              ${ctrlBtn(isPlaying ? '⏸' : '▶', '__npToggle')}
-              ${ctrlBtn('⏭', '__npNext')}
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0">
-            ${track.rating
-              ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;color:${ratingColor(track.rating)}">${track.rating}</span>`
-              : ''}
-            ${toggleBtn}
-          </div>
-        </div>
-
-        <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">
-          ${ratingBtns}
-        </div>
-      </div>`;
-  } else {
-    pip.document.body.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;padding:14px 12px 12px;gap:9px;
-        background:var(--bg-deep);min-height:100%;box-sizing:border-box;
-        font-family:'DM Sans',system-ui,sans-serif;color:var(--text-primary);">
-
-        <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-          <span style="font-size:0.65rem;color:var(--text-muted);font-family:'Space Mono',monospace;
-            letter-spacing:0.05em">now playing</span>
-          <div style="display:flex;align-items:center;gap:6px">
-            ${track.rating
-              ? `<span style="font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;
-                  color:${ratingColor(track.rating)}">${track.rating}</span>`
-              : `<span style="font-size:0.65rem;color:var(--text-muted);font-family:'Space Mono',monospace">sin calificar</span>`}
-            ${toggleBtn}
-          </div>
-        </div>
-
-        ${imgHtml}
-
-        <div style="text-align:center;width:100%;overflow:hidden">
-          <div style="font-weight:700;font-size:0.88rem;line-height:1.3;margin-bottom:2px;
-            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">
-            ${escapeHtml(track.name)}
-          </div>
-          <div style="color:var(--text-secondary);font-size:0.76rem;white-space:nowrap;overflow:hidden;
-            text-overflow:ellipsis;padding:0 4px">
-            ${escapeHtml(track.artist)}
-          </div>
-        </div>
-
-        <div style="display:flex;gap:5px;align-items:center">
-          ${ctrlBtn('⏮', '__npPrev')}
-          ${ctrlBtn(isPlaying ? '⏸' : '▶', '__npToggle')}
-          ${ctrlBtn('⏭', '__npNext')}
-        </div>
-
-        <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
-          ${ratingBtns}
-        </div>
-      </div>`;
-  }
+function savePipSize(w, h) {
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < PIP_MIN_W || h < PIP_MIN_H) return;
+  try { localStorage.setItem(PIP_SIZE_KEY, JSON.stringify([Math.round(w), Math.round(h)])); } catch {}
 }
 
 export default function NavBar() {
@@ -194,21 +50,11 @@ export default function NavBar() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPiPOpen, setIsPiPOpen] = useState(false);
   const [showRatingPanel, setShowRatingPanel] = useState(false);
-  const [pipLayout, setPipLayout] = useState('vertical');
-  const { theme } = useTheme();
 
   const pipWindowRef = useRef(null);
-  const pipStyleRef = useRef(null);
   const nowPlayingRef = useRef(null);
   const isPlayingRef = useRef(false);
-  const pipLayoutRef = useRef('vertical');
-  const appliedLayoutRef = useRef(null);   // layout cuyo tamaño ya se aplicó a la ventana
   const sizeSaveTimerRef = useRef(null);
-  const handleRateRef = useRef(null);
-  const handleToggleRef = useRef(null);
-  const handleNextRef = useRef(null);
-  const handlePrevRef = useRef(null);
-  const handleToggleLayoutRef = useRef(null);
 
   useEffect(() => {
     api.getPending()
@@ -246,14 +92,7 @@ export default function NavBar() {
     return () => clearInterval(interval);
   }, [fetchNowPlaying]);
 
-  const rewirePiP = useCallback((pip) => {
-    pip.__npRate         = (r) => handleRateRef.current(r);
-    pip.__npToggle       = ()  => handleToggleRef.current();
-    pip.__npNext         = ()  => handleNextRef.current();
-    pip.__npPrev         = ()  => handlePrevRef.current();
-    pip.__npToggleLayout = ()  => handleToggleLayoutRef.current?.();
-  }, []);
-
+  // Lo usa la mini-barra del celular. El PiP ya no: /player califica solo.
   const handleRate = useCallback(async (rating) => {
     const track = nowPlayingRef.current;
     if (!track) return;
@@ -261,11 +100,6 @@ export default function NavBar() {
     const updated = { ...track, rating };
     setNowPlaying(updated);
     nowPlayingRef.current = updated;
-
-    if (pipWindowRef.current && !pipWindowRef.current.closed) {
-      renderNowPlayingPiP(pipWindowRef.current, updated, isPlayingRef.current);
-      rewirePiP(pipWindowRef.current);
-    }
 
     try {
       await api.rateTrack({
@@ -279,140 +113,62 @@ export default function NavBar() {
       setNowPlaying(track);
       nowPlayingRef.current = track;
     }
-  }, [rewirePiP]);
-
-  const handleTogglePlay = useCallback(async () => {
-    try {
-      if (isPlayingRef.current) {
-        await api.playerPause();
-      } else {
-        await api.playerPlay();
-      }
-      setTimeout(fetchNowPlaying, 300);
-    } catch {}
-  }, [fetchNowPlaying]);
-
-  const handleNext = useCallback(async () => {
-    try {
-      await api.playerNext();
-      setTimeout(fetchNowPlaying, 500);
-    } catch {}
-  }, [fetchNowPlaying]);
-
-  const handlePrev = useCallback(async () => {
-    try {
-      await api.playerPrevious();
-      setTimeout(fetchNowPlaying, 500);
-    } catch {}
-  }, [fetchNowPlaying]);
-
-  const handleToggleLayout = useCallback(() => {
-    // Guarda el tamaño actual bajo el layout que se está dejando
-    const pip = pipWindowRef.current;
-    if (pip && !pip.closed) {
-      clearTimeout(sizeSaveTimerRef.current);
-      savePipSize(
-        appliedLayoutRef.current,
-        pip.outerWidth  || pip.innerWidth,
-        pip.outerHeight || pip.innerHeight,
-      );
-    }
-    setPipLayout(prev => {
-      const next = prev === 'vertical' ? 'horizontal' : 'vertical';
-      pipLayoutRef.current = next;
-      return next;
-    });
   }, []);
 
-  handleRateRef.current         = handleRate;
-  handleToggleRef.current       = handleTogglePlay;
-  handleNextRef.current         = handleNext;
-  handlePrevRef.current         = handlePrev;
-  handleToggleLayoutRef.current = handleToggleLayout;
-
-  // Keep PiP in sync when track, play state, or layout changes.
-  // El resize SOLO se aplica cuando cambia el layout — si se hiciera en cada
-  // cambio de canción se perdería el tamaño que el usuario ajustó a mano.
-  useEffect(() => {
-    const pip = pipWindowRef.current;
-    if (isPiPOpen && pip && !pip.closed) {
-      // El PiP es otro documento: hay que reescribirle los tokens al cambiar de tema
-      if (pipStyleRef.current) pipStyleRef.current.textContent = pipThemeCss();
-      if (appliedLayoutRef.current !== pipLayout) {
-        const [w, h] = pipSizeFor(pipLayout);
-        try { pip.resizeTo(w, h); } catch {}
-        appliedLayoutRef.current = pipLayout;
-      }
-      renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current, pipLayout);
-      rewirePiP(pip);
-    }
-  }, [nowPlaying, isPlaying, isPiPOpen, pipLayout, theme, rewirePiP]);
+  const cerrarPiP = useCallback((pip) => {
+    clearTimeout(sizeSaveTimerRef.current);
+    savePipSize(pip.outerWidth || pip.innerWidth, pip.outerHeight || pip.innerHeight);
+    pipWindowRef.current = null;
+    setIsPiPOpen(false);
+  }, []);
 
   const openPiP = async () => {
     if (!('documentPictureInPicture' in window)) return;
 
-    if (pipWindowRef.current && !pipWindowRef.current.closed) {
-      const openPip = pipWindowRef.current;
-      clearTimeout(sizeSaveTimerRef.current);
-      savePipSize(
-        appliedLayoutRef.current,
-        openPip.outerWidth  || openPip.innerWidth,
-        openPip.outerHeight || openPip.innerHeight,
-      );
-      openPip.close();
-      pipWindowRef.current = null;
-      pipStyleRef.current = null;
-      appliedLayoutRef.current = null;
-      setIsPiPOpen(false);
+    const abierto = pipWindowRef.current;
+    if (abierto && !abierto.closed) {
+      cerrarPiP(abierto);
+      abierto.close();
       return;
     }
 
     try {
-      const [initW, initH] = pipSizeFor(pipLayoutRef.current);
+      const [w, h] = loadPipSize();
       const pip = await window.documentPictureInPicture.requestWindow({
-        width: initW,
-        height: initH,
+        width: w,
+        height: h,
         disallowReturnToOpener: false,
       });
 
-      const styleEl = pip.document.createElement('style');
-      styleEl.textContent = pipThemeCss();
-      pip.document.head.appendChild(styleEl);
-      pipStyleRef.current = styleEl;
+      // Solo el marco: fondo del tema (para no destellar blanco mientras carga
+      // el iframe) y un iframe a pantalla completa. Todo lo demas es /player.
+      const estilo = pip.document.createElement('style');
+      estilo.textContent = pipThemeCss()
+        + 'html,body{margin:0;height:100%;background:var(--bg-deep);overflow:hidden}'
+        + 'iframe{display:block;border:0;width:100%;height:100%}';
+      pip.document.head.appendChild(estilo);
 
-      rewirePiP(pip);
-      renderNowPlayingPiP(pip, nowPlayingRef.current, isPlayingRef.current, pipLayoutRef.current);
+      const marco = pip.document.createElement('iframe');
+      // URL ABSOLUTA a proposito: el documento del PiP nace como about:blank, y
+      // una ruta relativa dependeria de que herede la base de la ventana madre.
+      marco.src = `${window.location.origin}/player`;
+      marco.title = 'Reproductor';
+      pip.document.body.appendChild(marco);
 
       pipWindowRef.current = pip;
-      appliedLayoutRef.current = pipLayoutRef.current;
       setIsPiPOpen(true);
 
-      // Recuerda el tamaño que el usuario deja (debounce para no escribir en cada frame)
-      const rememberSize = () => {
+      // Recuerda el tamano que el usuario deja (debounce para no escribir en cada frame)
+      pip.addEventListener('resize', () => {
         clearTimeout(sizeSaveTimerRef.current);
         sizeSaveTimerRef.current = setTimeout(() => {
-          savePipSize(
-            appliedLayoutRef.current,
-            pip.outerWidth  || pip.innerWidth,
-            pip.outerHeight || pip.innerHeight,
-          );
+          savePipSize(pip.outerWidth || pip.innerWidth, pip.outerHeight || pip.innerHeight);
         }, 400);
-      };
-      pip.addEventListener('resize', rememberSize);
-
-      pip.addEventListener('pagehide', () => {
-        clearTimeout(sizeSaveTimerRef.current);
-        savePipSize(
-          appliedLayoutRef.current,
-          pip.outerWidth  || pip.innerWidth,
-          pip.outerHeight || pip.innerHeight,
-        );
-        pipWindowRef.current = null;
-        pipStyleRef.current = null;
-        appliedLayoutRef.current = null;
-        setIsPiPOpen(false);
       });
-    } catch { /* user cancelled or browser unsupported */ }
+      pip.addEventListener('pagehide', () => {
+        if (pipWindowRef.current === pip) cerrarPiP(pip);
+      });
+    } catch { /* el usuario cancelo o el navegador no lo soporta */ }
   };
 
   return (

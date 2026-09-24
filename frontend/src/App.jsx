@@ -25,7 +25,12 @@ export default function App() {
       .then(data => {
         const authenticated = data.authenticated ? data : false;
         setAuth(authenticated);
-        if (authenticated) {
+        // /player NO precarga nada. Es la ventana flotante del escritorio y el
+        // PiP: solo necesita now-playing, y la precarga son 9 peticiones
+        // (incluidos 500 Me Gusta de Spotify) — la misma rafaga que agotaba el
+        // pool el 2026-09-21. Sin esto, cada vez que se abre la flotante se
+        // pagaba la carga completa de la app para no usar nada de ella.
+        if (authenticated && window.location.pathname !== '/player') {
           preloadCache.prime('likedAll', () => api.getLikedAll(500, 0));
           preloadCache.prime('recent', () => api.getRecent(100));
           preloadCache.prime('recentlyPlayed', () => api.getRecentlyPlayed());
