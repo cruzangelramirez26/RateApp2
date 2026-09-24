@@ -2,6 +2,58 @@
 
 ---
 
+## 2026-09-24 (sesion: rediseño de escritorio, fase 2 — Calificar)
+
+**Maquina: PC `AngelPC`.** Angel: *"sigue con la fase 2 del diseño"*. Se
+paso a React la pantalla Calificar del lienzo (`project/Main.dc.html`).
+
+**Decisiones de Angel, preguntadas antes de tocar codigo:**
+
+- **Featurings: solo se muestran.** `/tracks/pending` manda `featuring`
+  (`artists[1:]`); `artist` sigue siendo el primero, que es lo que va a MySQL
+  y a `match_key`. Nada de esquema.
+- **Fila de reproduccion dinamica.** Aparece solo si lo que suena es la de
+  turno; si no, solo "Escuchar" y las notas. Al picar "Escuchar" la fila
+  entra y empuja las teclas (grid 0fr -> 1fr). Idea suya: si suena otra cosa,
+  **una pildora translucida arriba** (como las pestanas del PiP) lo dice; si
+  esa cancion es de la cola, trae "Calificarla" y la pone en turno.
+- **La vista de lista se conserva**, con filas del estilo nuevo y las 7 notas.
+
+**Como quedo:** `hooks/useCalificar.js` tiene la logica que antes vivia en
+`PendingPage` (que no cambia de aspecto); `components/escritorio/Calificar.jsx`
+es la vista nueva y `App.jsx` elige por `useEscritorio()`. El Shell ahora
+comparte lo que suena por contexto (`sonando.js`), asi Calificar no abre un
+segundo sondeo de `now-playing`. Teclas 1-7 / S; durante el velo de
+"CALIFICADA" (0.9 s) otra tecla re-califica la que se ve, como en el PiP.
+Califica con el **flujo completo** (no es la cola de `/backfill`).
+
+**Verificado en navegador** contra un backend de mentiras con datos reales de
+produccion (solo lectura): 1440x900, 1024x700 (sin desborde; ahi se escondio
+el rango de fechas del chip para que la pildora no se aplaste) y 800 px (sale
+la pantalla de siempre). Escuchar -> fila; calificar -> velo, avance,
+recien calificadas y pildora con la nota; "Calificarla"; lista; cola vacia
+("Al dia."). En la vista vieja, via el hook: S salta y 7 = D con nombre,
+artista y album. Backend: 6 comprobaciones del campo `featuring` (sin red ni
+MySQL). `npm run build` OK.
+
+**TRAMPA DEL METODO, para la proxima:** varias capturas salieron sin titulo ni
+velo. No era la pantalla: el navegador de pruebas **no producia cuadros**
+(`requestAnimationFrame` dio 0 en 1 s) y las animaciones se quedaban en el
+cuadro 0. Se midio en el DOM y se capturo con las animaciones apagadas por un
+`<style>` inyectado. **Las animaciones reales NO se vieron en movimiento.**
+
+Commit `513714b`.
+
+**PENDIENTES:**
+
+- [ ] Que Angel la vea en produccion y en la app de Tauri (no hay que
+      reinstalar), y a ojo las animaciones: pila, velo, entrada de la fila.
+- [ ] Los toasts salen arriba a la derecha y tapan el chip del cuatrimestre
+      un momento. Detalle de la fase 1, sin tocar.
+- [ ] Fase 3: Escuchas.
+
+---
+
 ## 2026-09-23 y 24 (sesion: la app de Android, cascaron + notificacion para calificar)
 
 **Maquina: PC `AngelPC`.** En paralelo con la sesion del rediseño de
