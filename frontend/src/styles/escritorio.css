@@ -340,7 +340,401 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
 .nota-c  { border-color: rgba(243, 239, 231, .24); color: rgba(243, 239, 231, .56); }
 .nota-d  { border-color: rgba(243, 239, 231, .3);  color: rgba(243, 239, 231, .46); border-style: dashed; }
 
+/* -- Piezas compartidas de las pantallas de escritorio ------ */
+.esc-rotulo {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(243, 239, 231, 0.58);
+}
+.esc-sin-portada { background: rgba(243, 239, 231, 0.08); }
+.esc-feat { font-size: 0.7em; color: rgba(243, 239, 231, 0.45); }
+
+.esc-fantasma {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(243, 239, 231, 0.14);
+  background: none;
+  color: var(--esc-crema);
+  font: inherit;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.esc-fantasma:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: rgba(243, 239, 231, 0.3); }
+.esc-fantasma:disabled { opacity: 0.5; cursor: default; }
+.esc-fantasma .esc-kbd { opacity: 0.5; }
+.esc-fantasma-chico { height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12px; gap: 6px; }
+
+.esc-icono {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  color: rgba(243, 239, 231, 0.6);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.esc-icono:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: var(--esc-crema); }
+.esc-icono:disabled { opacity: 0.45; cursor: default; }
+.esc-girando { animation: esc-gira 1s linear infinite; }
+@keyframes esc-gira { to { transform: rotate(360deg); } }
+
+/* La tarjeta horizontal: portada + nombre + artista + algo a la derecha. */
+.esc-tarjeta {
+  width: 186px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 12px;
+  background: rgba(13, 12, 11, 0.4);
+  border: 1px solid rgba(243, 239, 231, 0.08);
+  animation: esc-sube 0.6s var(--esc-ease) both;
+  transition: transform 0.4s var(--esc-ease);
+}
+.esc-tarjeta:hover { transform: translateY(-4px); }
+.esc-tarjeta-img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.esc-tarjeta-texto { flex: 1; min-width: 0; }
+.esc-tarjeta-nombre,
+.esc-tarjeta-artista { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-tarjeta-nombre { font-size: 12px; font-weight: 500; }
+.esc-tarjeta-artista { font-size: 11px; color: rgba(243, 239, 231, 0.5); }
+.esc-tarjeta-pos { font-size: 10px; letter-spacing: 0; color: rgba(243, 239, 231, 0.4); }
+
+.esc-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex-shrink: 0; }
+.esc-eq span {
+  width: 3px;
+  height: 14px;
+  background: var(--esc-crema);
+  transform-origin: bottom;
+  animation: esc-eq 0.9s ease-in-out infinite;
+}
+.esc-eq span:nth-child(2) { animation-delay: 0.3s; }
+.esc-eq span:nth-child(3) { animation-delay: 0.6s; }
+.esc-eq.quieto span { animation: none; transform: scaleY(0.3); }
+@keyframes esc-eq { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+
+/* -- Calificar (fase 2) ------------------------------------ */
+.esc-cal {
+  --cal-portada: clamp(240px, min(30vw, 50vh), 440px);
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 56px 30px 36px;
+}
+
+.esc-cal-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 38px; }
+.esc-cal-cola { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
+.esc-cal-segs { display: flex; gap: 4px; }
+.esc-cal-segs span {
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(243, 239, 231, 0.15);
+  transition: background 0.6s ease;
+}
+.esc-cal-segs span.hecha { background: var(--esc-crema); }
+.esc-cal-segs span.actual { background: rgba(243, 239, 231, 0.55); }
+.esc-cal-avance { width: 140px; height: 3px; border-radius: 2px; background: rgba(243, 239, 231, 0.15); overflow: hidden; }
+.esc-cal-avance span { display: block; height: 100%; background: var(--esc-crema); transition: width 0.6s ease; }
+
+/* La píldora translúcida de "suena otra cosa", como las pestañas del PiP. */
+.esc-cal-fuera {
+  min-width: 0;
+  max-width: 460px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px 5px 5px;
+  border-radius: 999px;
+  background: rgba(13, 12, 11, 0.42);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  animation: esc-sube 0.45s var(--esc-ease) both;
+}
+.esc-cal-fuera-img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.esc-cal-fuera .esc-eq { height: 11px; }
+.esc-cal-fuera .esc-eq span { height: 11px; width: 2px; }
+.esc-cal-fuera-texto {
+  min-width: 0;
+  font-size: 12px;
+  color: rgba(243, 239, 231, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 6px;
+}
+.esc-cal-fuera-texto b { font-weight: 500; color: var(--esc-crema); }
+.esc-cal-fuera-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--esc-crema);
+  color: var(--esc-tinta);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.esc-cal-derecha { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.esc-cal-cuatri {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px 5px 5px;
+  border-radius: 999px;
+  background: rgba(13, 12, 11, 0.45);
+  border: 1px solid rgba(243, 239, 231, 0.1);
+  font-size: 12px;
+}
+.esc-cal-cuatri img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+.esc-cal-cuatri-nombre { font-weight: 500; }
+.esc-cal-cuatri-rango { color: rgba(243, 239, 231, 0.55); }
+.esc-cal-herramientas { display: flex; gap: 2px; }
+/* En ventanas angostas la píldora de "suena otra cosa" necesita el lugar. */
+@media (max-width: 1279px) {
+  .esc-cal-cuatri-rango { display: none; }
+  .esc-cal-fuera-texto { min-width: 110px; }
+}
+
+/* La escena: pila de portadas + lado derecho. */
+.esc-cal-escena { display: flex; align-items: center; gap: clamp(36px, 4.5vw, 64px); margin-top: 36px; }
+.esc-cal-pila {
+  position: relative;
+  flex-shrink: 0;
+  width: calc(var(--cal-portada) + 100px);
+  height: calc(var(--cal-portada) + 20px);
+}
+.esc-cal-portada {
+  position: absolute;
+  left: 0;
+  top: 10px;
+  width: var(--cal-portada);
+  height: var(--cal-portada);
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform-origin: center;
+  transition: opacity 0.7s ease, transform 0.9s var(--esc-ease);
+}
+.esc-cal-portada.actual { z-index: 10; opacity: 1; transform: none; }
+.esc-cal-portada.sig1   { z-index: 9;  opacity: 0.55; transform: translateX(70px) scale(0.92); }
+.esc-cal-portada.sig2   { z-index: 8;  opacity: 0.25; transform: translateX(140px) scale(0.84); animation: esc-asoma 0.7s ease both; }
+.esc-cal-portada.salida { z-index: 11; opacity: 0; transform: translateX(-140px) rotate(-8deg) scale(0.86); }
+@keyframes esc-asoma { from { opacity: 0; } to { opacity: 0.25; } }
+
+.esc-cal-velo {
+  position: absolute;
+  left: 18px;
+  top: calc(var(--cal-portada) - 80px);
+  width: calc(var(--cal-portada) - 36px);
+  height: 72px;
+  box-sizing: border-box;
+  z-index: 20;
+  border-radius: 14px;
+  background: rgba(13, 12, 11, 0.42);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  animation: esc-sube 0.45s var(--esc-ease) both;
+}
+.esc-cal-velo .esc-rotulo { letter-spacing: 0.16em; color: rgba(243, 239, 231, 0.75); }
+.esc-cal-velo-nota { font-size: 44px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; }
+
+.esc-cal-lado { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.esc-cal-titulo { animation: esc-sube 0.8s var(--esc-ease) both; }
+.esc-cal-titulo h1 {
+  margin: 16px 0 10px;
+  font-size: clamp(40px, 5.2vw, 80px);
+  line-height: 0.98;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.esc-cal-titulo h1.largo { font-size: clamp(34px, 4vw, 62px); }
+.esc-cal-titulo h1.muy-largo { font-size: clamp(28px, 3vw, 46px); line-height: 1.04; }
+.esc-cal-artista { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 22px; color: rgba(243, 239, 231, 0.82); }
+.esc-cal-artista .esc-feat { font-size: 15px; }
+
+/* La fila de reproducción entra y sale empujando lo de abajo: grid de 0fr a
+   1fr, que sí se anima (height: auto no). */
+.esc-cal-repro {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-top: 0;
+  transition: grid-template-rows 0.55s var(--esc-ease), opacity 0.4s ease, margin-top 0.55s var(--esc-ease);
+}
+.esc-cal-repro.abierta { grid-template-rows: 1fr; opacity: 1; margin-top: 30px; }
+.esc-cal-repro-dentro { min-height: 0; overflow: hidden; display: flex; align-items: center; gap: 16px; }
+.esc-cal-repro:not(.abierta) .esc-cal-repro-dentro { visibility: hidden; transition: visibility 0s 0.55s; }
+.esc-ctrl {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 0;
+  background: none;
+  color: rgba(243, 239, 231, 0.75);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.2s, color 0.2s;
+}
+.esc-ctrl:hover { transform: scale(1.08); color: var(--esc-crema); }
+.esc-ctrl-play { width: 46px; height: 46px; background: var(--esc-crema); color: var(--esc-negro); }
+.esc-ctrl-play:hover { color: var(--esc-negro); }
+.esc-cal-barra {
+  flex: 1;
+  min-width: 60px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  position: relative;
+}
+.esc-cal-barra::before,
+.esc-cal-barra span {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+}
+.esc-cal-barra::before { right: 0; background: rgba(243, 239, 231, 0.14); }
+.esc-cal-barra span { background: var(--esc-crema); transition: width 0.5s linear; }
+.esc-cal-barra:hover::before { background: rgba(243, 239, 231, 0.24); }
+.esc-cal-repro-estado { font-size: 12px; color: rgba(243, 239, 231, 0.6); white-space: nowrap; }
+
+.esc-cal-tu { margin-top: 38px; }
+.esc-cal-teclas { display: flex; gap: 8px; margin-top: 14px; }
+.esc-tecla {
+  position: relative;
+  flex: 0 1 82px;
+  min-width: 46px;
+  height: 60px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(243, 239, 231, 0.12);
+  color: var(--esc-crema);
+  display: grid;
+  place-items: center;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.2s var(--esc-ease), background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.esc-tecla:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.09); border-color: rgba(243, 239, 231, 0.34); }
+.esc-tecla:active { transform: translateY(-1px) scale(0.96); }
+.esc-tecla.activa {
+  background: var(--esc-crema);
+  border-color: var(--esc-crema);
+  color: var(--esc-tinta);
+  transform: translateY(-4px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+}
+.esc-tecla-num { position: absolute; left: 8px; top: 6px; font-family: var(--font-mono); font-size: 9px; opacity: 0.4; }
+.esc-tecla.activa .esc-tecla-num { opacity: 0.55; }
+.esc-tecla-nota { font-size: 24px; font-weight: 700; line-height: 1; letter-spacing: -0.04em; }
+
+.esc-cal-acciones { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.esc-cal-pista { margin-left: 8px; font-size: 12px; color: rgba(243, 239, 231, 0.5); }
+
+.esc-cal-aldia { margin-top: 70px; display: flex; flex-direction: column; align-items: flex-start; animation: esc-sube 0.9s var(--esc-ease) both; }
+.esc-cal-aldia h1 { margin: 14px 0 12px; font-size: clamp(80px, 9vw, 120px); line-height: 0.9; font-weight: 700; letter-spacing: -0.05em; }
+.esc-cal-aldia p { margin: 0 0 28px; max-width: 520px; font-size: 18px; line-height: 1.5; color: rgba(243, 239, 231, 0.72); }
+
+.esc-cal-cargando { margin-top: 46px; position: relative; height: var(--cal-portada); }
+.esc-cal-cargando .esc-cal-portada { top: 0; box-shadow: none; animation: esc-respira 1.6s ease-in-out infinite; }
+@keyframes esc-respira { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+.esc-cal-pie { margin-top: auto; padding-top: 36px; display: flex; align-items: flex-end; gap: 36px; flex-wrap: wrap; }
+.esc-cal-grupo { display: flex; flex-direction: column; gap: 12px; }
+.esc-cal-tarjetas { display: flex; gap: 10px; }
+.esc-cal-divisor { width: 1px; height: 60px; background: rgba(243, 239, 231, 0.12); }
+/* Tres por grupo solo caben en pantallas anchas. */
+@media (max-width: 1379px) {
+  .esc-cal-tarjetas .esc-tarjeta:nth-child(3) { display: none; }
+}
+
+/* La vista de lista: filas con las siete notas a la derecha. */
+.esc-cal-lista { margin-top: 28px; display: flex; flex-direction: column; gap: 6px; max-width: 1180px; }
+.esc-cal-lista-sep { padding: 18px 0 6px; }
+.esc-cal-lista-vacia { padding: 40px 0; color: var(--text-secondary); }
+.esc-cal-fila {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px 8px 8px;
+  border-radius: 12px;
+  background: rgba(13, 12, 11, 0.4);
+  border: 1px solid rgba(243, 239, 231, 0.07);
+  transition: background 0.2s, border-color 0.2s;
+}
+.esc-cal-fila:hover { background: rgba(13, 12, 11, 0.6); border-color: rgba(243, 239, 231, 0.14); }
+.esc-cal-fila-img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.esc-cal-fila-texto { flex: 1 1 220px; min-width: 0; }
+.esc-cal-fila-texto .esc-tarjeta-nombre { font-size: 13.5px; }
+.esc-cal-fila-texto .esc-tarjeta-artista { font-size: 12px; }
+.esc-cal-fila-texto .esc-feat { font-size: 1em; }
+.esc-cal-fila-album {
+  flex: 0 1 200px;
+  min-width: 0;
+  font-size: 12px;
+  color: rgba(243, 239, 231, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.esc-cal-fila-notas { display: flex; gap: 4px; flex-shrink: 0; }
+.esc-mini {
+  width: 34px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(243, 239, 231, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(243, 239, 231, 0.75);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.esc-mini:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(243, 239, 231, 0.34); color: var(--esc-crema); }
+.esc-mini.activa { background: var(--esc-crema); border-color: var(--esc-crema); color: var(--esc-tinta); }
+@media (max-width: 1199px) {
+  .esc-cal-fila-album { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .esc-fondo-img { animation: none; }
   .esc-buscador-lista { animation: none; }
+  .esc-eq span { animation: none; transform: scaleY(0.6); }
+  .esc-cal-portada, .esc-cal-repro, .esc-tecla, .esc-tarjeta { transition: none; }
+  .esc-cal-titulo, .esc-cal-velo, .esc-tarjeta, .esc-cal-fuera, .esc-cal-aldia { animation: none; }
 }

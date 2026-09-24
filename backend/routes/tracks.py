@@ -49,6 +49,10 @@ def get_pending_tracks():
             "id": tid,
             "name": t.get("name", ""),
             "artist": artists[0].get("name", ""),
+            # Los demas artistas, para pintarlos junto al principal. Solo se
+            # muestran: `artist` sigue siendo el primero, que es lo que se
+            # guarda en MySQL y con lo que se arma match_key.
+            "featuring": [a.get("name") for a in artists[1:] if a.get("name")],
             "album": (t.get("album") or {}).get("name", ""),
             "added_at": it.get("added_at"),
             "rating": ratings_map.get(tid),

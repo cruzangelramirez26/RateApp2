@@ -1,62 +1,34 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Music, RefreshCw, List, Square, Play } from 'lucide-react';
-import { api } from '../utils/api';
-import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
-import { useToast } from '../hooks/useToast';
 import { RATINGS_ORDEN, ratingDeTecla, esEscritura } from '../utils/ratings';
-// El reproductor flotante se abre SOLO desde el sidebar (en esta pantalla, en
-// la pestana Cola). Aqui solo se escucha lo que se califica alla.
-import { escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
+import { useCalificar } from '../hooks/useCalificar';
 
 // 1 = A+ … 7 = D en toda la app (ver utils/ratings.js). Aqui iba al reves
 // desde mayo (1 = D) y los atajos globales al derecho: se unifico el 2026-09-23.
 const RATINGS = RATINGS_ORDEN;
 
+/**
+ * Calificar, la vista de siempre: el móvil y las ventanas de menos de 1024 px.
+ * En escritorio se pinta components/escritorio/Calificar.jsx; la lógica de las
+ * dos vive en hooks/useCalificar.js. El reproductor flotante se abre SOLO
+ * desde el sidebar (en esta pantalla, en la pestaña Cola).
+ */
 export default function PendingPage() {
-  const [tracks, setTracks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
-  const [skippedIds, setSkippedIds] = useState(new Set());
   const [viewMode, setViewMode] = useState('individual'); // 'individual' | 'lista'
-  const [calificarId, setCalificarId] = useState(null);   // id de la playlist <3333
-  const [playing, setPlaying] = useState(false);          // request de play en vuelo
-  const toast = useToast();
+  const {
+    tracks, filtered, unrated, rated, cola: individualUnrated,
+    loading, refreshing, refresh: handleRefresh,
+    calificarId, playing,
+    calificar: handleRate, escuchar: handlePlayInContext, saltar,
+  } = useCalificar(search);
 
   const handleRateRef = useRef(null);
   const handleSkipRef = useRef(null);
   const desktopUnratedRef = useRef([]);
-
-  const fetchTracks = useCallback(async () => {
-    try {
-      const data = await api.getPending();
-      setTracks(data);
-      setSkippedIds(new Set());
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [toast]);
-
-  useEffect(() => { fetchTracks(); }, [fetchTracks]);
-
-  // Id de <3333> para poder linkear la canción DENTRO de la playlist.
-  // App.jsx ya primea 'distribution', así que normalmente sale de cache.
-  useEffect(() => {
-    preloadCache.load('distribution', api.getDistribution)
-      .then(dist => setCalificarId(dist?.calificar ?? null))
-      .catch(() => {});
-  }, []);
-
-  // Lo calificado en el reproductor (u otra ventana) se refleja en la lista.
-  useEffect(() => escucharCalificadas((id, rating) => {
-    setTracks(prev => prev.map(t => (t.id === id ? { ...t, rating } : t)));
-  }), []);
 
   // Keyboard shortcuts for individual view
   useEffect(() => {
@@ -77,77 +49,11 @@ export default function PendingPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [viewMode]);
 
-  const handleRate = async (track, rating) => {
-    setTracks(prev =>
-      prev.map(t => t.id === track.id ? { ...t, rating } : t)
-    );
-    setSkippedIds(prev => {
-      const next = new Set(prev);
-      next.delete(track.id);
-      return next;
-    });
-    try {
-      await api.rateTrack({
-        track_id: track.id,
-        name: track.name,
-        artist: track.artist,
-        album: track.album || '',
-        rating,
-      });
-      anunciarCalificada(track.id, rating);
-      toast(`${track.name} → ${rating}`, 'success');
-    } catch (err) {
-      setTracks(prev =>
-        prev.map(t => t.id === track.id ? { ...t, rating: track.rating } : t)
-      );
-      toast(`Error: ${err.message}`, 'error');
-    }
-  };
-
-  const handlePlayInContext = async (track) => {
-    if (!track || playing) return;
-    setPlaying(true);
-    try {
-      await api.playInContext(track.id, calificarId);
-      toast(`▶ ${track.name} en <3333`, 'success');
-    } catch (err) {
-      // El backend manda el motivo real (sin dispositivo / sin Premium)
-      const msg = String(err.message || '').replace(/^\d+:\s*/, '');
-      let detail = msg;
-      try { detail = JSON.parse(msg).detail || msg; } catch {}
-      toast(detail, 'error');
-    } finally {
-      setPlaying(false);
-    }
-  };
-
-  const handleSkip = () => {
-    const current = desktopUnratedRef.current[0];
-    if (!current) return;
-    setSkippedIds(prev => new Set([...prev, current.id]));
-  };
+  const handleSkip = () => saltar(desktopUnratedRef.current[0]);
 
   handleRateRef.current = handleRate;
   handleSkipRef.current = handleSkip;
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchTracks();
-  };
-
-  const filtered = search
-    ? tracks.filter(t =>
-        `${t.name} ${t.artist}`.toLowerCase().includes(search.toLowerCase())
-      )
-    : tracks;
-
-  const unrated = filtered.filter(t => !t.rating);
-  const rated  = filtered.filter(t => t.rating);
-
-  const individualUnrated = [
-    ...unrated.filter(t => !skippedIds.has(t.id)),
-    ...unrated.filter(t => skippedIds.has(t.id)),
-  ];
   desktopUnratedRef.current = individualUnrated;
 
   const currentTrack = individualUnrated[0] ?? null;

@@ -9,6 +9,7 @@ import { useEscritorio } from './hooks/useEscritorio';
 import NavBar from './components/NavBar';
 import BarraVentana from './components/BarraVentana';
 import Shell from './components/escritorio/Shell';
+import CalificarEscritorio from './components/escritorio/Calificar';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
 import LibraryPage from './pages/LibraryPage';
@@ -94,10 +95,11 @@ export default function App() {
     );
   }
 
-  // Las pantallas son las mismas en los dos diseños; lo que cambia es el marco.
+  // Lo que cambia entre los dos diseños es el marco y, conforme llega cada
+  // fase del rediseño, la pantalla: Calificar ya tiene la suya (fase 2).
   const rutas = (
     <Routes>
-      <Route path="/" element={<PendingPage />} />
+      <Route path="/" element={escritorio ? <CalificarEscritorio /> : <PendingPage />} />
       <Route path="/library" element={<LibraryPage />} />
       <Route path="/recent" element={<RecentPage />} />
       <Route path="/tools" element={<ToolsPage />} />

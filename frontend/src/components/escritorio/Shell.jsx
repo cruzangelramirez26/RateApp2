@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { useToast } from '../../hooks/useToast';
 import { alternarReproductor, suscribirReproductor, modoParaRuta, escucharCalificadas } from '../../utils/reproductor';
 import { FondoProvider } from './FondoPortada';
+import { SonandoCtx } from './sonando';
 import BarraSuperior from './BarraSuperior';
 import Riel from './Riel';
 import '../../styles/escritorio.css';
@@ -28,7 +29,7 @@ function iniciales(nombre) {
 export default function Shell({ usuario, children }) {
   const { pathname } = useLocation();
   const toast = useToast();
-  const [portada, setPortada] = useState(null);
+  const [sonando, setSonando] = useState(null);
   const [sinCalificar, setSinCalificar] = useState(() => new Set());
   const [reproductorAbierto, setReproductorAbierto] = useState(false);
 
@@ -38,17 +39,23 @@ export default function Shell({ usuario, children }) {
     return () => raiz.classList.remove('escritorio');
   }, []);
 
-  // El fondo por defecto es la portada de lo que suena. Si Spotify deja de
-  // reportar se queda la última (misma regla que el widget de siempre).
+  // Lo que suena: el fondo por defecto es su portada, y las pantallas lo leen
+  // con useSonando(). Si Spotify deja de reportar se queda la última canción,
+  // en pausa (misma regla que el widget de siempre).
+  const refrescar = useCallback(() => api.getNowPlaying()
+    .then((d) => {
+      if (d?.track) setSonando({ ...d, leidoEn: Date.now() });
+      else setSonando((prev) => (prev ? { ...prev, is_playing: false } : prev));
+    })
+    .catch(() => setSonando((prev) => (prev ? { ...prev, is_playing: false } : prev))), []);
+
   useEffect(() => {
-    let vivo = true;
-    const leer = () => api.getNowPlaying()
-      .then((d) => { if (vivo && d?.track?.image) setPortada(d.track.image); })
-      .catch(() => {});
-    leer();
-    const t = setInterval(leer, POLL_MS);
-    return () => { vivo = false; clearInterval(t); };
-  }, []);
+    refrescar();
+    const t = setInterval(() => { if (!document.hidden) refrescar(); }, POLL_MS);
+    return () => clearInterval(t);
+  }, [refrescar]);
+
+  const ctxSonando = useMemo(() => ({ sonando, refrescar }), [sonando, refrescar]);
 
   // El número del riel son las de <3333> SIN nota (getPending trae también las
   // ya calificadas que siguen en la playlist).
@@ -79,7 +86,8 @@ export default function Shell({ usuario, children }) {
   }, [pathname, toast]);
 
   return (
-    <FondoProvider porDefecto={portada}>
+    <SonandoCtx.Provider value={ctxSonando}>
+    <FondoProvider porDefecto={sonando?.track?.image || null}>
       <div className="esc">
         <BarraSuperior />
         <div className="esc-cuerpo">
@@ -93,5 +101,6 @@ export default function Shell({ usuario, children }) {
         </div>
       </div>
     </FondoProvider>
+    </SonandoCtx.Provider>
   );
 }
