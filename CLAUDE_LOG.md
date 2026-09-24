@@ -2,6 +2,230 @@
 
 ---
 
+## 2026-09-22 y 23 (sesion: el reproductor deja de ser HTML pegado con cinta)
+
+**Maquina: PC `AngelPC`.** Continuacion directa de la app de escritorio. Angel
+cerro el tema del icono —*"el icono hasta el ultimo, tu preocupate por lo
+funcional"*— y de las dos piezas funcionales que quedaban dijo *"pip y teclas
+supongo, no se a cuales te refieres la vdd"*.
+
+**LO PRIMERO FUE EXPLICARLE LAS TECLAS, Y AHI CAMBIO EL PLAN.** Las teclas
+multimedia globales **no sirven para play/pausa**: el Spotify de escritorio ya
+responde a esas teclas, y los botones del player de RateApp lo unico que hacen
+es pedirle a Spotify exactamente eso. Registrarlas seria pelearse por la tecla
+para acabar haciendo lo mismo. Lo que SI es nuevo es **calificar sin cambiar de
+ventana**.
+
+Eligio: **calificar 1-7** y **mostrar/ocultar la ventana**, nada de play/pausa.
+Y orden: **la ventana flotante primero**.
+
+**LA VENTANA FLOTANTE NO SE PODIA HACER, Y ESA ERA LA NOTICIA.** Lleva
+bloqueada desde el 2026-08-25 por una razon concreta: **una ventana de Tauri
+necesita una URL a la que apuntar**, y el reproductor no era una ruta — eran
+cadenas de HTML dentro de `NavBar.jsx`, reescritas con `innerHTML` completo en
+cada poll de 5 s (de ahi el parpadeo). Asi que la sesion se fue a construir la
+ruta.
+
+**1) `/player`, EL REPRODUCTOR COMO RUTA.**
+
+Portada, nombre, artista, barra de progreso **con seek**, los controles, los 7
+ratings y el corazon de Me Gusta. Va **fuera del layout con sidebar** (`App.jsx`
+partio sus rutas en dos): es una ventana de ~360 px y no tiene por que cargar
+la navegacion.
+
+**El regalo que estaba tirado en el backend:** `/tracks/now-playing` YA recibia
+`progress_ms` y `duration_ms` de Spotify **y los tiraba**. La barra de progreso
+no costo una sola llamada extra.
+
+**Decisiones que evitan bugs conocidos:**
+
+- **El corazon tiene su PROPIO endpoint** (`GET /tracks/saved/{id}`) en vez de
+  viajar dentro de `now-playing`. El reproductor sondea cada 4 s, asi que
+  meterlo ahi le regalaria una llamada a Spotify **por vuelta**. Medido en el
+  navegador: **20 polls, 1 sola consulta del corazon**.
+- **Interpolacion local del progreso**, porque con polls de 4 s la barra
+  avanzaria a saltos de cuatro segundos.
+- **Ventana de gracia de 2.5 s despues de un seek.** Spotify tarda en aplicarlo,
+  asi que el primer poll devuelve la posicion VIEJA y la barra salta hacia atras
+  para volver a saltar adelante. Es el mismo desfase que obligo a pasar `offset`
+  en play-in-context el 2026-09-04. Una cancion distinta manda igual, por si el
+  seek fue seguido de "siguiente".
+- **Califica con el flujo COMPLETO**, como el widget del sidebar. Por eso mismo
+  **no debe usarse durante la cola de `/backfill`**, que necesita fechar con la
+  primera escucha. Quedo escrito en el componente.
+- Si Spotify deja de reportar, **conserva la ultima cancion** en vez de
+  vaciarse (la decision del 2026-08-21).
+
+**Verificado en un navegador de verdad**, con un backend de mentiras sirviendo
+el build — el mismo metodo del modo oscuro del 2026-08-20. Lo que salio de ahi:
+
+```
+seek al 50% de 3:33   ->  POST /tracks/player/seek {"position_ms":106500}   exacto
+calificar             ->  POST /tracks/rate  SIN ?soft=true  (flujo completo)
+corazon               ->  POST /tracks/like
+20 polls de now-playing            1 sola consulta de /saved
+barra y reloj          0:52 = 24.4% de 213 s, y avanzan solos entre polls
+tras el seek           2:43 -> 2:46 sin saltar atras (la ventana de gracia)
+Spotify apagado        conserva la cancion; en frio dice "Nada sonando"
+/ y /window conservan su sidebar   ->  /player sale limpio, sin NavBar
+```
+
+Mas **21 comprobaciones de backend** sin red ni MySQL. `npm run build` OK (1592
+modulos). **Desplegado y verificado en produccion**: el bundle servido es
+`index-818MPoAh.js`, **el mismo hash que salio del build local**, y contiene la
+clase `player-barra-fill` — o sea el codigo nuevo esta arriba, no una revision
+vieja.
+
+Commit `1b694cb`.
+
+**2) LA VENTANA FLOTANTE Y LOS ATAJOS.**
+
+Ventana `player` always-on-top con `skip_taskbar`, que se abre desde la
+bandeja o con un atajo y se **oculta** al cerrarse, para que reabrirla no
+recargue la pagina. Atajos para calificar lo que suena y para traer la ventana
+principal, con una notificacion del sistema como unico acuse de recibo, porque
+el atajo no abre ninguna ventana.
+
+**La decision de diseno que vale la pena recordar:** los atajos hablan con el
+backend **por HTTP desde Rust**, no a traves del frontend. No es comodidad: la
+pagina es **remota** (Cloud Run), y dejarla invocar comandos de Tauri obligaria
+a abrirle permisos a ese origen. El backend no pide credenciales, asi que Rust
+puede llamarlo directo. Y **sin nada sonando no califica a ciegas**: avisa y no
+escribe.
+
+Se escribio el 22 y la sesion se corto antes de probarlo (commit `68d362e`,
+con **SIN PROBAR** en el titulo). **Al probarlo el 23 salieron dos cosas, y la
+primera habria sido de las feas.**
+
+**LOS ATAJOS LE ROBABAN LA `@` A ANGEL.** Se escribieron como Ctrl+Alt+1..7.
+Pero en Windows **Ctrl+Alt ES AltGr**, y se midio el teclado real con
+`ToUnicodeEx` en vez de suponerlo:
+
+```
+teclado configurado:  es-MX con distribucion de ESPANA  (080A:0000040A)
+Ctrl+Alt+1 -> |    Ctrl+Alt+2 -> @    Ctrl+Alt+3 -> #   (+5 y +6 tambien)
+```
+
+O sea **cada arroba que Angel escribiera le pondria A a la cancion que
+suena**, y cada `#` un B+. En silencio: un atajo global se come la tecla antes
+de que llegue a la app donde se escribe, asi que ni siquiera se veria el
+caracter faltar con claridad. Se detecto al escribir la prueba, antes de
+disparar una sola tecla, y no habia forma de verlo leyendo el codigo: depende
+de la distribucion del teclado, no del programa.
+
+Angel eligio **Ctrl+Alt+Shift+1..7**. La `@` es AltGr+2 **sin** Shift y
+`RegisterHotKey` compara los modificadores exactos, asi que ya no coincide. Se
+le ofrecio tambien el teclado numerico (libre y sin choque) y Ctrl+Shift+1..7
+(que le robaria a Excel los formatos de numero, fecha, moneda y porcentaje).
+
+**CTRL+ALT+R YA LO TENIA OTRO PROGRAMA, Y FALLABA CALLADO.** La prueba de
+"traer la ventana principal" fallo, y la causa no era el codigo: preguntandole
+a Windows con `RegisterHotKey` que combinaciones estaban libres, **la R y la M
+estaban ocupadas**. El candidato obvio es DisplayFusion, pero no importa cual.
+El codigo ya registraba los atajos de forma **no fatal** —a proposito—, pero el
+error iba **solo al log, que en el build release ni existe**. El atajo
+simplemente no hacia nada y nadie se enteraba.
+
+- Traer la app pasa a **Ctrl+Alt+A** (libre, y AltGr+A no escribe nada).
+- **Un atajo que no se pudo registrar ahora avisa con una notificacion** al
+  arrancar, diciendo cual. No fatal, pero tampoco callado.
+- El menu de la bandeja muestra los atajos, para descubrirlos sin leer codigo.
+
+**CASI SE COMITEA UN DESASTRE, Y CONVIENE ANOTARLO.** Para probar los atajos
+sin calificar canciones reales de Angel, se apunto `frontendDist` al backend de
+mentiras (`http://127.0.0.1:8777`). Angel corto la sesion justo ahi, y **el
+cambio ya estaba escrito en `tauri.conf.json`**. Comitearlo habria dejado la
+app de escritorio hablandole a un servidor que no existe, y el sintoma —una
+ventana en blanco— no apunta a la causa por ningun lado. Se restauro y se
+comprobo con `git diff` **vacio** contra la version comiteada. **Leccion: un
+cambio temporal para probar es exactamente el que se cuela cuando la sesion se
+interrumpe.**
+
+**COMO SE PROBO SIN REPETIR EL SUSTO DEL DIA ANTERIOR.** El 22 casi se comitea
+`frontendDist` apuntando a localhost. Esta vez **el archivo no se toco**:
+`tauri build --config <json>` fusiona una config solo para ese build. El JSON
+de prueba cambiaba ademas el `identifier`, porque **la app instalada de Angel
+estaba corriendo** (tiene el autostart prendido) y el plugin single-instance
+habria matado a la de prueba para enfocar la suya. Y al terminar se comprobo
+**en el binario final**, no en el archivo de config:
+
+```
+127.0.0.1:8777 dentro del exe      0
+rateapp.prueba dentro del exe      0
+URL de Cloud Run dentro del exe    1
+```
+
+**Verificacion: 22 comprobaciones** contra el binario de prueba, un backend de
+mentiras que registra cada llamada, y teclas reales con `SendKeys`. Las que
+importan:
+
+```
+Ctrl+Alt+P abre la flotante, visible y WS_EX_TOPMOST     OK
+cargo /player del backend                                OK
+la X la oculta sin matar el proceso, P la reabre         OK   (misma ventana, sin duplicar)
+Ctrl+Alt+Shift+3  ->  POST /tracks/rate {"rating":"B+","track_id":"T1"}   exactamente 1
+sin nada sonando  ->  0 calificaciones                   OK
+Ctrl+Alt+A trae la principal                             OK
+Ctrl+Alt+2 y +3 (la @ y el #)  ->  0 calificaciones      OK
+con un atajo tomado por otro programa la app arranca
+  igual y los demas atajos siguen sirviendo              OK
+la app INSTALADA de Angel siguio viva todo el tiempo     OK
+```
+
+**DOS PRUEBAS PROPIAS ESTABAN MAL, y se corrigieron antes de creerles:**
+
+- "La flotante no ocupa la barra de tareas" media `WS_EX_TOOLWINDOW`, pero
+  Tauri en Windows lo hace con `ITaskbarList`, otra API. El instrumento miraba
+  el mecanismo equivocado — **la version de hoy del falso positivo de la ventana
+  del 21**. Se quito en vez de dejarla fallando o forzarla a pasar. **Eso
+  queda SIN verificar**: se ve a ojo.
+- "Mantener la tecla apretada no repite" no probaba nada: `SendKeys` manda
+  pulsaciones separadas, no una sostenida con autorepeticion, y la asercion
+  (`<= 5`) pasaba siempre. **Se quito: una prueba que no puede fallar es
+  adorno.** El codigo si dispara solo al *soltar*, pero eso no esta medido.
+
+Commits `68d362e` y `695cf79`.
+
+**PARA QUE ANGEL LO USE:** reinstalar con el `RateApp_0.1.0_x64-setup.exe`
+nuevo. El NSIS instala en el mismo sitio (`AppData\Local\RateApp`), asi que la
+entrada de autostart del registro sigue apuntando bien y no hace falta volver a
+prenderla.
+
+```
+Ctrl+Alt+Shift+1..7   califica lo que suena   (1 = A+ ... 7 = D)
+Ctrl+Alt+P            reproductor flotante
+Ctrl+Alt+A            trae RateApp
+```
+
+**POR DONDE SEGUIR:**
+
+1. **Que Angel reinstale y confirme a ojo** que la flotante no aparece en la
+   barra de tareas, que la notificacion de "Calificada B+" se ve, y que
+   mantener apretada una combinacion no califica varias veces — las tres cosas
+   que la prueba automatica no pudo medir.
+2. **Jubilar los dos PiP de `innerHTML`** para que usen `/player`. Es el paso 3
+   del plan y lo que deja el reproductor existiendo **una sola vez**, en vez de
+   tres implementaciones del mismo widget.
+3. **El icono**, que Angel dejo explicitamente para el final.
+
+**PENDIENTES DE LA APP NATIVA:**
+
+- [x] Fase 1: bandeja, cerrar-a-bandeja, autostart e instalador.
+- [x] **La ruta `/player`**, que era el bloqueo real de la ventana flotante.
+- [x] **Ventana flotante y atajos**, probados (22 comprobaciones).
+- [ ] Confirmacion a ojo de Angel (barra de tareas, notificacion, tecla
+      sostenida).
+- [ ] Jubilar los dos PiP viejos a favor de `/player`.
+- [ ] Icono propio. Decision de Angel: hasta el ultimo.
+- [ ] Android con Capacitor, sin empezar.
+
+**LO QUE QUEDA DEL BACKLOG DEL REPRODUCTOR** (seccion 3 de `Mejoras.txt`), que
+`/player` deja al alcance pero no hizo: shuffle / repeat / volumen, cola desde
+`/me/player/queue`, fondo con la portada difuminada, marquesina para titulos
+largos (hoy se cortan con ellipsis) y atajos 1-7 **dentro** de la ventana.
+
+---
+
 ## 2026-09-21 (sesion: la app de escritorio deja de ser un cascaron)
 
 **Maquina: PC `AngelPC`.** Segunda tanda del dia. Angel: *"me gustaria seguir
