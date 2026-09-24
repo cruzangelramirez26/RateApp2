@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, List, Square, RefreshCw, PictureInPicture2 } from 'lucide-react';
+import {
+  Play, Pause, SkipBack, SkipForward, List, Square, RefreshCw, PictureInPicture2,
+  ChevronLeft, ChevronRight, ArrowLeft,
+} from 'lucide-react';
 import { api } from '../../utils/api';
 import { preloadCache } from '../../utils/preloadCache';
 import { RATINGS_ORDEN, ratingDeTecla, esEscritura } from '../../utils/ratings';
@@ -13,23 +16,35 @@ import Nota from './Nota';
 
 /**
  * Calificar, versión de escritorio (fase 2 del rediseño, 2026-09-24). Sale de
- * la pantalla "Calificar" del lienzo Design; la lógica es la de siempre, en
- * hooks/useCalificar.js.
+ * la pantalla "Calificar" del lienzo Design; la lógica de la cola es la de
+ * siempre, en hooks/useCalificar.js.
+ *
+ * Dos modos de escenario:
+ *  - `cola`: la cola de <3333> (las sin nota). Se navega con ← →, con las
+ *    flechas bajo la pila o picando cualquier portada o tarjeta: la pila se
+ *    mueve en las dos direcciones (las anteriores se apilan a la izquierda).
+ *  - `sonando`: lo que suena en Spotify cuando NO es de <3333>. Se entra
+ *    picando la píldora de arriba; detrás se asoma la cola de reproducción de
+ *    Spotify (/tracks/player/queue) y cuando cambia la canción la nueva pasa
+ *    al frente sola. Si la nueva es de <3333>, se regresa al modo cola en ella.
  *
  * Lo que decidió Angel al pasarla a React:
- *  - La fila de reproducción (controles + barra) aparece SOLO cuando lo que
- *    suena es la canción en turno. Si no, solo "Escuchar" y las notas; al
- *    picar "Escuchar" la fila entra y empuja a los botones hacia abajo.
- *  - Si suena algo que no es la de turno, una píldora translúcida arriba lo
- *    dice (como las pestañas del reproductor flotante).
+ *  - La fila de reproducción aparece SOLO cuando lo que está al frente es lo
+ *    que suena; al picar "Escuchar" entra y empuja a las teclas.
+ *  - Si suena otra cosa, una píldora translúcida arriba lo dice; picarla la
+ *    pone en grande.
  *  - La vista de lista se conserva.
- *  - Los featurings solo se muestran (vienen de Spotify en /tracks/pending).
+ *  - Los featurings solo se muestran (vienen de Spotify, no de MySQL).
+ *
+ * Califica siempre con el FLUJO COMPLETO, como el widget de siempre: no sirve
+ * para la cola de /backfill.
  */
 
 const RETENER_MS = 900;       // el velo de "CALIFICADA" antes de avanzar
 const SALIDA_MS = 900;        // la portada calificada saliéndose de la pila
 const ESCUCHA_MS = 8000;      // cuánto se cree en un "Escuchar" sin que Spotify lo confirme
 const GRACIA_SEEK_MS = 2500;  // Spotify tarda en aplicar un seek (ver PlayerPage)
+const LADO = 2;               // portadas que se asoman a cada lado
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const RANGO = { perla: 'ene – abr', miel: 'may – ago', latte: 'sep – dic' };
@@ -45,23 +60,35 @@ function conFeat(nombres) {
   return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`;
 }
 
-function Portada({ src, className }) {
+const pad = (n) => String(n).padStart(2, '0');
+
+function Portada({ src, className, onClick, etiqueta }) {
+  if (onClick) {
+    return (
+      <button type="button" className={`${className} esc-portada-btn`} onClick={onClick} aria-label={etiqueta}>
+        {src ? <img src={src} alt="" /> : <span className="esc-sin-portada" />}
+      </button>
+    );
+  }
   return src
     ? <img src={src} alt="" className={className} />
     : <div className={`${className} esc-sin-portada`} />;
 }
 
-function Tarjeta({ t, derecha }) {
-  return (
-    <div className="esc-tarjeta">
+function Tarjeta({ t, derecha, onClick }) {
+  const cuerpo = (
+    <>
       <Portada src={t.image} className="esc-tarjeta-img" />
       <div className="esc-tarjeta-texto">
         <div className="esc-tarjeta-nombre">{t.name}</div>
         <div className="esc-tarjeta-artista">{t.artist}</div>
       </div>
       {derecha}
-    </div>
+    </>
   );
+  return onClick
+    ? <button type="button" className="esc-tarjeta esc-tarjeta-btn" onClick={onClick} title={`Ver ${t.name}`}>{cuerpo}</button>
+    : <div className="esc-tarjeta">{cuerpo}</div>;
 }
 
 function Ecualizador({ activo }) {
@@ -81,9 +108,13 @@ export default function Calificar() {
   } = useCalificar();
 
   const [vista, setVista] = useState('individual');   // 'individual' | 'lista'
+  const [modo, setModo] = useState('cola');           // 'cola' | 'sonando'
+  const [focoIdx, setFocoIdx] = useState(0);          // posición en la cola de <3333>
+  const [sonFoco, setSonFoco] = useState(0);          // posición en la cola de Spotify
+  const [spot, setSpot] = useState({ actual: null, cola: [] }); // /tracks/player/queue
   const [retenida, setRetenida] = useState(null);     // {track, rating}: el velo de "calificada"
   const [salida, setSalida] = useState(null);         // la que se va de la pila
-  const [adelantada, setAdelantada] = useState(null); // id que se pidió calificar ya
+  const [notas, setNotas] = useState({});             // id -> nota puesta aquí (modo sonando)
   const [escuchando, setEscuchando] = useState(null); // {id, hasta}: "Escuchar" aún sin confirmar
   const [recientes, setRecientes] = useState([]);
   const [total, setTotal] = useState(0);              // tamaño de la cola al entrar, para el contador
@@ -91,12 +122,35 @@ export default function Calificar() {
   const retenerRef = useRef(null);
   const seekRef = useRef({ ms: 0, at: 0, hasta: 0 });
 
-  // ── La cola, con la adelantada al frente ───────────────────────────
-  const orden = adelantada && cola.some((t) => t.id === adelantada)
-    ? [cola.find((t) => t.id === adelantada), ...cola.filter((t) => t.id !== adelantada)]
-    : cola;
-  const actual = retenida?.track || orden[0] || null;
-  const siguientes = orden.filter((t) => t.id !== actual?.id).slice(0, 3);
+  const idSonando = sonando?.track?.id || null;
+
+  // ── Qué hay en el escenario ────────────────────────────────────────
+  // `lista` es lo que se puede navegar y `centro` el índice del frente.
+  // Durante el velo la calificada se mete en su lugar: para <3333> ya salió
+  // de la cola (se calificó), pero tiene que seguir al frente 0.9 s.
+  let lista;
+  let centro;
+  if (modo === 'sonando') {
+    const primera = spot.actual?.id === idSonando ? spot.actual : (sonando?.track && {
+      ...sonando.track,
+      // now-playing junta a todos los artistas en uno; el principal es el primero.
+      artist: (sonando.track.artist || '').split(', ')[0],
+    });
+    lista = [primera, ...spot.cola].filter(Boolean)
+      .filter((t, i, a) => a.findIndex((x) => x.id === t.id) === i);
+    centro = Math.min(sonFoco, Math.max(0, lista.length - 1));
+  } else if (retenida) {
+    const base = cola.filter((t) => t.id !== retenida.track.id);
+    centro = Math.min(focoIdx, base.length);
+    lista = [...base.slice(0, centro), retenida.track, ...base.slice(centro)];
+  } else {
+    lista = cola;
+    centro = Math.min(focoIdx, Math.max(0, cola.length - 1));
+  }
+  const actual = lista[centro] || null;
+  const siguientes = lista.slice(centro + 1, centro + 6);
+  const modoRef = useRef(modo);
+  modoRef.current = modo;
 
   useEffect(() => {
     // El total crece si llegan más, nunca baja al calificar: así el contador avanza.
@@ -115,7 +169,7 @@ export default function Calificar() {
       .catch(() => {});
   }, []);
 
-  // ── Calificar, con el velo ─────────────────────────────────────────
+  // ── Navegar ────────────────────────────────────────────────────────
   const retenidaRef = useRef(null);
   retenidaRef.current = retenida;
   const terminarRetencion = useCallback(() => {
@@ -123,14 +177,78 @@ export default function Calificar() {
     const r = retenidaRef.current;
     if (!r) return;
     setRetenida(null);
+    // En modo sonando la calificada se queda al frente (sigue sonando).
+    if (modoRef.current !== 'cola') return;
     setSalida(r.track);
     setTimeout(() => setSalida((s) => (s?.id === r.track.id ? null : s)), SALIDA_MS);
   }, []);
 
+  // Pone al frente la canción con ese id, en el modo en que se esté.
+  const irA = useCallback((id) => {
+    if (retenidaRef.current) terminarRetencion();
+    if (modoRef.current === 'sonando') {
+      const i = lista.findIndex((t) => t.id === id);
+      if (i >= 0) setSonFoco(i);
+      return;
+    }
+    const i = cola.findIndex((t) => t.id === id);
+    if (i >= 0) setFocoIdx(i);
+  }, [lista, cola, terminarRetencion]);
+
+  const mover = useCallback((paso) => {
+    const t = lista[centro + paso];
+    if (t) irA(t.id);
+  }, [lista, centro, irA]);
+
+  const cargarSpot = useCallback(() => {
+    api.getPlayerQueue(10)
+      .then((d) => setSpot({ actual: d?.currently_playing || null, cola: d?.queue || [] }))
+      .catch(() => setSpot((s) => s));
+  }, []);
+
+  // La píldora: lo que suena, en grande.
+  const verSonando = useCallback(() => {
+    if (!idSonando) return;
+    const enCola = cola.findIndex((t) => t.id === idSonando);
+    if (retenidaRef.current) terminarRetencion();
+    if (enCola >= 0) {
+      setModo('cola');
+      setFocoIdx(enCola);
+      return;
+    }
+    setSpot({ actual: null, cola: [] });
+    setSonFoco(0);
+    setModo('sonando');
+    cargarSpot();
+  }, [idSonando, cola, cargarSpot, terminarRetencion]);
+
+  const volverACola = () => {
+    if (retenidaRef.current) terminarRetencion();
+    setModo('cola');
+  };
+
+  // En modo sonando, cuando cambia la canción la nueva pasa al frente; si es
+  // de <3333>, se regresa a la cola en ella.
+  const ultimoSonandoRef = useRef(idSonando);
+  useEffect(() => {
+    if (idSonando === ultimoSonandoRef.current) return;
+    ultimoSonandoRef.current = idSonando;
+    if (modo !== 'sonando' || !idSonando) return;
+    const enCola = cola.findIndex((t) => t.id === idSonando);
+    if (enCola >= 0) {
+      setModo('cola');
+      setFocoIdx(enCola);
+      return;
+    }
+    setSonFoco(0);
+    cargarSpot();
+  }, [idSonando, modo, cola, cargarSpot]);
+
+  // ── Calificar, con el velo ─────────────────────────────────────────
   const onCalificar = useCallback((track, rating) => {
     if (!track) return;
     setRetenida({ track, rating });
-    setAdelantada((a) => (a === track.id ? null : a));
+    setNotas((n) => ({ ...n, [track.id]: rating }));
     setRecientes((prev) => [{ ...track, rating }, ...prev.filter((r) => r.id !== track.id)]);
     clearTimeout(retenerRef.current);
     retenerRef.current = setTimeout(terminarRetencion, RETENER_MS);
@@ -141,37 +259,38 @@ export default function Calificar() {
 
   const onSaltar = useCallback(() => {
     if (retenida) { terminarRetencion(); return; }
-    if (!actual) return;
-    setAdelantada((a) => (a === actual.id ? null : a));
+    if (!actual || modo !== 'cola') return;
     saltar(actual);
-  }, [retenida, actual, saltar, terminarRetencion]);
+  }, [retenida, actual, modo, saltar, terminarRetencion]);
 
-  // 1-7 califica (durante el velo re-califica la que se ve), S salta.
+  // 1-7 califica (durante el velo re-califica la que se ve), S salta, ← → navegan.
   const teclasRef = useRef({});
-  teclasRef.current = { actual, onCalificar, onSaltar, vista };
+  teclasRef.current = { actual, onCalificar, onSaltar, vista, mover };
   useEffect(() => {
     const h = (e) => {
       if (esEscritura(e) || e.ctrlKey || e.altKey || e.metaKey) return;
-      const { actual: a, onCalificar: cal, onSaltar: sal, vista: v } = teclasRef.current;
+      const { actual: a, onCalificar: cal, onSaltar: sal, vista: v, mover: mv } = teclasRef.current;
       if (v !== 'individual' || !a) return;
       const r = ratingDeTecla(e.key);
       if (r) { e.preventDefault(); cal(a, r); }
       else if (e.key === 's' || e.key === 'S') { e.preventDefault(); sal(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); mv(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); mv(1); }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
 
   // ── Lo que suena ───────────────────────────────────────────────────
-  const idSonando = sonando?.track?.id || null;
   const esperando = escuchando && actual && escuchando.id === actual.id && Date.now() < escuchando.hasta;
   const suenaActual = !!actual && (idSonando === actual.id || esperando);
   const enPausa = idSonando === actual?.id ? !sonando.is_playing : false;
-  const fuera = !!idSonando && sonando.is_playing && idSonando !== actual?.id && !esperando;
-  const fueraEnCola = fuera && cola.some((t) => t.id === idSonando);
+  const fuera = !!idSonando && sonando.is_playing && idSonando !== actual?.id && !esperando
+    && !(modo === 'sonando' && lista.some((t) => t.id === idSonando));
   // La nota de lo que suena: la de aquí gana, porque now-playing la reporta
   // hasta el siguiente sondeo y la recién calificada saldría sin nota.
-  const notaSonando = (fuera && tracks.find((t) => t.id === idSonando)?.rating) || sonando?.track?.rating || null;
+  const notaDe = (t) => (t ? notas[t.id] || tracks.find((x) => x.id === t.id)?.rating || t.rating || null : null);
+  const notaSonando = fuera ? notaDe(sonando.track) : null;
 
   // Spotify ya confirmó: se deja de suponer.
   useEffect(() => {
@@ -221,7 +340,7 @@ export default function Calificar() {
 
   const onFlotante = async () => {
     try {
-      if (!(await alternarReproductor('cola'))) {
+      if (!(await alternarReproductor(modo === 'cola' ? 'cola' : 'sonando'))) {
         toast('El reproductor flotante solo funciona en Chrome o en la app de escritorio', 'error');
       }
     } catch (err) {
@@ -233,41 +352,48 @@ export default function Calificar() {
   const slot = cuatriActual();
   const info = slot ? cuatriInfo(slot) : null;
   const hechas = Math.max(0, total - unrated.length);
-  const posicion = actual ? Math.min(total, hechas + (retenida ? 0 : 1)) : total;
-  const pad = (n) => String(n).padStart(2, '0');
+  const posicion = modo === 'sonando'
+    ? centro + 1
+    : (actual ? Math.min(total, hechas + centro + (retenida ? 0 : 1)) : total);
+  const totalVisible = modo === 'sonando' ? lista.length : total;
 
   const cabecera = (
     <div className="esc-cal-cabecera">
       <div className="esc-cal-cola">
-        <span className="esc-rotulo">COLA &lt;3333&gt;</span>
-        {total > 0 && total <= 16 ? (
+        {modo === 'sonando' ? (
+          <button className="esc-fantasma esc-fantasma-chico" onClick={volverACola}>
+            <ArrowLeft size={14} /> Volver a &lt;3333&gt;
+            {unrated.length > 0 && <span className="esc-kbd">{unrated.length}</span>}
+          </button>
+        ) : (
+          <span className="esc-rotulo">COLA &lt;3333&gt;</span>
+        )}
+        {modo === 'cola' && total > 0 && total <= 16 ? (
           <span className="esc-cal-segs" aria-hidden="true">
             {Array.from({ length: total }, (_, i) => (
-              <span key={i} className={i < hechas ? 'hecha' : i === hechas && actual ? 'actual' : ''} />
+              <span key={i} className={i < hechas ? 'hecha' : i === posicion - 1 && actual ? 'actual' : ''} />
             ))}
           </span>
-        ) : total > 16 ? (
+        ) : modo === 'cola' && total > 16 ? (
           <span className="esc-cal-avance" aria-hidden="true">
             <span style={{ width: `${(hechas / total) * 100}%` }} />
           </span>
         ) : null}
-        <span className="esc-rotulo">{actual ? `${pad(posicion)} / ${pad(total)}` : 'LISTO'}</span>
+        {modo === 'sonando' && <span className="esc-rotulo">COLA DE SPOTIFY</span>}
+        <span className="esc-rotulo">{actual ? `${pad(posicion)} / ${pad(totalVisible)}` : 'LISTO'}</span>
       </div>
 
       {fuera && (
-        <div className="esc-cal-fuera" key={idSonando}>
+        <button type="button" className="esc-cal-fuera" key={idSonando} onClick={verSonando}
+                title="Verla en grande">
           <Portada src={sonando.track.image} className="esc-cal-fuera-img" />
           <Ecualizador activo />
           <span className="esc-cal-fuera-texto">
             <b>{sonando.track.name}</b> · {sonando.track.artist}
           </span>
           {notaSonando && <Nota rating={notaSonando} />}
-          {fueraEnCola && vista === 'individual' && (
-            <button className="esc-cal-fuera-btn" onClick={() => { if (retenida) terminarRetencion(); setAdelantada(idSonando); }}>
-              Calificarla
-            </button>
-          )}
-        </div>
+          {vista === 'individual' && <span className="esc-cal-fuera-btn">Ver</span>}
+        </button>
       )}
 
       <div className="esc-cal-derecha">
@@ -318,7 +444,7 @@ export default function Calificar() {
     </div>
   );
 
-  const lista = (
+  const vistaLista = (
     <div className="esc-cal-lista">
       {tracks.length === 0 && <div className="esc-cal-lista-vacia">No hay canciones en &lt;3333&gt;</div>}
       {unrated.map(fila)}
@@ -330,13 +456,20 @@ export default function Calificar() {
   );
 
   // ── Vista individual ───────────────────────────────────────────────
-  const pila = [
-    ...(salida && salida.id !== actual?.id ? [{ t: salida, rol: 'salida' }] : []),
-    ...(actual ? [{ t: actual, rol: 'actual' }] : []),
-    ...siguientes.slice(0, 2).map((t, i) => ({ t, rol: `sig${i + 1}` })),
-  ];
-  const activa = retenida?.rating || actual?.rating || null;
+  // Cada portada lleva su distancia al frente (-2..2); la clase cambia y la
+  // transición la mueve, en la dirección que sea.
+  const pila = [];
+  for (let d = -LADO; d <= LADO; d++) {
+    const t = lista[centro + d];
+    if (t) pila.push({ t, d });
+  }
+  if (salida && !pila.some((p) => p.t.id === salida.id)) pila.push({ t: salida, d: 'salida' });
+  const activa = retenida?.rating || notaDe(actual);
   const largo = (actual?.name || '').length;
+  const enSonando = modo === 'sonando';
+  const rotulo = enSonando
+    ? [idSonando === actual?.id ? 'Sonando' : 'En la cola de Spotify', 'fuera de <3333>', actual?.album].filter(Boolean).join(' · ')
+    : [actual?.added_at && `Agregada ${fechaCorta(actual.added_at)}`, actual?.album].filter(Boolean).join(' · ');
 
   const individual = !actual ? (
     <div className="esc-cal-aldia">
@@ -347,23 +480,37 @@ export default function Calificar() {
     </div>
   ) : (
     <div className="esc-cal-escena">
-      <div className="esc-cal-pila">
-        {pila.map(({ t, rol }) => (
-          <Portada key={t.id} src={t.image} className={`esc-cal-portada ${rol}`} />
-        ))}
-        {retenida && (
-          <div className="esc-cal-velo" key={`${retenida.track.id}-${retenida.rating}`}>
-            <span className="esc-rotulo">CALIFICADA</span>
-            <span className="esc-cal-velo-nota">{retenida.rating}</span>
-          </div>
-        )}
+      <div className="esc-cal-izq">
+        <div className="esc-cal-pila">
+          {pila.map(({ t, d }) => (
+            <Portada key={t.id} src={t.image}
+                     className={`esc-cal-portada ${d === 'salida' ? 'salida' : `o${d < 0 ? 'm' : ''}${Math.abs(d)}`}`}
+                     onClick={typeof d === 'number' && d !== 0 ? () => irA(t.id) : undefined}
+                     etiqueta={typeof d === 'number' && d !== 0 ? `Ver ${t.name}` : undefined} />
+          ))}
+          {retenida && (
+            <div className="esc-cal-velo" key={`${retenida.track.id}-${retenida.rating}`}>
+              <span className="esc-rotulo">CALIFICADA</span>
+              <span className="esc-cal-velo-nota">{retenida.rating}</span>
+            </div>
+          )}
+        </div>
+        <div className="esc-cal-nav">
+          <button className="esc-icono" onClick={() => mover(-1)} disabled={centro === 0}
+                  aria-label="Anterior de la cola" title="Anterior  ←">
+            <ChevronLeft size={18} />
+          </button>
+          <span className="esc-rotulo">{pad(centro + 1)} / {pad(lista.length)}</span>
+          <button className="esc-icono" onClick={() => mover(1)} disabled={centro >= lista.length - 1}
+                  aria-label="Siguiente de la cola" title="Siguiente  →">
+            <ChevronRight size={18} />
+          </button>
+        </div>
       </div>
 
       <div className="esc-cal-lado">
         <div className="esc-cal-titulo" key={actual.id}>
-          <div className="esc-rotulo">
-            {[actual.added_at && `Agregada ${fechaCorta(actual.added_at)}`, actual.album].filter(Boolean).join(' · ')}
-          </div>
+          <div className="esc-rotulo">{rotulo}</div>
           <h1 className={largo > 42 ? 'muy-largo' : largo > 24 ? 'largo' : ''}>{actual.name}</h1>
           <div className="esc-cal-artista">
             <span>{actual.artist}</span>
@@ -410,15 +557,21 @@ export default function Calificar() {
         </div>
 
         <div className="esc-cal-acciones">
-          <button className="esc-fantasma" onClick={onSaltar}>
-            Saltar <span className="esc-kbd">S</span>
-          </button>
-          {!suenaActual && (
+          {!enSonando && (
+            <button className="esc-fantasma" onClick={onSaltar}>
+              Saltar <span className="esc-kbd">S</span>
+            </button>
+          )}
+          {!enSonando && !suenaActual && (
             <button className="esc-fantasma" onClick={onEscuchar} disabled={playing}>
               <Play size={12} fill="currentColor" /> Escuchar en &lt;3333&gt;
             </button>
           )}
-          {info && <span className="esc-cal-pista">B+ o más entra a {info.nombre}, Galería Anual y Me Gusta</span>}
+          {info && (
+            <span className="esc-cal-pista">
+              {enSonando && 'No está en <3333>. '}B+ o más entra a {info.nombre}, Galería Anual y Me Gusta
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -430,10 +583,13 @@ export default function Calificar() {
       {actual && siguientes.length > 0 && (
         <>
           <div className="esc-cal-grupo">
-            <div className="esc-rotulo">A CONTINUACIÓN</div>
+            <div className="esc-rotulo">{enSonando ? 'DESPUÉS EN SPOTIFY' : 'A CONTINUACIÓN'}</div>
             <div className="esc-cal-tarjetas">
               {siguientes.map((t, i) => (
-                <Tarjeta key={t.id} t={t} derecha={<span className="esc-rotulo esc-tarjeta-pos">{pad(posicion + i + 1)}</span>} />
+                <Tarjeta key={t.id} t={t} onClick={() => irA(t.id)}
+                         derecha={enSonando && notaDe(t)
+                           ? <Nota rating={notaDe(t)} />
+                           : <span className="esc-rotulo esc-tarjeta-pos">{pad(posicion + i + 1)}</span>} />
               ))}
             </div>
           </div>
@@ -444,7 +600,7 @@ export default function Calificar() {
         <div className="esc-cal-grupo">
           <div className="esc-rotulo">RECIÉN CALIFICADAS</div>
           <div className="esc-cal-tarjetas">
-            {recientes.slice(0, 3).map((t) => (
+            {recientes.slice(0, 5).map((t) => (
               <Tarjeta key={t.id} t={t} derecha={<Nota rating={t.rating} />} />
             ))}
           </div>
@@ -456,12 +612,13 @@ export default function Calificar() {
   return (
     <div className="esc-cal">
       {cabecera}
-      {loading ? (
-        <div className="esc-cal-cargando" aria-label="Cargando">
-          <div className="esc-cal-portada actual esc-sin-portada" />
-        </div>
-      ) : vista === 'lista' ? lista : individual}
-
+      <div className="esc-cal-centro">
+        {loading ? (
+          <div className="esc-cal-cargando" aria-label="Cargando">
+            <div className="esc-cal-portada o0 esc-sin-portada" />
+          </div>
+        ) : vista === 'lista' ? vistaLista : individual}
+      </div>
       {vista === 'individual' && !loading && pie}
     </div>
   );

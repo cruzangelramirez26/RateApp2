@@ -122,6 +122,57 @@ def get_now_playing():
     }
 
 
+@router.get("/player/queue")
+def player_queue(limit: int = Query(10, ge=1, le=20)):
+    """Lo que suena y lo que Spotify va a tocar despues (/me/player/queue).
+
+    Para la pantalla Calificar de escritorio cuando suena algo fuera de <3333>:
+    la cancion va en grande y esta cola se asoma detras. Cada item trae su
+    nota de la DB (una sola lectura, no una por cancion). Episodios y
+    repetidos se descartan: Spotify rellena la cola repitiendo el contexto.
+    """
+    sp = spotify.get_client()
+    try:
+        q = sp.queue() or {}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify no devolvio la cola: {e}")
+
+    df = database.load_all()
+    notas = {}
+    if not df.empty:
+        for _, r in df.iterrows():
+            nota = _rating_limpio(r.get("rating", ""))
+            if nota:
+                notas[r["track_id"]] = nota
+
+    def fmt(t):
+        if not t or t.get("type", "track") != "track" or not t.get("id"):
+            return None
+        artists = t.get("artists") or [{}]
+        images = (t.get("album") or {}).get("images") or []
+        return {
+            "id": t["id"],
+            "name": t.get("name", ""),
+            "artist": artists[0].get("name", ""),
+            "featuring": [a.get("name") for a in artists[1:] if a.get("name")],
+            "album": (t.get("album") or {}).get("name", ""),
+            "image": images[0].get("url") if images else None,
+            "rating": notas.get(t["id"]),
+        }
+
+    actual = fmt(q.get("currently_playing"))
+    vistos = {actual["id"]} if actual else set()
+    cola = []
+    for t in q.get("queue") or []:
+        item = fmt(t)
+        if item and item["id"] not in vistos:
+            vistos.add(item["id"])
+            cola.append(item)
+        if len(cola) >= limit:
+            break
+    return {"currently_playing": actual, "queue": cola}
+
+
 @router.post("/player/pause")
 def player_pause():
     sp = spotify.get_client()

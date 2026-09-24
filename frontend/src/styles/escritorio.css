@@ -425,14 +425,23 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
 @keyframes esc-eq { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
 
 /* -- Calificar (fase 2) ------------------------------------ */
+/* Todo crece con la ventana: el lienzo era de 1440 px y en pantallas grandes
+   se veía perdido (Angel, en 2560). --cal-portada manda el tamaño de la pila,
+   y lo demás escala con vw hasta su tope. */
 .esc-cal {
-  --cal-portada: clamp(240px, min(30vw, 50vh), 440px);
+  --cal-portada: clamp(220px, min(28vw, 52vh), 680px);
+  width: 100%;
+  max-width: 2400px;
+  margin: 0 auto;
   min-height: 100%;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 26px 56px 30px 36px;
 }
+.esc-cal .esc-rotulo { font-size: clamp(11px, 0.7vw, 14px); }
+/* El escenario se centra en vertical entre la cabecera y el pie. */
+.esc-cal-centro { flex: 1; min-height: 0; display: flex; align-items: center; padding: 20px 0; }
 
 .esc-cal-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 38px; }
 .esc-cal-cola { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
@@ -451,6 +460,11 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
 
 /* La píldora translúcida de "suena otra cosa", como las pestañas del PiP. */
 .esc-cal-fuera {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
   min-width: 0;
   max-width: 460px;
   display: flex;
@@ -477,7 +491,10 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   padding-right: 6px;
 }
 .esc-cal-fuera-texto b { font-weight: 500; color: var(--esc-crema); }
+.esc-cal-fuera:hover { border-color: rgba(255, 255, 255, 0.28); background: rgba(13, 12, 11, 0.6); }
 .esc-cal-fuera-btn {
+  display: inline-flex;
+  align-items: center;
   height: 26px;
   padding: 0 12px;
   border-radius: 999px;
@@ -513,37 +530,63 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
 }
 
 /* La escena: pila de portadas + lado derecho. */
-.esc-cal-escena { display: flex; align-items: center; gap: clamp(36px, 4.5vw, 64px); margin-top: 36px; }
+.esc-cal-escena { width: 100%; display: flex; align-items: center; justify-content: center; gap: clamp(28px, 3.5vw, 80px); }
+.esc-cal-izq { flex-shrink: 0; display: flex; flex-direction: column; }
+/* La pila: la de al frente, dos que siguen a la derecha y dos que ya pasaron a
+   la izquierda. Cada portada lleva su distancia al frente como clase (om2,
+   om1, o0, o1, o2) y la transición la mueve en la dirección que sea. Los
+   desplazamientos son proporcionales a la portada para que escalen. */
 .esc-cal-pila {
+  --cal-izq: calc(var(--cal-portada) * 0.22);
   position: relative;
-  flex-shrink: 0;
-  width: calc(var(--cal-portada) + 100px);
+  width: calc(var(--cal-portada) * 1.52);
   height: calc(var(--cal-portada) + 20px);
 }
 .esc-cal-portada {
   position: absolute;
-  left: 0;
+  left: var(--cal-izq, 0);
   top: 10px;
   width: var(--cal-portada);
   height: var(--cal-portada);
+  padding: 0;
+  border: 0;
   border-radius: 12px;
+  overflow: hidden;
   object-fit: cover;
+  background: none;
   box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
   transform-origin: center;
-  transition: opacity 0.7s ease, transform 0.9s var(--esc-ease);
+  transition: opacity 0.7s ease, transform 0.9s var(--esc-ease), filter 0.3s;
+  animation: esc-asoma 0.7s ease both;
 }
-.esc-cal-portada.actual { z-index: 10; opacity: 1; transform: none; }
-.esc-cal-portada.sig1   { z-index: 9;  opacity: 0.55; transform: translateX(70px) scale(0.92); }
-.esc-cal-portada.sig2   { z-index: 8;  opacity: 0.25; transform: translateX(140px) scale(0.84); animation: esc-asoma 0.7s ease both; }
-.esc-cal-portada.salida { z-index: 11; opacity: 0; transform: translateX(-140px) rotate(-8deg) scale(0.86); }
-@keyframes esc-asoma { from { opacity: 0; } to { opacity: 0.25; } }
+.esc-portada-btn { cursor: pointer; }
+.esc-portada-btn img,
+.esc-portada-btn .esc-sin-portada { display: block; width: 100%; height: 100%; object-fit: cover; }
+.esc-cal-portada.o0  { z-index: 10; opacity: 1; transform: none; }
+.esc-cal-portada.o1  { z-index: 9;  opacity: 0.55; transform: translateX(calc(var(--cal-portada) * 0.16)) scale(0.92); }
+.esc-cal-portada.o2  { z-index: 8;  opacity: 0.25; transform: translateX(calc(var(--cal-portada) * 0.32)) scale(0.84); }
+.esc-cal-portada.om1 { z-index: 9;  opacity: 0.4;  transform: translateX(calc(var(--cal-portada) * -0.12)) scale(0.9) rotate(-2deg); }
+.esc-cal-portada.om2 { z-index: 8;  opacity: 0.16; transform: translateX(calc(var(--cal-portada) * -0.22)) scale(0.8) rotate(-4deg); }
+.esc-cal-portada.salida { z-index: 11; opacity: 0; transform: translateY(-6%) rotate(-6deg) scale(0.86); pointer-events: none; }
+.esc-cal-portada.esc-portada-btn:hover { opacity: 0.85; filter: brightness(1.08); }
+/* Solo "desde": la que entra se funde hasta la opacidad de su lugar. */
+@keyframes esc-asoma { from { opacity: 0; } }
+
+.esc-cal-nav {
+  margin: 14px 0 0 calc(var(--cal-portada) * 0.22);
+  width: var(--cal-portada);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
 
 .esc-cal-velo {
   position: absolute;
-  left: 18px;
-  top: calc(var(--cal-portada) - 80px);
+  left: calc(var(--cal-portada) * 0.22 + 18px);
+  bottom: 28px;
   width: calc(var(--cal-portada) - 36px);
-  height: 72px;
+  height: clamp(72px, 5vw, 100px);
   box-sizing: border-box;
   z-index: 20;
   border-radius: 14px;
@@ -558,13 +601,13 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   animation: esc-sube 0.45s var(--esc-ease) both;
 }
 .esc-cal-velo .esc-rotulo { letter-spacing: 0.16em; color: rgba(243, 239, 231, 0.75); }
-.esc-cal-velo-nota { font-size: 44px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; }
+.esc-cal-velo-nota { font-size: clamp(44px, 3vw, 66px); line-height: 1; font-weight: 700; letter-spacing: -0.04em; }
 
-.esc-cal-lado { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.esc-cal-lado { flex: 1; min-width: 0; max-width: 1100px; display: flex; flex-direction: column; }
 .esc-cal-titulo { animation: esc-sube 0.8s var(--esc-ease) both; }
 .esc-cal-titulo h1 {
   margin: 16px 0 10px;
-  font-size: clamp(40px, 5.2vw, 80px);
+  font-size: clamp(40px, 5.2vw, 128px);
   line-height: 0.98;
   font-weight: 700;
   letter-spacing: -0.045em;
@@ -574,10 +617,10 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.esc-cal-titulo h1.largo { font-size: clamp(34px, 4vw, 62px); }
-.esc-cal-titulo h1.muy-largo { font-size: clamp(28px, 3vw, 46px); line-height: 1.04; }
-.esc-cal-artista { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 22px; color: rgba(243, 239, 231, 0.82); }
-.esc-cal-artista .esc-feat { font-size: 15px; }
+.esc-cal-titulo h1.largo { font-size: clamp(34px, 4vw, 98px); }
+.esc-cal-titulo h1.muy-largo { font-size: clamp(28px, 3vw, 72px); line-height: 1.04; }
+.esc-cal-artista { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: clamp(22px, 1.4vw, 34px); color: rgba(243, 239, 231, 0.82); }
+.esc-cal-artista .esc-feat { font-size: clamp(15px, 0.95vw, 23px); }
 
 /* La fila de reproducción entra y sale empujando lo de abajo: grid de 0fr a
    1fr, que sí se anima (height: auto no). */
@@ -632,13 +675,13 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
 .esc-cal-barra:hover::before { background: rgba(243, 239, 231, 0.24); }
 .esc-cal-repro-estado { font-size: 12px; color: rgba(243, 239, 231, 0.6); white-space: nowrap; }
 
-.esc-cal-tu { margin-top: 38px; }
-.esc-cal-teclas { display: flex; gap: 8px; margin-top: 14px; }
+.esc-cal-tu { margin-top: clamp(38px, 2.6vw, 60px); }
+.esc-cal-teclas { display: flex; gap: clamp(8px, 0.55vw, 12px); margin-top: 14px; }
 .esc-tecla {
   position: relative;
-  flex: 0 1 82px;
-  min-width: 46px;
-  height: 60px;
+  flex: 0 1 clamp(82px, 5.6vw, 120px);
+  min-width: 42px;
+  height: clamp(60px, 4.1vw, 88px);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(243, 239, 231, 0.12);
@@ -658,28 +701,44 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   transform: translateY(-4px);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
 }
-.esc-tecla-num { position: absolute; left: 8px; top: 6px; font-family: var(--font-mono); font-size: 9px; opacity: 0.4; }
+.esc-tecla-num { position: absolute; left: 8px; top: 6px; font-family: var(--font-mono); font-size: clamp(9px, 0.6vw, 12px); opacity: 0.4; }
 .esc-tecla.activa .esc-tecla-num { opacity: 0.55; }
-.esc-tecla-nota { font-size: 24px; font-weight: 700; line-height: 1; letter-spacing: -0.04em; }
+.esc-tecla-nota { font-size: clamp(24px, 1.65vw, 36px); font-weight: 700; line-height: 1; letter-spacing: -0.04em; }
 
-.esc-cal-acciones { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
-.esc-cal-pista { margin-left: 8px; font-size: 12px; color: rgba(243, 239, 231, 0.5); }
+.esc-cal-acciones { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: clamp(22px, 1.5vw, 34px); }
+.esc-cal-acciones .esc-fantasma { height: clamp(38px, 2.5vw, 50px); font-size: clamp(13px, 0.85vw, 16px); padding: 0 clamp(16px, 1.1vw, 22px); }
+.esc-cal-pista { margin-left: 8px; font-size: clamp(12px, 0.8vw, 15px); color: rgba(243, 239, 231, 0.5); }
+.esc-cal-repro-dentro { gap: clamp(16px, 1.1vw, 24px); }
+.esc-cal-repro-estado { font-size: clamp(12px, 0.8vw, 15px); }
 
 .esc-cal-aldia { margin-top: 70px; display: flex; flex-direction: column; align-items: flex-start; animation: esc-sube 0.9s var(--esc-ease) both; }
 .esc-cal-aldia h1 { margin: 14px 0 12px; font-size: clamp(80px, 9vw, 120px); line-height: 0.9; font-weight: 700; letter-spacing: -0.05em; }
 .esc-cal-aldia p { margin: 0 0 28px; max-width: 520px; font-size: 18px; line-height: 1.5; color: rgba(243, 239, 231, 0.72); }
 
-.esc-cal-cargando { margin-top: 46px; position: relative; height: var(--cal-portada); }
+.esc-cal-cargando { position: relative; width: 100%; height: var(--cal-portada); }
 .esc-cal-cargando .esc-cal-portada { top: 0; box-shadow: none; animation: esc-respira 1.6s ease-in-out infinite; }
 @keyframes esc-respira { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
-.esc-cal-pie { margin-top: auto; padding-top: 36px; display: flex; align-items: flex-end; gap: 36px; flex-wrap: wrap; }
+.esc-cal-pie { display: flex; align-items: flex-end; gap: 36px; flex-wrap: wrap; }
 .esc-cal-grupo { display: flex; flex-direction: column; gap: 12px; }
 .esc-cal-tarjetas { display: flex; gap: 10px; }
 .esc-cal-divisor { width: 1px; height: 60px; background: rgba(243, 239, 231, 0.12); }
-/* Tres por grupo solo caben en pantallas anchas. */
+.esc-cal-pie .esc-tarjeta { width: clamp(186px, 11vw, 250px); }
+.esc-cal-pie .esc-tarjeta-img { width: clamp(44px, 2.8vw, 58px); height: clamp(44px, 2.8vw, 58px); }
+.esc-cal-pie .esc-tarjeta-nombre { font-size: clamp(12px, 0.75vw, 14px); }
+.esc-cal-pie .esc-tarjeta-artista { font-size: clamp(11px, 0.7vw, 13px); }
+.esc-tarjeta-btn { font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.esc-tarjeta-btn:hover { border-color: rgba(243, 239, 231, 0.24); background: rgba(13, 12, 11, 0.6); }
+/* Cuántas tarjetas por grupo, según el ancho: 2, 3, 4 o 5. */
+.esc-cal-tarjetas > :nth-child(n+4) { display: none; }
 @media (max-width: 1379px) {
-  .esc-cal-tarjetas .esc-tarjeta:nth-child(3) { display: none; }
+  .esc-cal-tarjetas > :nth-child(3) { display: none; }
+}
+@media (min-width: 2300px) {
+  .esc-cal-tarjetas > :nth-child(4) { display: flex; }
+}
+@media (min-width: 2800px) {
+  .esc-cal-tarjetas > :nth-child(5) { display: flex; }
 }
 
 /* La vista de lista: filas con las siete notas a la derecha. */
