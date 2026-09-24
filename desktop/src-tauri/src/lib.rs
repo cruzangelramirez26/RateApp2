@@ -129,25 +129,43 @@ fn avisar(app: &AppHandle, titulo: &str, cuerpo: &str) {
   let _ = app.notification().builder().title(titulo).body(cuerpo).show();
 }
 
-/// Ctrl+Alt+1..7 califican; Ctrl+Alt+R trae la app; Ctrl+Alt+P el flotante.
+/// Ctrl+Alt+Shift+1..7 califican; Ctrl+Alt+A trae la app; Ctrl+Alt+P el flotante.
+///
+/// **POR QUE LLEVAN SHIFT LOS DE CALIFICAR, y no hay que quitarselo.** En Windows
+/// Ctrl+Alt ES AltGr, y el teclado de Angel es es-MX con distribucion de Espana
+/// (`080A:0000040A`), donde AltGr+1/2/3 escriben `|`, `@` y `#`. Con Ctrl+Alt+1..7
+/// a secas, escribir una arroba calificaria como A la cancion que suena — en
+/// silencio, porque un atajo global se come la tecla antes de que llegue a la
+/// app donde se esta escribiendo. Con Shift ya no coincide: la `@` es AltGr+2
+/// SIN Shift, y `RegisterHotKey` compara los modificadores exactos.
+///
+/// **Por que A y no R para traer la app:** Ctrl+Alt+R ya lo tenia otro programa
+/// (medido con `RegisterHotKey` el 2026-09-23), igual que Ctrl+Alt+M. A y P
+/// estan libres y AltGr no escribe nada con ellas.
 ///
 /// **No se registran las teclas de medios a proposito.** El Spotify de escritorio
 /// ya responde a Play/Pausa/Siguiente, y los botones del player de RateApp lo
 /// unico que hacen es pedirle a Spotify exactamente eso: registrarlas seria
 /// pelearse por la tecla para acabar haciendo lo mismo.
-fn atajos() -> Vec<(Shortcut, &'static str)> {
+///
+/// Devuelve (atajo, accion, etiqueta legible para avisar si no se pudo registrar).
+fn atajos() -> Vec<(Shortcut, &'static str, String)> {
   let teclas = [
     Code::Digit1, Code::Digit2, Code::Digit3, Code::Digit4,
     Code::Digit5, Code::Digit6, Code::Digit7,
   ];
-  let modificadores = Modifiers::CONTROL | Modifiers::ALT;
-  let mut lista: Vec<(Shortcut, &'static str)> = teclas
+  let calificar = Modifiers::CONTROL | Modifiers::ALT | Modifiers::SHIFT;
+  let ventanas = Modifiers::CONTROL | Modifiers::ALT;
+  let mut lista: Vec<(Shortcut, &'static str, String)> = teclas
     .iter()
     .zip(RATINGS.iter())
-    .map(|(code, rating)| (Shortcut::new(Some(modificadores), *code), *rating))
+    .enumerate()
+    .map(|(i, (code, rating))| {
+      (Shortcut::new(Some(calificar), *code), *rating, format!("Ctrl+Alt+Shift+{}", i + 1))
+    })
     .collect();
-  lista.push((Shortcut::new(Some(modificadores), Code::KeyR), "__mostrar"));
-  lista.push((Shortcut::new(Some(modificadores), Code::KeyP), "__player"));
+  lista.push((Shortcut::new(Some(ventanas), Code::KeyA), "__mostrar", "Ctrl+Alt+A".into()));
+  lista.push((Shortcut::new(Some(ventanas), Code::KeyP), "__player", "Ctrl+Alt+P".into()));
   lista
 }
 
@@ -171,7 +189,7 @@ pub fn run() {
           if evento.state() != ShortcutState::Released {
             return;
           }
-          let Some((_, accion)) = atajos().into_iter().find(|(s, _)| s == atajo) else {
+          let Some((_, accion, _)) = atajos().into_iter().find(|(s, _, _)| s == atajo) else {
             return;
           };
           match accion {
@@ -205,12 +223,26 @@ pub fn run() {
 
       // Registrar los atajos NO es fatal: si otro programa ya se quedo con una
       // combinacion, la app tiene que seguir sirviendo igual.
+      //
+      // Pero tampoco puede fallar CALLADO, y eso ya paso: Ctrl+Alt+R estaba
+      // tomado por otro programa y el error solo iba al log, que en el build
+      // release ni existe. El atajo simplemente no hacia nada. Por eso los que
+      // fallan se avisan con una notificacion al arrancar.
       {
         use tauri_plugin_global_shortcut::GlobalShortcutExt;
-        for (atajo, accion) in atajos() {
+        let mut ocupados: Vec<String> = Vec::new();
+        for (atajo, accion, etiqueta) in atajos() {
           if let Err(err) = app.global_shortcut().register(atajo) {
             log::error!("atajo ocupado por otro programa ({accion}): {err}");
+            ocupados.push(etiqueta);
           }
+        }
+        if !ocupados.is_empty() {
+          avisar(
+            app.handle(),
+            "Atajos de RateApp ocupados",
+            &format!("Otro programa ya usa: {}", ocupados.join(", ")),
+          );
         }
       }
 
@@ -219,7 +251,8 @@ pub fn run() {
       // casilla no debe mentir.
       let inicio_activo = app.autolaunch().is_enabled().unwrap_or(false);
 
-      let item_mostrar = MenuItem::with_id(app, "mostrar", "Mostrar RateApp", true, None::<&str>)?;
+      let item_mostrar =
+        MenuItem::with_id(app, "mostrar", "Mostrar RateApp  (Ctrl+Alt+A)", true, None::<&str>)?;
       let item_player = MenuItem::with_id(
         app,
         "player",
