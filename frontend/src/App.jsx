@@ -5,8 +5,10 @@ import { preloadCache } from './utils/preloadCache';
 import { setCuatriMap } from './utils/cuatrimestres';
 import { ToastProvider } from './hooks/useToast';
 import { ThemeProvider } from './hooks/useTheme';
+import { useEscritorio } from './hooks/useEscritorio';
 import NavBar from './components/NavBar';
 import BarraVentana from './components/BarraVentana';
+import Shell from './components/escritorio/Shell';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
 import LibraryPage from './pages/LibraryPage';
@@ -20,6 +22,7 @@ import PlayerPage from './pages/PlayerPage';
 
 export default function App() {
   const [auth, setAuth] = useState(null);
+  const escritorio = useEscritorio();
 
   useEffect(() => {
     api.authStatus()
@@ -54,7 +57,11 @@ export default function App() {
   // La barra de título del escritorio va en TODOS los estados (cargando, login
   // y la app): sin ella la ventana no se podría mover ni cerrar. /player trae
   // la suya, dentro del reproductor.
-  const barra = window.location.pathname !== '/player' ? <BarraVentana /> : null;
+  // En el diseño de escritorio, ya dentro de la app, la barra la pinta el
+  // Shell (con el buscador); ahí no van las dos.
+  const barra = window.location.pathname !== '/player' && !(escritorio && auth)
+    ? <BarraVentana />
+    : null;
 
   if (auth === null) {
     return (
@@ -87,6 +94,22 @@ export default function App() {
     );
   }
 
+  // Las pantallas son las mismas en los dos diseños; lo que cambia es el marco.
+  const rutas = (
+    <Routes>
+      <Route path="/" element={<PendingPage />} />
+      <Route path="/library" element={<LibraryPage />} />
+      <Route path="/recent" element={<RecentPage />} />
+      <Route path="/tools" element={<ToolsPage />} />
+      {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
+          desde Herramientas. */}
+      <Route path="/backfill" element={<BackfillPage />} />
+      <Route path="/window" element={<WindowPage />} />
+      <Route path="/abandoned" element={<CleanupPage />} />
+      <Route path="/dashboard" element={<StatsPage />} />
+    </Routes>
+  );
+
   return (
     <ThemeProvider>
       <ToastProvider>
@@ -98,23 +121,14 @@ export default function App() {
                 cargar el sidebar ni la barra de tabs. */}
             <Route path="/player" element={<PlayerPage />} />
             <Route path="*" element={
-          <div className="app-layout">
-            <NavBar />
-            <div className="main-content">
-              <Routes>
-                <Route path="/" element={<PendingPage />} />
-                <Route path="/library" element={<LibraryPage />} />
-                <Route path="/recent" element={<RecentPage />} />
-                <Route path="/tools" element={<ToolsPage />} />
-                {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
-                    desde Herramientas. */}
-                <Route path="/backfill" element={<BackfillPage />} />
-                <Route path="/window" element={<WindowPage />} />
-                <Route path="/abandoned" element={<CleanupPage />} />
-                <Route path="/dashboard" element={<StatsPage />} />
-              </Routes>
-            </div>
-          </div>
+              escritorio ? (
+                <Shell usuario={auth.user}>{rutas}</Shell>
+              ) : (
+                <div className="app-layout">
+                  <NavBar />
+                  <div className="main-content">{rutas}</div>
+                </div>
+              )
             } />
           </Routes>
         </BrowserRouter>
