@@ -34,6 +34,8 @@ desktop/src-tauri/gen/
 # engordaria el repo para siempre. Se procesa en local y a MySQL solo sube
 # el agregado por cancion.
 historial/
+# El instalador de la app de escritorio (desktop/copiar-instalador.mjs).
+instalador/
 
 # Claude Code: settings locales y worktrees temporales de sesiones pasadas.
 # Sin esto, un `git add -A` distraido versiona copias enteras del repo.

@@ -5,7 +5,8 @@
   "description": "Cascaron nativo (Tauri v2) de RateApp. La ventana carga la app que ya corre en Cloud Run: no hay frontend local que construir.",
   "scripts": {
     "dev": "tauri dev",
-    "build": "tauri build",
+    "build": "tauri build --bundles nsis && node copiar-instalador.mjs",
+    "instalador": "node copiar-instalador.mjs",
     "tauri": "tauri"
   },
   "devDependencies": {

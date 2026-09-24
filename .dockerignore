@@ -57,3 +57,5 @@ Thumbs.db
 
 # Historial extendido de Spotify: 156 MB que la imagen no usa.
 historial/
+# El instalador de la app de escritorio (desktop/copiar-instalador.mjs).
+instalador/

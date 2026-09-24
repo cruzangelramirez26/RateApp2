@@ -50,6 +50,15 @@ single-instance habria matado una de prueba. Lo confirma el al reinstalar.
 
 Commit `ae7f8b0`.
 
+**EL INSTALADOR, A UNA CARPETA FIJA.** Angel: *"ponme el instalador en un lugar
+mas accesible, ahi en el proyecto siempre dejalo en una carpeta especifica"*.
+`npm run build` en `desktop/` ahora compila y copia el NSIS a `instalador/` en
+la raiz (`copiar-instalador.mjs`, que lee el target-dir de
+`.cargo/config.toml` en vez de repetir la ruta). `instalador/` va en
+`.gitignore` y `.dockerignore`. Ojo: ese script ya **solo** genera el NSIS; el
+MSI se dejo fuera porque instala en otra ruta y romperia la entrada de
+autostart (ver 2026-09-21).
+
 **PENDIENTES:**
 
 - [ ] Que Angel reinstale y confirme: el boton abre/cierra la flotante, en Cola
