@@ -64,7 +64,7 @@ centinela estan, `127.0.0.1:8777` no, la URL de Cloud Run si. **NO VERIFICADO:
 el clic real dentro de la app INSTALADA**; si en la copia de prueba, que es el
 mismo codigo con otro identificador.
 
-Commits `ae7f8b0` y el del arreglo de la ventana en blanco.
+Commits `ae7f8b0`, `3f50306` (carpeta del instalador) y `36a6dad` (ventana en blanco).
 
 **EL INSTALADOR, A UNA CARPETA FIJA.** Angel: *"ponme el instalador en un lugar
 mas accesible, ahi en el proyecto siempre dejalo en una carpeta especifica"*.
@@ -77,8 +77,11 @@ autostart (ver 2026-09-21).
 
 **PENDIENTES:**
 
-- [ ] Que Angel reinstale y confirme: el boton abre/cierra la flotante, en Cola
-      desde Pendientes; y en Chrome, el mismo boton con el PiP.
+- [x] **Confirmado por Angel en la app INSTALADA** (con el instalador de
+      `instalador/`): *"ya lo instale y ya jala"*.
+- [ ] En Chrome, el mismo boton con el PiP de verdad (sigue sin verse a ojo).
+- [ ] El boton no se pinta activo en la app con la flotante abierta (limite
+      aceptado, ver arriba).
 - [ ] Siguen del cierre anterior: barra de tareas, notificacion y tecla
       sostenida a ojo; shuffle/repeat/volumen y la cola de Spotify; el icono.
 
