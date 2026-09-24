@@ -2,6 +2,140 @@
 
 ---
 
+## 2026-09-23 (sesion: un solo reproductor flotante, y el bug que le borraba el nombre a las canciones)
+
+**Maquina: PC `AngelPC`.** Continuacion de la de abajo. Angel: *"luego lo
+instalo cuando ya termines con todo, sigue"*.
+
+**1) EL PIP DEL SIDEBAR PASA A CARGAR `/player`** (commit `929175c`).
+
+Eran ~130 lineas de HTML en cadenas reescritas con `innerHTML` en cada poll.
+Ahora la ventana de Picture-in-Picture tiene solo un iframe a `/player`.
+`NavBar.jsx` 537 -> 291 lineas. Dos arreglos que salieron de montarlo, y que
+tambien afectaban a la flotante del escritorio:
+
+- **`/player` ya no precarga nada.** `App.jsx` disparaba 9 peticiones al
+  arrancar (500 Me Gusta de Spotify incluidos) — la rafaga que agotaba el pool
+  el 2026-09-21 — para una pantalla que solo usa `now-playing`. Medido en el
+  backend de mentiras: `/player` pide auth, now-playing y el corazon; la app
+  normal sigue precargando lo de siempre.
+- **El tema se sincroniza entre ventanas** con el evento `storage`. El PiP y la
+  flotante son documentos aparte y se quedaban con el tema de cuando se
+  abrieron.
+
+**2) BUG EN PRODUCCION DESDE EL 22: RE-CALIFICAR BORRABA EL NOMBRE** (`f5cfcea`).
+
+Salio al leer que necesita el backend para calificar. `/player` y el atajo de
+Rust mandaban solo `track_id` y `rating`, y `upsert_track` hacia
+`name=VALUES(name)` a secas: **re-calificar desde ahi una cancion que ya
+existia la dejaba sin nombre, artista ni album**, y una nueva nacia anonima.
+
+**No llego a pasar**, y eso se midio en los logs de Cloud Run por `referer`:
+desde el deploy hubo UNA calificacion y salio de la app normal. **Pero las dos
+primeras consultas devolvieron 0 y eran falsas** — la primera porque el
+`2>$null` se tragaba el error, la segunda porque PowerShell se come las
+comillas al pasarle el filtro a `gcloud.cmd` (hay que escaparlas: `-replace
+'"','\"'`). Solo se le creyo cuando una consulta de CONTROL encontro las 8
+calificaciones de septiembre. Es la leccion del 2026-09-21 repetida dos veces
+en la misma hora: **un cero no verifica nada hasta que la misma consulta
+encuentra lo que si tiene que estar.**
+
+Arreglado en tres capas: `upsert_track` ya no deja que un campo vacio pise uno
+lleno; `rate_track` pide los nombres a Spotify cuando una cancion NUEVA llega
+sin ellos; y el atajo de Rust los manda. 12 comprobaciones, con el SQL real
+traducido a SQLite — y la misma prueba contra el SQL VIEJO reprueba (el nombre
+queda `''`), o sea puede fallar.
+
+**3) UN SOLO REPRODUCTOR, CON DOS PESTANAS** (`bea094b`).
+
+Angel, sobre los dos PiP: *"me causa conflicto que sean dos diferentes"* — el
+de lo que suena y el de la cola de Pendientes. Y lo que pidio del diseno: *"que
+este bonito, y que sea dinamico, que con que lo mueva yo la forma se modifique
+y se vea bien. Es muy importante para mi ese picture in picture."*
+
+Se le propuso unificarlos y eligio **una ventana con pestanas Sonando y Cola**.
+El sidebar la abre en Sonando, Pendientes en Cola, y si ya esta abierta solo
+cambia de pestana. `utils/reproductor.js` es el unico que la crea.
+
+**LAS TECLAS ESTABAN AL REVES ENTRE DOS PARTES DE LA APP**, y se encontro al
+leer Pendientes: ahi `1 = D` desde mayo, y los atajos globales de ayer
+`1 = A+`. Apretar el 7 pensando en A+ le habria puesto una D a una cancion.
+**Angel eligio `1 = A+ ... 7 = D` para todo.** `utils/ratings.js` es la fuente
+unica y los botones van de A+ a D en todos lados, para que la posicion en
+pantalla coincida con la tecla.
+
+**La forma sale del tamano real de la ventana**, cinco: alta (portada grande,
+tipo tarjeta, con la siguiente de la cola), normal, compacta, ancha y mini.
+**Las fronteras salieron de medir, no de adivinar**: un barrido de **414
+tamanos** (220x140 a 800x800, las dos pestanas) buscando desbordes y
+encimados. La primera version tenia **un hueco entre 210 y 280 px de alto donde
+no cabia ninguna forma** — justo un PiP achaparrado —, y de ahi salio la
+compacta; la ancha se subia sobre las pestanas y la alta se pasaba a 480.
+Final: **0 fallas**.
+
+**Y EL BARRIDO TAMBIEN MINTIO PRIMERO:** la primera corrida dio *"normal: 77"*,
+o sea la forma nunca cambio. `useVentana` actualizaba dentro de
+`requestAnimationFrame`, que no corre con la pestana oculta. Se quito rAF
+(tampoco hacia falta: el navegador ya limita `resize` a uno por cuadro) — y
+de paso la flotante del escritorio, que pasa mucho tiempo escondida, vuelve con
+la forma correcta.
+
+**Diseno:** fondo con la portada difuminada, titulo en marquesina si no cabe,
+barra que se arrastra con perilla, velo de "calificada" con la nota en su
+color, transicion al cambiar de cancion. Teclado adentro: 1-7, S, espacio,
+flechas.
+
+**Detalles que evitan confusiones:**
+
+- En la Cola, **la recien calificada se queda 0.7 s con su nota**. Antes la
+  cola saltaba en el mismo instante y no habia confirmacion de que nota quedo.
+  Otra tecla en ese momento la re-califica (es la que se ve); S adelanta.
+- Lo calificado en cualquier ventana aparece al instante en las demas
+  (`BroadcastChannel`): Pendientes, el sidebar y la otra pestana.
+- La pestana cambiada **desde adentro** se le avisa a la app. Sin eso, el boton
+  del sidebar cerraba la ventana creyendo que seguia en Sonando.
+- "Escuchar" en la Cola reproduce en `<3333>`, y un chip de **sonando** avisa
+  cuando la pendiente es la que suena.
+
+**Verificacion, en navegador contra el backend de mentiras:** el barrido;
+teclado en las dos pestanas (con nombres en el body, `Ctrl+2` no califica);
+una calificacion "de otra ventana" que sale de la cola; y el modulo unico
+**con una ventana de PiP falsa y los botones reales**: una sola ventana,
+cambio de pestana sin recrearla, toggle que cierra, regreso a Sonando. En
+Pendientes, `A+=1 ... D=7`. La suite de escritorio se repitio: **22 de 22**,
+ahora con el atajo mandando los nombres. Produccion sirve el mismo hash del
+build local (`index-BBU42GZ9.js`).
+
+**UN FALSO POSITIVO QUE SE DESCARTO MIDIENDO:** tres capturas seguidas
+mostraban la portada encimada sobre el titulo. El DOM decia 59 px pintados, sin
+animacion en curso: eran cuadros viejos del sistema de capturas con el panel
+oculto. Una captura nueva lo confirmo. Se agrego de todos modos releer el
+tamano al registrar el listener, porque esa carrera si existe en el codigo.
+
+**NO VERIFICADO:** la ventana de PiP real de Chrome — el navegador de pruebas
+no la crea ni con la llamada minima (`InvalidStateError: no window`) — y las
+formas vistas dentro de la flotante de Tauri.
+
+PendingPage 517 -> 370 lineas. Instalador NSIS nuevo: 2.9 MB (crecio por
+`reqwest` y las notificaciones).
+
+**PARA ANGEL, AL INSTALAR:** abrir el reproductor desde el sidebar en Chrome y
+arrastrar el borde para ver las cinco formas; en el escritorio, Ctrl+Alt+P.
+
+**PENDIENTES:**
+
+- [x] Un solo reproductor, con pestanas y forma dinamica.
+- [x] Teclas `1 = A+ ... 7 = D` en toda la app.
+- [x] El borrado de nombres, cerrado en tres capas.
+- [ ] **Que Angel instale y lo vea**: el PiP real, la flotante, la
+      notificacion, la tecla sostenida y que la flotante no salga en la barra
+      de tareas.
+- [ ] Del backlog del reproductor quedan: shuffle / repeat / volumen y la cola
+      de Spotify (`/me/player/queue`).
+- [ ] El icono, que Angel dejo para el final.
+
+---
+
 ## 2026-09-22 y 23 (sesion: el reproductor deja de ser HTML pegado con cinta)
 
 **Maquina: PC `AngelPC`.** Continuacion directa de la app de escritorio. Angel
