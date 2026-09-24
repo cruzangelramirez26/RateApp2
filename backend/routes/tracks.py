@@ -277,6 +277,41 @@ def is_track_saved(track_id: str):
     return {"track_id": track_id, "saved": bool(saved.get(track_id))}
 
 
+@router.get("/info/{track_id}")
+def track_info(track_id: str):
+    """Calificacion y portada de UNA cancion, por su id exacto.
+
+    Existe para la notificacion de Android: la app de Spotify del celular le
+    avisa el track_id de lo que suena, y preguntarle a `now-playing` no sirve
+    porque la API de Spotify puede ir detras del celular (visto el
+    2026-09-24: el celular decia "Nadie Como Tu" y la API seguia en "Futuro").
+    Con el id exacto no hay desfase posible.
+
+    Una sola query por PK (no `load_all()`), y Spotify es NO-FATAL: sin
+    portada, la calificacion igual sale.
+    """
+    row = database.get_track(track_id)
+    rating = _rating_limpio(row.get("rating")) if row else ""
+    out = {
+        "track_id": track_id,
+        "rating": rating or None,
+        "name": (row or {}).get("name") or "",
+        "artist": (row or {}).get("artist") or "",
+        "image": None,
+    }
+    try:
+        t = spotify.get_client().track(track_id)
+        # La de ~300 px: la notificacion la pinta a 64dp y la de 640 pesa el triple.
+        imgs = sorted(((t.get("album") or {}).get("images") or []), key=lambda i: i.get("width") or 0)
+        buena = next((i for i in imgs if (i.get("width") or 0) >= 300), imgs[-1] if imgs else None)
+        out["image"] = buena.get("url") if buena else None
+        out["name"] = out["name"] or t.get("name", "")
+        out["artist"] = out["artist"] or ", ".join(a.get("name", "") for a in t.get("artists") or [])
+    except Exception as e:
+        print("[track_info] Spotify no dio la portada de %s: %s" % (track_id, e))
+    return out
+
+
 @router.post("/like")
 def like_tracks(req: LikeRequest):
     """Pone el corazon nativo de Spotify. Gemelo de /unlike.
