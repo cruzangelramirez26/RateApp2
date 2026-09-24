@@ -130,6 +130,12 @@ arrastrar el borde para ver las cinco formas; en el escritorio, Ctrl+Alt+P.
 - [ ] **Que Angel instale y lo vea**: el PiP real, la flotante, la
       notificacion, la tecla sostenida y que la flotante no salga en la barra
       de tareas.
+- [ ] **ANGEL REPORTO PROBLEMAS AL CIERRE, SIN DETALLE** (*"tengo problemas
+      pero en otra sesion lo veo"*). No se sabe si son de esta tanda (el
+      reproductor unificado, las teclas invertidas en Pendientes, el instalador)
+      o de otra cosa. **La proxima sesion empieza preguntandole que ve**, antes
+      de tocar codigo — es mas barato que adivinar (la leccion del 2026-09-21
+      con el autostart).
 - [ ] Del backlog del reproductor quedan: shuffle / repeat / volumen y la cola
       de Spotify (`/me/player/queue`).
 - [ ] El icono, que Angel dejo para el final.
