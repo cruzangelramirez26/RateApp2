@@ -2,6 +2,96 @@
 
 ---
 
+## 2026-09-23 y 24 (sesion: la app de Android, cascaron + notificacion para calificar)
+
+**Maquina: PC `AngelPC`.** En paralelo con la sesion del rediseño de
+escritorio (misma carpeta). Angel: *"que posibilidades tenemos de ya hacerlo
+app android?"*. Se le dieron tres caminos (PWA arreglada / TWA / Capacitor) y
+eligio **Capacitor**, con la notificacion para calificar primero, **los 7
+botones con diseño propio** y la notificacion viva "desde que abro la app
+hasta que la deslizo". Entra a Spotify con correo, asi que el bloqueo de
+Google a los logins en WebView no aplica (y de todos modos no hizo falta
+login: el token vive en MySQL).
+
+**HERRAMIENTAS (fase 0).** Android Studio 2026.1.4.7 por winget, SDK en
+`AppData\Local\Android\Sdk` con plataforma 36, build-tools 36 y una imagen
+de Android 36. Angel acepto las licencias de Google explicitamente. Tres
+tropiezos, los tres ya resueltos:
+
+- `Invoke-WebRequest` de PowerShell 5 bajaba a ~8 MB/min por dibujar la barra
+  de progreso. Con `curl.exe`, 148 MB en segundos.
+- sdkmanager (ahora "Android CLI") desde bash: el `.bat` pasa por cmd, que
+  **parte el argumento en el `;`**. `platforms;android-36` -> "Package
+  platforms not found". Con diagonales (`platforms/android-36`) funciona.
+- **El Java 25 que trae Android Studio no corre Gradle 8.14** (el que genera
+  Capacitor 8.5.2): `Unsupported class file major version 69`. JDK 21
+  portatil de Microsoft en `AppData\Local\rateapp-jdk`, sin instalador ni PATH.
+
+El emulador **no arranca**: la "Plataforma del hipervisor de Windows" esta
+apagada y prenderla es cambio de sistema que no toca a Claude. Se probo en el
+**S24 Ultra de Angel (Android 16) por USB**, que ademas era lo que la
+notificacion necesitaba (Spotify real).
+
+**FASE 1: EL CASCARON** (`1f5be7c`). `mobile/`, Capacitor con `server.url` a
+Cloud Run, como Tauri. Salida de Gradle y su cache **fuera de OneDrive**
+(`android/build.gradle` + `mobile/gradle.mjs`): dentro del repo `mobile/android`
+pesa 438 KB. `mobile/` en `.dockerignore`. En el celular: abre ya autenticado,
+las barras del sistema no tapan nada (el `SystemBars` de Capacitor 8 acolcha
+la WebView porque el frontend no usa `viewport-fit=cover`), sin desborde.
+
+**BUG QUE SALIO PROBANDO: "atras" cerraba la app** desde cualquier pantalla.
+Capacitor solo lo maneja con `@capacitor/app`, que no se instalo para no darle
+mas API nativa a la pagina remota. Ahora `MainActivity` regresa en el
+historial y en la raiz manda la app al fondo sin matarla; verificado
+Biblioteca -> Recientes -> Pendientes -> fondo, **mismo pid** al reabrir.
+
+**FASE 2: LA NOTIFICACION** (`adaff7c`). `CalificarService`, servicio en
+primer plano (`specialUse`) que escucha el broadcast
+`com.spotify.music.metadatachanged` — Angel prendio *Device Broadcast Status*
+en Spotify. Contraida: cancion + 7 botones; expandida: portada, artista,
+estado y botones, con los colores `--rating-*` de claro y oscuro. Califica
+**por HTTP desde Java**, no por la pagina (la regla de los atajos de Rust), con
+el flujo completo y **mandando nombre/artista/album** (el bug de nombres
+borrados del 2026-09-22 no se repite aqui). Captura la cancion al momento del
+clic, por si cambia mientras viaja la peticion.
+
+**LA DISCREPANCIA QUE PIDIO UN ENDPOINT.** La primera prueba mostro "Nadie
+Como Tu" (el broadcast del celular) mientras `/now-playing` decia "Futuro /
+Luz y Sombra": la API de Spotify iba detras del celular, asi que la
+notificacion se quedaba sin portada y afirmando "Sin calificar" sin saberlo.
+Con OK de Angel: **`GET /tracks/info/{id}`**, calificacion por PK (no
+`load_all`) y portada de ~300 px para ese id exacto; Spotify no-fatal. 7
+comprobaciones locales (rating NULL -> `None` y no `"None"`, `width` nulo,
+Spotify caido, `get_client` que revienta, ruta registrada).
+
+**Verificado en el celular:**
+- Angel califico "Nadie Como Tu" con **B** desde la notificacion, y en
+  `/tracks/recent` quedo con nombre, artista, album y la B.
+- Broadcast simulado por `adb` con PAPARAZZI: el **A+ relleno**, sacado de
+  `/tracks/info` ya desplegado.
+- Luego el broadcast real regreso solo a "Nadie Como Tu" con **portada** y
+  "Calificada B".
+- **Ninguna calificacion de prueba** salio de Claude: picar un boton escribe
+  datos reales.
+
+**PENDIENTES:**
+
+- [ ] **A ojo, de Angel:** la notificacion en la pantalla bloqueada, y que al
+      deslizarla se apague (Android marca `NO_CLEAR` en las de servicio; en
+      Android 14+ deberia poder deslizarse igual, sin verificar en Samsung).
+- [ ] Los links `spotify:` de la app dentro de la WebView (abrir la app de
+      Spotify), sin probar.
+- [ ] Si Spotify reproduce en OTRO dispositivo (la PC), el celular quiza no
+      mande el broadcast. Sin probar.
+- [ ] Icono propio (hoy el generico de Capacitor) — el mismo pendiente que el
+      de escritorio.
+- [ ] Siguen: widget y PiP nativo (fase 3, a elegir).
+- [ ] **Rediseño movil**, pedido por Angel con una referencia en
+      `frontend/design/movil-referencia-2026-09-24.png`. Va en otra sesion y
+      **despues** del rediseño de escritorio: el movil es la misma web.
+
+---
+
 ## 2026-09-23 y 24 (sesion: el rediseño de escritorio, del lienzo a la fase 1)
 
 **Maquina: PC `AngelPC`.** Angel pidio *"rediseñar todo"* con mas
