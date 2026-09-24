@@ -17,7 +17,9 @@ const ARG_AUTOSTART: &str = "--iniciado-por-windows";
 /// la direccion de Cloud Run escrita en dos lugares.
 const VENTANA_PLAYER: &str = "player";
 
-/// Los 7 ratings, en el orden de las teclas 1..7.
+/// Los 7 ratings, en el orden de las teclas 1..7: 1 = A+ ... 7 = D. TIENE que
+/// coincidir con `RATINGS_ORDEN` de `frontend/src/utils/ratings.js`, que es la
+/// fuente unica de la app (decision de Angel del 2026-09-23).
 const RATINGS: [&str; 7] = ["A+", "A", "B+", "B", "C+", "C", "D"];
 
 /// La ventana se oculta al cerrar, asi que puede estar hidden, minimizada, o las
@@ -61,7 +63,7 @@ fn abrir_player(app: &AppHandle) {
   let r = WebviewWindowBuilder::new(app, VENTANA_PLAYER, destino)
     .title("RateApp — Reproductor")
     .inner_size(380.0, 330.0)
-    .min_inner_size(240.0, 260.0)
+    .min_inner_size(220.0, 140.0)   // deja llegar al modo "mini" de /player
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(true)
@@ -95,11 +97,9 @@ async fn calificar_lo_que_suena(app: AppHandle, rating: &'static str) {
     }
   };
 
-  let (id, nombre) = match track.as_ref().and_then(|v| v.get("track")) {
-    Some(t) if !t.is_null() => (
-      t.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-      t.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-    ),
+  let texto = |t: &serde_json::Value, k: &str| t.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+  let (id, nombre, artista, album) = match track.as_ref().and_then(|v| v.get("track")) {
+    Some(t) if !t.is_null() => (texto(t, "id"), texto(t, "name"), texto(t, "artist"), texto(t, "album")),
     // Sin nada sonando NO se califica a ciegas: seria escribir una nota sobre
     // una cancion que el usuario no eligio.
     _ => {
@@ -114,7 +114,12 @@ async fn calificar_lo_que_suena(app: AppHandle, rating: &'static str) {
 
   let envio = cliente
     .post(format!("{base}/tracks/rate"))
-    .json(&serde_json::json!({ "track_id": id, "rating": rating }))
+    // Con los nombres, aunque el backend ya no deja que un campo vacio pise uno
+    // lleno: hasta el 2026-09-23 re-calificar mandando solo el id le borraba el
+    // nombre y el artista a la cancion en la DB.
+    .json(&serde_json::json!({
+      "track_id": id, "rating": rating, "name": nombre, "artist": artista, "album": album,
+    }))
     .send()
     .await
     .and_then(|r| r.error_for_status());

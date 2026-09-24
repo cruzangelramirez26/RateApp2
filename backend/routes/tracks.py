@@ -1143,7 +1143,23 @@ def rate_track(req: RateRequest, soft: bool = False):
     # para que una cancion de 2021 quede fechada en 2021 y por lo tanto cuente
     # como historica: asi no se cuela a Latte 2026 ni a la Galeria Anual.
     added_at = req.added_at or now_str
-    database.upsert_track(tid, req.name, req.artist, req.album, added_at, new_rating)
+
+    # Una cancion NUEVA sin nombre quedaria en la DB como fila anonima, y ahi no
+    # hay upsert que la arregle despues. Si el cliente no mando los nombres
+    # (los atajos globales solo saben el track_id), se piden a Spotify. Es una
+    # sola llamada y solo cuando falta el dato: re-calificar no la paga.
+    name, artist, album = req.name, req.artist, req.album
+    if old_track is None and not (name and artist):
+        try:
+            t = sp.track(tid) or {}
+            name = name or t.get("name", "")
+            artist = artist or ", ".join(
+                a.get("name", "") for a in (t.get("artists") or []) if a.get("name")
+            )
+            album = album or (t.get("album") or {}).get("name", "")
+        except Exception:
+            pass  # sin Spotify se califica igual; el nombre es cosmetico
+    database.upsert_track(tid, name, artist, album, added_at, new_rating)
 
     if soft:
         return {"ok": True, "rating": new_rating}

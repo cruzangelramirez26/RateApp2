@@ -173,7 +173,15 @@ def get_track(track_id: str) -> Optional[dict]:
 
 
 def upsert_track(track_id: str, name: str, artist: str, album: str, added_at, rating: str):
-    """Insert or update a single track."""
+    """Insert or update a single track.
+
+    UN CAMPO VACIO NUNCA PISA UNO LLENO. Hasta el 2026-09-23 el UPDATE hacia
+    `name=VALUES(name)` a secas, asi que re-calificar mandando solo track_id y
+    rating —como hacian /player y los atajos globales del escritorio— le
+    BORRABA el nombre, el artista y el album a una cancion que ya existia. No
+    llego a pasar (medido en los logs de Cloud Run: ninguna calificacion salio
+    de /player), pero la puerta estaba abierta para cualquier cliente futuro.
+    """
     # Normalize added_at
     if isinstance(added_at, pd.Timestamp):
         added_at = added_at.to_pydatetime()
@@ -186,7 +194,9 @@ def upsert_track(track_id: str, name: str, artist: str, album: str, added_at, ra
             """INSERT INTO tracks (track_id, name, artist, album, added_at, rating, manual_order)
                VALUES (%s, %s, %s, %s, %s, %s, 0)
                ON DUPLICATE KEY UPDATE
-                 name=VALUES(name), artist=VALUES(artist), album=VALUES(album),
+                 name=IF(VALUES(name)='', name, VALUES(name)),
+                 artist=IF(VALUES(artist)='', artist, VALUES(artist)),
+                 album=IF(VALUES(album)='', album, VALUES(album)),
                  rating=VALUES(rating)""",
             (track_id, name, artist, album, added_at, rating),
         )
