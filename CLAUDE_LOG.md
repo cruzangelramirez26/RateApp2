@@ -39,16 +39,32 @@ un interruptor: abierto -> cierra. El de Pendientes se quito, y con el el aviso
 toast. `requestWindow` no tiene dialogo que cancelar: ese catch solo escondia
 fallos.
 
+**LA PRIMERA VERSION ABRIA LA VENTANA EN BLANCO**, y lo vio Angel al
+instalar. Se reprodujo con una copia de prueba (otro `identifier`, otro
+`CARGO_TARGET_DIR`, para no chocar con su app ni pisar el instalador) arrancada
+con `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`, y el
+boton picado por CDP. La flotante existia y su webview estaba en
+**`about:blank`**: creada con `run_on_main_thread` desde el callback de
+navegacion, nunca cargaba la URL. Con `tauri::async_runtime::spawn` carga.
+**Metodo que vale la pena repetir:** la depuracion remota de WebView2 deja ver
+y manejar las ventanas de la app sin instrumentar el binario.
+
+Verificado en la copia de prueba: desde Pendientes abre `/player?modo=cola` con
+contenido (las 6 pendientes, fondo oscuro); el segundo clic la **oculta**
+(`IsWindowVisible` false) y el tercero la muestra, **la misma ventana**; desde
+Recientes cambia a Sonando; la app principal no se mueve de pantalla. El primer
+chequeo de visibilidad no imprimio nada y no se le creyo hasta rehacerlo.
+
 **Limite conocido:** en la app, el boton no se pinta "activo" con la flotante
 abierta. La pagina no puede preguntarle a Rust sin permisos de IPC.
 
 **Verificacion:** `cargo check` limpio, `npm run build` OK (1594 modulos),
 instalador NSIS nuevo (2.9 MB). En el binario final: la marca y la ruta
 centinela estan, `127.0.0.1:8777` no, la URL de Cloud Run si. **NO VERIFICADO:
-el clic real dentro de la app instalada** — la app de Angel estaba corriendo y
-single-instance habria matado una de prueba. Lo confirma el al reinstalar.
+el clic real dentro de la app INSTALADA**; si en la copia de prueba, que es el
+mismo codigo con otro identificador.
 
-Commit `ae7f8b0`.
+Commits `ae7f8b0` y el del arreglo de la ventana en blanco.
 
 **EL INSTALADOR, A UNA CARPETA FIJA.** Angel: *"ponme el instalador en un lugar
 mas accesible, ahi en el proyecto siempre dejalo en una carpeta especifica"*.

@@ -134,10 +134,13 @@ fn al_navegar(app: &AppHandle, url: &tauri::Url) -> bool {
     Some(m) if m == "cola" => "cola",
     _ => "sonando",
   };
-  // Se difiere al ciclo principal: crear una ventana DENTRO del callback de
-  // navegacion de WebView2 puede trabar el hilo en Windows.
+  // Desde OTRO hilo, no desde el principal. Medido el 2026-09-23 con la
+  // depuracion remota de WebView2: creada con `run_on_main_thread`, la ventana
+  // aparecia pero su webview se quedaba en `about:blank` para siempre (blanca).
+  // Desde un hilo aparte Tauri le pasa la creacion al ciclo de eventos y espera,
+  // que es el camino que si carga la URL.
   let handle = app.clone();
-  let _ = app.run_on_main_thread(move || alternar_player(&handle, modo));
+  tauri::async_runtime::spawn(async move { alternar_player(&handle, modo) });
   false
 }
 
