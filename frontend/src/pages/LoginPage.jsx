@@ -6,7 +6,7 @@ import { api } from '../utils/api';
 export default function LoginPage() {
   return (
     <div style={{
-      minHeight: '100dvh',
+      minHeight: 'calc(100dvh - var(--barra-h))',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',

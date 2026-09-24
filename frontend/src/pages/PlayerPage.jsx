@@ -7,6 +7,8 @@ import { api } from '../utils/api';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
 import { RATINGS_ORDEN, ratingDeTecla, teclaDeRating, esEscritura } from '../utils/ratings';
 import { anunciarCalificada, escucharCalificadas } from '../utils/reproductor';
+import { tieneBarraPropia } from '../utils/ventana';
+import BarraVentana from '../components/BarraVentana';
 
 const POLL_MS = 4000;
 const MODOS = ['sonando', 'cola'];
@@ -71,8 +73,14 @@ export function tamanoPortada(layout, w, h, modo = 'sonando') {
   }
 }
 
+/** Alto de la tira de la ventana del escritorio (`.barra-ventana-reproductor`). */
+const ALTO_BARRA = 24;
+
 function useVentana() {
-  const leer = () => ({ w: window.innerWidth, h: window.innerHeight });
+  // En el escritorio la tira de arriba se come 24 px: la forma se decide con lo
+  // que QUEDA, que es lo que midio el barrido de tamanos.
+  const barra = tieneBarraPropia() ? ALTO_BARRA : 0;
+  const leer = () => ({ w: window.innerWidth, h: window.innerHeight - barra });
   const [tam, setTam] = useState(leer);
   useEffect(() => {
     // Directo, sin requestAnimationFrame: el navegador ya entrega `resize` a lo
@@ -387,6 +395,8 @@ export default function PlayerPage() {
           <div key={actual.image} className="rp-fondo-img" style={{ backgroundImage: `url("${actual.image}")` }} />
         )}
       </div>
+
+      <BarraVentana variante="reproductor" />
 
       <nav className="rp-tabs" role="tablist" data-modo={modo}>
         <span className="rp-tabs-ind" aria-hidden="true" />

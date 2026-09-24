@@ -6,6 +6,7 @@ import { setCuatriMap } from './utils/cuatrimestres';
 import { ToastProvider } from './hooks/useToast';
 import { ThemeProvider } from './hooks/useTheme';
 import NavBar from './components/NavBar';
+import BarraVentana from './components/BarraVentana';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
 import LibraryPage from './pages/LibraryPage';
@@ -50,11 +51,17 @@ export default function App() {
       .catch(() => setAuth(false));
   }, []);
 
+  // La barra de título del escritorio va en TODOS los estados (cargando, login
+  // y la app): sin ella la ventana no se podría mover ni cerrar. /player trae
+  // la suya, dentro del reproductor.
+  const barra = window.location.pathname !== '/player' ? <BarraVentana /> : null;
+
   if (auth === null) {
     return (
       <ThemeProvider>
+        {barra}
         <div style={{
-          minHeight: '100dvh',
+          minHeight: 'calc(100dvh - var(--barra-h))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -74,6 +81,7 @@ export default function App() {
   if (!auth) {
     return (
       <ThemeProvider>
+        {barra}
         <LoginPage />
       </ThemeProvider>
     );
@@ -82,6 +90,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
+        {barra}
         <BrowserRouter>
           <Routes>
             {/* /player va FUERA del layout a proposito: es la ventana flotante

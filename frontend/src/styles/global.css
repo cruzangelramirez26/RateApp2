@@ -4,6 +4,11 @@
    ═══════════════════════════════════════════════════════ */
 
 :root {
+  /* Alto de la barra de título propia del escritorio. 0 en el navegador; la
+     clase .con-barra (BarraVentana.jsx) lo sube. Todo lo que mide la altura
+     de la ventana lo resta, para no dejar un scroll de 32px de sobra. */
+  --barra-h: 0px;
+
   /* Base palette */
   --bg-deep:        #f5f4f0;
   --bg-surface:     #eeede9;
@@ -169,13 +174,13 @@ body {
   background: var(--bg-deep);
   color: var(--text-primary);
   line-height: 1.5;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--barra-h));
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
 #root {
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--barra-h));
   display: flex;
   flex-direction: column;
 }
@@ -190,9 +195,86 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--border-accent); }
 
 /* ── App layout (sidebar + content) ──────────────── */
+/* ── Barra de título del escritorio (BarraVentana.jsx) ──
+   Solo existe dentro de la app de Tauri. Con ella, el que hace scroll es el
+   <body> y no la ventana: así la barra de scroll empieza DEBAJO del encabezado
+   en vez de subir junto al botón de cerrar. */
+html.con-barra { --barra-h: 32px; overflow: hidden; }
+html.con-barra body {
+  position: fixed;
+  top: var(--barra-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+}
+
+.barra-ventana {
+  display: flex;
+  align-items: stretch;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.barra-ventana-principal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  z-index: 200;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.barra-ventana-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.barra-ventana-badge {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+}
+.barra-ventana-hueco { flex: 1; }
+.barra-ventana-btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: default;
+  transition: background 0.12s, color 0.12s;
+}
+.barra-ventana-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.barra-ventana-btn:active { background: var(--border-medium); }
+/* El rojo de Windows: es el que la mano ya conoce para "cerrar". */
+.barra-ventana-cerrar:hover { background: #c42b1c; color: #fff; }
+.barra-ventana-cerrar:active { background: #a52618; color: #fff; }
+
+/* En el reproductor: una tira sobre el fondo difuminado, sin fondo propio. */
+.barra-ventana-reproductor {
+  position: relative;
+  z-index: 2;
+  height: 24px;
+  flex-shrink: 0;
+}
+.barra-ventana-reproductor .barra-ventana-btn { width: 36px; color: var(--text-muted); }
+
 .app-layout {
   display: flex;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--barra-h));
 }
 
 .main-content {
@@ -620,7 +702,7 @@ body {
 /* ── Toast ────────────────────────────────────────── */
 .toast-container {
   position: fixed;
-  top: 16px;
+  top: calc(16px + var(--barra-h));
   right: 16px;
   z-index: 100;
   display: flex;
@@ -747,9 +829,8 @@ body {
     display: flex;
     flex-direction: column;
     width: 220px;
-    min-height: 100dvh;
     position: fixed;
-    top: 0;
+    top: var(--barra-h);
     left: 0;
     bottom: 0;
     background: var(--bg-card);
@@ -1473,7 +1554,7 @@ body {
 .rp {
   position: relative;
   height: 100vh;
-  height: 100dvh;
+  height: 100dvh;   /* el reproductor no usa --barra-h: su barra va DENTRO */
   display: flex;
   flex-direction: column;
   overflow: hidden;

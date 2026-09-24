@@ -43,10 +43,17 @@ fn url_base(app: &AppHandle) -> String {
   .to_string()
 }
 
-/// La marca con la que la pagina sabe que corre dentro de la app de escritorio
-/// (`enEscritorio()` en `frontend/src/utils/reproductor.js`). Se inyecta en cada
-/// carga, antes que el codigo de la pagina.
-const SCRIPT_ESCRITORIO: &str = "window.__RATEAPP_ESCRITORIO__ = true;";
+/// Las marcas con las que la pagina sabe que corre dentro de la app de
+/// escritorio. Se inyectan en cada carga, antes que el codigo de la pagina.
+///
+/// - `__RATEAPP_ESCRITORIO__`: `enEscritorio()` en `utils/reproductor.js`.
+/// - `__RATEAPP_BARRA__`: la ventana no trae la barra de Windows y la pagina
+///   pinta la suya (`utils/ventana.js`). Es una marca APARTE porque la pagina se
+///   actualiza sola con cada push y el instalador no: un escritorio viejo, con
+///   barra de Windows y sin el permiso de `ventana-remota.json`, no la tiene, y
+///   asi no se le pinta una segunda barra con botones muertos.
+const SCRIPT_ESCRITORIO: &str =
+  "window.__RATEAPP_ESCRITORIO__ = true; window.__RATEAPP_BARRA__ = true;";
 
 /// La ruta centinela del boton del reproductor. La pagina navega aqui y Rust
 /// CANCELA la navegacion, asi que nunca llega a cargarse. Ver `al_navegar`.
@@ -82,8 +89,13 @@ fn abrir_player(app: &AppHandle, modo: Option<&str>) {
   };
   let r = WebviewWindowBuilder::new(app, VENTANA_PLAYER, destino)
     .title("RateApp — Reproductor")
-    .inner_size(380.0, 330.0)
-    .min_inner_size(220.0, 140.0)   // deja llegar al modo "mini" de /player
+    // Sin la barra de Windows: /player pinta una tira propia de 24 px sobre su
+    // fondo, para arrastrar y cerrar. Por eso el alto minimo sube 24 px, y el
+    // area del reproductor sigue llegando a los 140 del modo "mini".
+    .decorations(false)
+    .initialization_script(SCRIPT_ESCRITORIO)
+    .inner_size(380.0, 354.0)
+    .min_inner_size(220.0, 164.0)
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(true)

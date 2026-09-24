@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ventana-remota",
+  "description": "La UNICA puerta abierta a la pagina remota (Cloud Run): mover, minimizar, maximizar y cerrar su propia ventana, para la barra de titulo propia (frontend/src/utils/ventana.js). Nada de archivos, atajos, shell ni otros comandos. Cerrar no destruye: dispara CloseRequested y lib.rs la oculta a la bandeja.",
+  "windows": ["main", "player"],
+  "remote": {
+    "urls": ["https://rateapp-1043427819721.us-east4.run.app/*"]
+  },
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close"
+  ]
+}
