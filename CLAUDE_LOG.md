@@ -2,6 +2,63 @@
 
 ---
 
+## 2026-09-23 (sesion: el boton del reproductor no hacia nada en la app instalada)
+
+**Maquina: PC `AngelPC`.** El "tengo problemas" del cierre anterior, con
+detalle: *"no funciona el pip en escritorio"*. Se le pregunto que veia antes de
+tocar codigo: **en la app instalada, le pica y no pasa nada; con Ctrl+Alt+P si
+abre.**
+
+**LA CAUSA:** el boton pedia `documentPictureInPicture`, que es de Chrome y **no
+existe en WebView2**. `alternarReproductor` devolvia `false` y el sidebar no lo
+revisaba, asi que el clic moria callado. El atajo si servia porque lo maneja
+Rust.
+
+**EL ARREGLO, sin abrirle permisos de Tauri a la pagina remota** (la regla de
+siempre, la misma de los atajos por HTTP):
+
+- Rust crea la ventana principal en el `setup` (`"create": false` en la config)
+  para poder colgarle un **script de inicializacion** que marca la pagina
+  (`window.__RATEAPP_ESCRITORIO__`) y un **`on_navigation`**.
+- Con la marca, el boton navega a `/__escritorio/reproductor?modo=...`. Rust
+  **cancela** esa navegacion (la app no cambia de pantalla), valida el origen y
+  abre u oculta la flotante. Si ya existe, le cambia la pestana con el mismo
+  `postMessage` `rateapp:modo` que usa el PiP de Chrome.
+- Crear la ventana se difiere con `run_on_main_thread`: hacerlo dentro del
+  callback de navegacion de WebView2 puede trabar el hilo.
+
+**Y UN SOLO BOTON**, pedido de Angel: *"como ya se unifico el pip pues solo deja
+un boton"*. Eligio (se le pregunto): **el del sidebar, siempre visible** —antes
+solo salia con algo sonando, o sea sin musica no habia forma de abrir la Cola—,
+y que abra **segun la pantalla**: Cola en Pendientes, Sonando en las demas. Es
+un interruptor: abierto -> cierra. El de Pendientes se quito, y con el el aviso
+`rateapp:modo-actual` que solo existia para que dos botones no se pelearan.
+
+**De paso:** el `catch` que se comia cualquier error del PiP de Chrome
+("el usuario cancelo") ahora deja subir el error y el sidebar lo muestra en un
+toast. `requestWindow` no tiene dialogo que cancelar: ese catch solo escondia
+fallos.
+
+**Limite conocido:** en la app, el boton no se pinta "activo" con la flotante
+abierta. La pagina no puede preguntarle a Rust sin permisos de IPC.
+
+**Verificacion:** `cargo check` limpio, `npm run build` OK (1594 modulos),
+instalador NSIS nuevo (2.9 MB). En el binario final: la marca y la ruta
+centinela estan, `127.0.0.1:8777` no, la URL de Cloud Run si. **NO VERIFICADO:
+el clic real dentro de la app instalada** — la app de Angel estaba corriendo y
+single-instance habria matado una de prueba. Lo confirma el al reinstalar.
+
+Commit `ae7f8b0`.
+
+**PENDIENTES:**
+
+- [ ] Que Angel reinstale y confirme: el boton abre/cierra la flotante, en Cola
+      desde Pendientes; y en Chrome, el mismo boton con el PiP.
+- [ ] Siguen del cierre anterior: barra de tareas, notificacion y tecla
+      sostenida a ojo; shuffle/repeat/volumen y la cola de Spotify; el icono.
+
+---
+
 ## 2026-09-23 (sesion: un solo reproductor flotante, y el bug que le borraba el nombre a las canciones)
 
 **Maquina: PC `AngelPC`.** Continuacion de la de abajo. Angel: *"luego lo
