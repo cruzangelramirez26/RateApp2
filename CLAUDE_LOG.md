@@ -2,6 +2,111 @@
 
 ---
 
+## 2026-09-23 (sesion: la barra de titulo propia en la app de escritorio)
+
+**Maquina: PC `AngelPC`.** Angel, con captura de la app de Claude al lado:
+*"se puede integrar el encabezado como aqui claude? de que sea parte de la
+app"*. Y aparte pregunto si se puede rediseñar TODA la app con el estilo del
+PiP. Se le contesto primero sin tocar nada; eligio **encabezado primero** y el
+camino **A** del permiso minimo. El rediseño queda para despues (y sigue
+abierta la pregunta de si se conserva el tema claro).
+
+**LO CONSTRUIDO.** Las dos ventanas nacen sin la barra de Windows
+(`decorations: false` en la principal, `.decorations(false)` en la flotante) y
+la app pinta la suya, `components/BarraVentana.jsx`:
+
+- **Principal:** barra fija de 32 px con el color del sidebar, badge A+ y
+  "RateApp", y minimizar / maximizar-restaurar / cerrar. Cerrar no destruye:
+  dispara el `CloseRequested` y `lib.rs` la oculta a la bandeja, como la X de
+  siempre. El icono de maximizar cambia a "restaurar" leyendo `isMaximized` en
+  el `resize` del DOM, sin pedir permisos de eventos.
+- **Reproductor:** una tira de 24 px **sobre el fondo difuminado**, solo con
+  cerrar (la flotante no sale en la barra de tareas: minimizada no habria como
+  encontrarla). `useVentana` le resta esos 24 px antes de decidir la forma,
+  asi las fronteras del barrido de 414 tamanos siguen valiendo, y el minimo de
+  la ventana subio a 220x164 para que el area siga llegando a 140.
+- **Con la barra, el que hace scroll es el `<body>`**, no la ventana: si no, la
+  barra de scroll subia hasta el lado del boton de cerrar. Todo lo que medía
+  `100dvh` ahora resta `--barra-h` (0 en el navegador), para no dejar 32 px de
+  scroll de sobra.
+
+**EL PERMISO, que es lo que habia que decidir.** Mover, minimizar, maximizar y
+cerrar necesitan hablar con Tauri, y hasta hoy la regla era no abrirle nada a
+la pagina de Cloud Run. `capabilities/ventana-remota.json` abre **solo** eso,
+con la URL de Cloud Run como `remote`. `@tauri-apps/api` se importa perezoso:
+es un chunk aparte (`window-*.js`, 16 KB) que el navegador nunca baja.
+
+**LA MARCA NUEVA, `__RATEAPP_BARRA__`, y por que no se reuso la vieja.** La
+pagina se actualiza con cada push y el instalador no. Si la barra se pintara
+con `__RATEAPP_ESCRITORIO__`, un escritorio viejo —con la barra de Windows y sin
+el permiso— recibiria **una segunda barra con botones que no hacen nada** en
+cuanto se despliegue. Con marca propia, el frontend se pudo publicar antes de
+que Angel reinstale.
+
+**HALLAZGO: LA PAGINA YA TENIA PERMISOS DE TAURI, Y NO LO SABIAMOS.** Al probar
+que lo no permitido se rechaza, `set_title`, `destroy`, `set_always_on_top`,
+atajos, autostart y notificaciones dieron `not allowed by ACL`, como debe ser.
+Pero `app|version`, `path|resolve_directory` y `event|emit/listen` **pasaron**.
+Tauri trata la URL de `frontendDist` como origen **propio** y le aplica la
+capability `default` (`core:default`). O sea desde agosto la pagina de Cloud
+Run podia llamar lo basico de core: nada de archivos ni shell, pero si leer
+rutas de carpetas del usuario. Lo que se escribio en este log ("la pagina no
+tiene permisos de Tauri") **era falso**. Se le informo a Angel; **no se toco**,
+porque quitar `core:default` es un cambio aparte que hay que probar.
+
+**Verificacion, en una copia de prueba** (otro `identifier` y otro
+`CARGO_TARGET_DIR`, contra un backend de mentiras; la capability de prueba iba
+inline en el `--config` apuntando a `127.0.0.1:8777`, el archivo real no se
+toco) y manejada por la depuracion remota de WebView2:
+
+```
+barra pintada, --barra-h 32px, sidebar y body empiezan en 32      OK
+maximizar -> IsZoomed true, icono "Restaurar"; restaurar -> vuelve  OK
+maximizada: area 2560x1392 = area util de la pantalla (no se corta) OK
+minimizar -> IsIconic true                                        OK
+cerrar -> ventana oculta, 1 proceso vivo                          OK
+bordes: WM_NCHITTEST da HTLEFT/HTRIGHT/HTBOTTOM/esquina (se redimensiona) OK
+mouse real: arrastrar desde la barra mueve 150,90 y regresa       OK
+mouse real: arrastrar desde el contenido NO mueve                 OK
+mouse real: doble clic en la barra maximiza                       OK
+reproductor: tira con 1 boton, forma "normal", 0 px de desborde   OK
+reproductor: la X lo oculta; la principal no cambia de pantalla   OK
+set_title / destroy / set_always_on_top -> rechazados por la ACL  OK
+```
+
+**UNA PRUEBA MINTIO Y SE CAZO ANTES DE CREERLE:** el doble clic para
+*restaurar* "fallo". Registrando eventos en la pagina salio `[]`: los clics
+nunca llegaron. Windows habia bloqueado el cambio de foco y el cursor caia en
+otras ventanas — en el escritorio de Angel. El script ahora **aborta** si lo
+que esta bajo el cursor no es la ventana de prueba, y se dejo de mover el
+mouse. **Queda SIN verificar con mouse el doble clic para restaurar**; es la
+misma llamada (`internal_toggle_maximize`) que si se vio maximizar.
+
+**El binario final**, no la config: la URL de Cloud Run con `/*` dentro del
+ACL embebido, `__RATEAPP_BARRA__` presente, `127.0.0.1:8777` y
+`rateapp.prueba` en 0. Instalador en `instalador/`.
+
+**Lo que se pierde:** el menu de acomodo de Windows 11 al pasar el mouse por
+maximizar. Win+flechas y arrastrar a los bordes siguen.
+
+Commit `e4da24c`. **Produccion sirve `index-DTt1Bhs1.js`, el mismo hash del build local**, con la marca y la barra adentro.
+
+**PENDIENTES:**
+
+- [ ] **Que Angel instale** y lo vea: arrastrar, doble clic (las dos
+      direcciones), los tres botones, y la tira del reproductor.
+- [ ] **Decidir si se quita `core:default` a la pagina remota** (el hallazgo de
+      arriba). Nada de la app lo usa desde la pagina; hay que probar que el
+      script de arrastre de Tauri no lo necesite.
+- [ ] **El rediseño completo con el estilo del reproductor.** Plan propuesto:
+      base (colores, fondo, botones, sidebar) -> Pending -> demas pantallas ->
+      Herramientas al final. ~320 estilos inline por migrar. Pregunta abierta:
+      ¿se conserva el tema claro?
+- [ ] Siguen: el PiP real de Chrome a ojo; el boton del reproductor no se pinta
+      activo en la app; shuffle/repeat/volumen y la cola de Spotify; el icono.
+
+---
+
 ## 2026-09-23 (sesion: el boton del reproductor no hacia nada en la app instalada)
 
 **Maquina: PC `AngelPC`.** El "tengo problemas" del cierre anterior, con
