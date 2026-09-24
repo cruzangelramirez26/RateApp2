@@ -2,97 +2,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Music, RefreshCw, PictureInPicture2, List, Square, Play } from 'lucide-react';
 import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
-import { useTheme } from '../hooks/useTheme';
-import { pipThemeCss, ratingColor, ratingDim } from '../utils/theme';
 import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useToast } from '../hooks/useToast';
+import { RATINGS_ORDEN, ratingDeTecla, esEscritura } from '../utils/ratings';
+import { alternarReproductor, suscribirReproductor, soportaPiP, escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
 
-const RATINGS = ['D', 'C', 'C+', 'B', 'B+', 'A', 'A+'];
-
-// ── PiP (light theme) ─────────────────────────────────────────────
-
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-
-function renderPiPContent(pip, queue, index) {
-  const track = queue[index];
-
-  if (!track) {
-    pip.document.body.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-        height:100%;color:var(--text-primary);gap:10px;font-family:system-ui;background:var(--bg-deep)">
-        <div style="font-size:2.5rem">🎉</div>
-        <div style="font-size:0.95rem;font-weight:600">¡Todas calificadas!</div>
-        <div style="font-size:0.75rem;color:var(--text-muted)">Puedes cerrar esta ventana</div>
-      </div>`;
-    return;
-  }
-
-  const btns = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'].map(r => {
-    const c = ratingColor(r);
-    const active = track.rating === r;
-    return `<button onclick="window.__pipRate('${r}')"
-      style="padding:5px 10px;border:1.5px solid ${active ? c : 'var(--border-medium)'};
-      border-radius:8px;cursor:pointer;font-size:0.78rem;font-weight:700;
-      font-family:'Space Mono',monospace;
-      background:${active ? ratingDim(r) : 'transparent'};
-      color:${active ? c : 'var(--text-muted)'};transition:all 0.15s;"
-      onmouseover="this.style.borderColor='${c}';this.style.color='${c}'"
-      onmouseout="this.style.borderColor='${active ? c : 'var(--border-medium)'}';this.style.color='${active ? c : 'var(--text-muted)'}'">
-      ${r}</button>`;
-  }).join('');
-
-  pip.document.body.innerHTML = `
-    <div style="display:flex;flex-direction:column;align-items:center;padding:14px 12px 12px;gap:9px;
-      background:var(--bg-deep);min-height:100%;box-sizing:border-box;
-      font-family:'DM Sans',system-ui,sans-serif;color:var(--text-primary);">
-
-      <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-        <span style="font-size:0.68rem;color:var(--text-muted);font-family:'Space Mono',monospace;
-          letter-spacing:0.05em">&lt;3333&gt;</span>
-        <span style="font-size:0.68rem;color:var(--text-muted);font-family:'Space Mono',monospace">
-          ${index + 1}&nbsp;/&nbsp;${queue.length}</span>
-      </div>
-
-      ${track.image
-        ? `<img src="${escapeHtml(track.image)}" style="width:130px;height:130px;object-fit:cover;
-            border-radius:10px;box-shadow:var(--shadow-md)" />`
-        : `<div style="width:130px;height:130px;border-radius:10px;background:var(--bg-surface);
-            display:flex;align-items:center;justify-content:center;font-size:2rem">🎵</div>`
-      }
-
-      <div style="text-align:center;width:100%;overflow:hidden">
-        <div style="font-weight:700;font-size:0.9rem;line-height:1.3;margin-bottom:2px;
-          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px">
-          ${escapeHtml(track.name)}
-        </div>
-        <div style="color:var(--text-secondary);font-size:0.78rem;white-space:nowrap;overflow:hidden;
-          text-overflow:ellipsis;padding:0 4px">
-          ${escapeHtml(track.artist)}
-        </div>
-      </div>
-
-      <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
-        ${btns}
-      </div>
-
-      <button onclick="window.__pipSkip()"
-        style="background:transparent;border:1.5px solid var(--border-subtle);color:var(--text-muted);
-        padding:4px 14px;border-radius:8px;cursor:pointer;font-size:0.72rem;
-        font-family:'DM Sans',system-ui;transition:all 0.15s;margin-top:2px"
-        onmouseover="this.style.borderColor='var(--border-accent)';this.style.color='var(--text-secondary)'"
-        onmouseout="this.style.borderColor='var(--border-subtle)';this.style.color='var(--text-muted)'">
-        saltar →
-      </button>
-    </div>`;
-}
-
-// ── Component ─────────────────────────────────────────────────────
+// 1 = A+ … 7 = D en toda la app (ver utils/ratings.js). Aqui iba al reves
+// desde mayo (1 = D) y los atajos globales al derecho: se unifico el 2026-09-23.
+const RATINGS = RATINGS_ORDEN;
 
 export default function PendingPage() {
   const [tracks, setTracks] = useState([]);
@@ -105,13 +24,7 @@ export default function PendingPage() {
   const [calificarId, setCalificarId] = useState(null);   // id de la playlist <3333
   const [playing, setPlaying] = useState(false);          // request de play en vuelo
   const toast = useToast();
-  const { theme } = useTheme();
 
-  const pipWindowRef = useRef(null);
-  const pipStyleRef = useRef(null);
-  const pipQueueRef = useRef([]);
-  const pipIndexRef = useRef(0);
-  const tracksRef = useRef([]);
   const handleRateRef = useRef(null);
   const handleSkipRef = useRef(null);
   const desktopUnratedRef = useRef([]);
@@ -139,33 +52,27 @@ export default function PendingPage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (pipWindowRef.current && !pipWindowRef.current.closed) {
-        pipWindowRef.current.close();
-      }
-    };
-  }, []);
+  // El boton de PiP pide EL reproductor en la pestana Cola (utils/reproductor.js).
+  // Ya no se cierra al salir de esta pagina: es la misma ventana del sidebar.
+  useEffect(() => suscribirReproductor(({ abierto, modo }) => {
+    setIsPiPOpen(abierto && modo === 'cola');
+  }), []);
 
-  // El PiP es otro documento: al cambiar de tema hay que reescribirle los
-  // tokens y volver a dibujar, porque su HTML se genera con strings.
-  useEffect(() => {
-    const pip = pipWindowRef.current;
-    if (!isPiPOpen || !pip || pip.closed) return;
-    if (pipStyleRef.current) pipStyleRef.current.textContent = pipThemeCss();
-    renderPiPContent(pip, pipQueueRef.current, pipIndexRef.current);
-  }, [theme, isPiPOpen]);
+  // Lo calificado en el reproductor (u otra ventana) se refleja en la lista.
+  useEffect(() => escucharCalificadas((id, rating) => {
+    setTracks(prev => prev.map(t => (t.id === id ? { ...t, rating } : t)));
+  }), []);
 
   // Keyboard shortcuts for individual view
   useEffect(() => {
-    const KEY_TO_RATING = { '1': 'D', '2': 'C', '3': 'C+', '4': 'B', '5': 'B+', '6': 'A', '7': 'A+' };
     const handler = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (esEscritura(e) || e.ctrlKey || e.altKey || e.metaKey) return;
       if (viewMode !== 'individual') return;
       const current = desktopUnratedRef.current[0];
       if (!current) return;
-      if (KEY_TO_RATING[e.key]) {
-        handleRateRef.current(current, KEY_TO_RATING[e.key]);
+      const rating = ratingDeTecla(e.key);
+      if (rating) {
+        handleRateRef.current(current, rating);
       }
       if (e.key === 's' || e.key === 'S') {
         handleSkipRef.current();
@@ -192,6 +99,7 @@ export default function PendingPage() {
         album: track.album || '',
         rating,
       });
+      anunciarCalificada(track.id, rating);
       toast(`${track.name} → ${rating}`, 'success');
     } catch (err) {
       setTracks(prev =>
@@ -224,70 +132,15 @@ export default function PendingPage() {
     setSkippedIds(prev => new Set([...prev, current.id]));
   };
 
-  tracksRef.current = tracks;
   handleRateRef.current = handleRate;
   handleSkipRef.current = handleSkip;
 
-  const advancePiP = (pip, justRatedId = null) => {
-    pipIndexRef.current++;
-    if (pipIndexRef.current < pipQueueRef.current.length) {
-      renderPiPContent(pip, pipQueueRef.current, pipIndexRef.current);
+  const openPiP = () => {
+    if (!soportaPiP()) {
+      toast('Picture-in-Picture solo funciona en Chrome de escritorio', 'error');
       return;
     }
-    const nowUnrated = tracksRef.current.filter(t => !t.rating && t.id !== justRatedId);
-    if (nowUnrated.length === 0) {
-      renderPiPContent(pip, [], 0);
-      return;
-    }
-    pipQueueRef.current = nowUnrated;
-    pipIndexRef.current = 0;
-    renderPiPContent(pip, pipQueueRef.current, 0);
-  };
-
-  const openPiP = async () => {
-    if (!('documentPictureInPicture' in window)) {
-      toast('Picture-in-Picture solo funciona en Chrome desktop', 'error');
-      return;
-    }
-    if (pipWindowRef.current && !pipWindowRef.current.closed) {
-      pipWindowRef.current.close();
-      pipWindowRef.current = null;
-      pipStyleRef.current = null;
-      setIsPiPOpen(false);
-      return;
-    }
-    const unrated = tracks.filter(t => !t.rating);
-    if (unrated.length === 0) {
-      toast('No hay canciones sin calificar', 'error');
-      return;
-    }
-    const pip = await window.documentPictureInPicture.requestWindow({
-      width: 300,
-      height: 460,
-      disallowReturnToOpener: false,
-    });
-    // Tokens del tema antes del primer render, para que no destelle
-    const styleEl = pip.document.createElement('style');
-    styleEl.textContent = pipThemeCss();
-    pip.document.head.appendChild(styleEl);
-    pipStyleRef.current = styleEl;
-    pipQueueRef.current = unrated;
-    pipIndexRef.current = 0;
-    pip.__pipRate = (rating) => {
-      const track = pipQueueRef.current[pipIndexRef.current];
-      if (!track) return;
-      advancePiP(pip, track.id);
-      handleRateRef.current(track, rating);
-    };
-    pip.__pipSkip = () => { advancePiP(pip); };
-    renderPiPContent(pip, pipQueueRef.current, 0);
-    pipWindowRef.current = pip;
-    setIsPiPOpen(true);
-    pip.addEventListener('pagehide', () => {
-      pipWindowRef.current = null;
-      pipStyleRef.current = null;
-      setIsPiPOpen(false);
-    });
+    alternarReproductor('cola');
   };
 
   const handleRefresh = () => {

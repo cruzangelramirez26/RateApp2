@@ -3,9 +3,10 @@ import { NavLink } from 'react-router-dom';
 import { ListMusic, Clock, Library, Wrench, BarChart3, PictureInPicture2 } from 'lucide-react';
 import { api } from '../utils/api';
 import ThemeToggle from './ThemeToggle';
-import { pipThemeCss, ratingColor, ratingDim } from '../utils/theme';
+import { RATINGS_ORDEN as RATINGS } from '../utils/ratings';
+import { ratingColor, ratingDim } from '../utils/theme';
+import { alternarReproductor, suscribirReproductor, escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
 
-const RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D'];
 
 const NAV_LINKS = [
   { to: '/',          end: true,  icon: ListMusic, label: 'Pending' },
@@ -15,35 +16,6 @@ const NAV_LINKS = [
   { to: '/tools',     end: false, icon: Wrench,    label: 'Herramientas' },
 ];
 
-// El PiP ya no dibuja nada por su cuenta: carga /player en un iframe (ver
-// PlayerPage.jsx). Antes eran ~130 lineas de HTML en cadenas reescritas con
-// innerHTML en cada poll — de ahi el parpadeo — y un toggle vertical/horizontal
-// hecho a mano. /player es fluido, asi que el toggle sobra: el layout lo decide
-// el tamano real de la ventana.
-const PIP_SIZE_KEY = 'rateapp_np_pip_size';
-const PIP_DEFAULT = [360, 330];
-const PIP_MIN_W = 220;
-const PIP_MIN_H = 200;
-
-function loadPipSize() {
-  try {
-    const s = JSON.parse(localStorage.getItem(PIP_SIZE_KEY) || 'null');
-    // Formato viejo: {vertical: [w, h], horizontal: [w, h]}. Se hereda el
-    // vertical, que es el unico que cabe el reproductor completo.
-    const v = Array.isArray(s) ? s : s?.vertical;
-    if (Array.isArray(v) && v.length === 2 && v.every(Number.isFinite)
-        && v[0] >= PIP_MIN_W && v[1] >= PIP_MIN_H) {
-      return v;
-    }
-  } catch {}
-  return PIP_DEFAULT;
-}
-
-function savePipSize(w, h) {
-  if (!Number.isFinite(w) || !Number.isFinite(h) || w < PIP_MIN_W || h < PIP_MIN_H) return;
-  try { localStorage.setItem(PIP_SIZE_KEY, JSON.stringify([Math.round(w), Math.round(h)])); } catch {}
-}
-
 export default function NavBar() {
   const [pendingCount, setPendingCount] = useState(null);
   const [nowPlaying, setNowPlaying] = useState(null);
@@ -51,10 +23,8 @@ export default function NavBar() {
   const [isPiPOpen, setIsPiPOpen] = useState(false);
   const [showRatingPanel, setShowRatingPanel] = useState(false);
 
-  const pipWindowRef = useRef(null);
   const nowPlayingRef = useRef(null);
   const isPlayingRef = useRef(false);
-  const sizeSaveTimerRef = useRef(null);
 
   useEffect(() => {
     api.getPending()
@@ -109,67 +79,28 @@ export default function NavBar() {
         album: track.album || '',
         rating,
       });
+      anunciarCalificada(track.id, rating);
     } catch {
       setNowPlaying(track);
       nowPlayingRef.current = track;
     }
   }, []);
 
-  const cerrarPiP = useCallback((pip) => {
-    clearTimeout(sizeSaveTimerRef.current);
-    savePipSize(pip.outerWidth || pip.innerWidth, pip.outerHeight || pip.innerHeight);
-    pipWindowRef.current = null;
-    setIsPiPOpen(false);
-  }, []);
+  // El boton del sidebar pide EL reproductor en la pestana Sonando. Es la
+  // misma ventana que abre Pendientes en la Cola: nunca hay dos.
+  useEffect(() => suscribirReproductor(({ abierto, modo }) => {
+    setIsPiPOpen(abierto && modo === 'sonando');
+  }), []);
 
-  const openPiP = async () => {
-    if (!('documentPictureInPicture' in window)) return;
+  // Lo que se califica en el reproductor (u otra ventana) se ve aqui al tiro.
+  useEffect(() => escucharCalificadas((id, rating) => {
+    if (nowPlayingRef.current?.id !== id) return;
+    const updated = { ...nowPlayingRef.current, rating };
+    nowPlayingRef.current = updated;
+    setNowPlaying(updated);
+  }), []);
 
-    const abierto = pipWindowRef.current;
-    if (abierto && !abierto.closed) {
-      cerrarPiP(abierto);
-      abierto.close();
-      return;
-    }
-
-    try {
-      const [w, h] = loadPipSize();
-      const pip = await window.documentPictureInPicture.requestWindow({
-        width: w,
-        height: h,
-        disallowReturnToOpener: false,
-      });
-
-      // Solo el marco: fondo del tema (para no destellar blanco mientras carga
-      // el iframe) y un iframe a pantalla completa. Todo lo demas es /player.
-      const estilo = pip.document.createElement('style');
-      estilo.textContent = pipThemeCss()
-        + 'html,body{margin:0;height:100%;background:var(--bg-deep);overflow:hidden}'
-        + 'iframe{display:block;border:0;width:100%;height:100%}';
-      pip.document.head.appendChild(estilo);
-
-      const marco = pip.document.createElement('iframe');
-      // URL ABSOLUTA a proposito: el documento del PiP nace como about:blank, y
-      // una ruta relativa dependeria de que herede la base de la ventana madre.
-      marco.src = `${window.location.origin}/player`;
-      marco.title = 'Reproductor';
-      pip.document.body.appendChild(marco);
-
-      pipWindowRef.current = pip;
-      setIsPiPOpen(true);
-
-      // Recuerda el tamano que el usuario deja (debounce para no escribir en cada frame)
-      pip.addEventListener('resize', () => {
-        clearTimeout(sizeSaveTimerRef.current);
-        sizeSaveTimerRef.current = setTimeout(() => {
-          savePipSize(pip.outerWidth || pip.innerWidth, pip.outerHeight || pip.innerHeight);
-        }, 400);
-      });
-      pip.addEventListener('pagehide', () => {
-        if (pipWindowRef.current === pip) cerrarPiP(pip);
-      });
-    } catch { /* el usuario cancelo o el navegador no lo soporta */ }
-  };
+  const openPiP = () => { alternarReproductor('sonando'); };
 
   return (
     <>
