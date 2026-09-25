@@ -95,7 +95,7 @@ reinstalar el APK**. Las fases 5 y 6 son Java y sí piden reinstalar
 - Verificar: flujo completo, nombre/artista/álbum en el POST, sin desborde a
   360x780, 390x844 y 412x915, y centrado en una tablet.
 
-### Fase 3 — Recientes y Escuchas
+### Fase 3 — Recientes y Escuchas (hecha 2026-09-25)
 - Recientes: pestañas Escuchadas / Calificadas, agrupadas por día con hora.
 - Escuchas: chips de periodo, la #1 grande con el "01" en serifa, top 10,
   totales históricos.

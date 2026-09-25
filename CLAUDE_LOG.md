@@ -111,6 +111,52 @@ Mando dos capturas y tres quejas:
 la pantalla real (font scale, medidas; solo lectura, sin picar notas) y si le
 late ese orden o prefiere empezar por Recientes.
 
+**SEGUNDA TANDA, el mismo dia.** Angel: *"bueno dale, tengo tiempo"* (OK al
+plan, en ese orden) y conecto el S24.
+
+**Medido en el celular por la depuracion de la WebView** (`adb forward` +
+un `cdp.mjs` de solo lectura en el scratchpad): `font_scale` **1.0**, o sea la
+sospecha del tamaño de letra era FALSA. Lo que si salio: la pantalla mide
+**384x832** en px CSS (densidad 600, dpr 3.75), mas angosta que los 412 con
+los que se probo; la portada era de 278 px, con **57 px vacios** entre ella y
+el nombre y ~100 px entre la cabecera y la portada. WebView Chrome 153.
+
+**Lo hecho** (`a6860f8`):
+
+- `viewport-fit=cover` en `index.html`. Capacitor (`SystemBars`, insets
+  "css") lo lee en `onPageCommitVisible` y deja de acolchar; pasa las medidas
+  por `env()` y `--safe-area-inset-*`. `movil.css` usa
+  `--mv-arriba`/`--mv-abajo` = `max(env(), var())`. **Sin reinstalar el APK.**
+  Ojo: si la app esta en segundo plano no se aplica hasta que vuelve al frente.
+  Medido con la app al frente: 832 de alto y barra de 34 px.
+- Calificar: cabecera mas chica, la pildora en su renglon, portada + nombre
+  como un bloque centrado; la portada toma lo que sobra
+  (`100dvh - 500px - insets`, tope 82vw): 297 px a 384x832. Con los controles
+  abiertos las notas quedan 20 px arriba de la barra.
+- **Fase 3:** `components/movil/Recientes.jsx` y `Escuchas.jsx` como el lienzo,
+  con `HojaNota` (en `Notas.jsx`, compartida con Calificar). Recientes califica
+  con el flujo completo; Escuchas en soft con la primera escucha real
+  (verificado: `?soft=true` y `added_at: 2026-09-04`).
+- Bugs de la prueba: el marco medía 432 px en una pantalla de 384 porque
+  `#root` es flex (`.mv { width: 100% }`), y el "01" se encimaba al nombre.
+
+**Angel, en el celular:** *"no me deja escrollear en recientes ni escuchas pero
+me gusta mas"*. Causa: `overflow-x: hidden` en `html` **y** `body` vuelve al
+body una zona de scroll que no se mueve, y con `overscroll-behavior: none` no
+le pasa el gesto a `<html>`. Reproducido con `adb shell input swipe` (un
+deslizamiento, no un toque: no califica): **0 px**; con `overflow-x: clip` y
+el overscroll solo en `<html>`, **441 px**, y Biblioteca siguio en 384 de
+ancho. Arreglado en `50c4d40`, en produccion (`index-Bp42EYdV.js`).
+
+**NO VERIFICADO:** el scroll con la version ya subida (el celular se
+desconecto del USB justo despues del deploy; lo medido fue el mismo CSS
+inyectado en vivo) y el color de los iconos de la barra de la hora.
+
+**PENDIENTES:**
+
+- [ ] Que Angel confirme el scroll en Recientes y Escuchas.
+- [ ] Fase 4: Biblioteca, Resumen y Herramientas moviles.
+
 ---
 
 ## 2026-09-25 (sesion: rediseño de escritorio, fase 6 — Herramientas y Recientes)
