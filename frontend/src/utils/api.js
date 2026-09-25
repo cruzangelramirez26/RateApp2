@@ -84,6 +84,13 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ track_ids: trackIds }),
   }),
+  // Reproduce una canción dentro de tus Me Gusta (o sola, si Spotify no deja).
+  playTrack: (trackId) =>
+    request('/tracks/player/play-track', {
+      method: 'POST',
+      body: JSON.stringify({ track_id: trackId }),
+    }),
+
   // Reproduce el track DENTRO de la playlist (default <3333>), shuffle off
   playInContext: (trackId, playlistId = null, shuffleOff = true) =>
     request('/tracks/player/play-in-context', {

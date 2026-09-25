@@ -1,12 +1,10 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Music, MoreHorizontal } from 'lucide-react';
-import { api } from '../utils/api';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
-import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import ListeningModal from '../components/ListeningModal';
-import { useToast } from '../hooks/useToast';
+import { useBiblioteca, computeCuatrimestre, getCuatriLabel, ordenar } from '../hooks/useBiblioteca';
 import { nombreCuatri } from '../utils/cuatrimestres';
 
 // Los chips de cuatrimestre se etiquetan con el nombre del anio en curso
@@ -20,32 +18,6 @@ const QUICK_PLAYLISTS = [
   { label: 'Galería', key: 'anual' },
   { label: '<3333',   key: 'calificar' },
 ];
-
-const RATING_ORDER = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
-function computeCuatrimestre(track) {
-  if (track.cuatrimestre_override) return track.cuatrimestre_override;
-  const dateStr = track.db_added_at;
-  if (!dateStr) return null;
-  const dt = new Date(dateStr);
-  if (isNaN(dt.getTime())) return null;
-  const m = dt.getMonth() + 1;
-  if (m <= 4) return 'perla';
-  if (m <= 8) return 'miel';
-  return 'latte';
-}
-
-function getCuatriLabel(track) {
-  const cuatri = computeCuatrimestre(track);
-  if (!cuatri) return null;
-  let year;
-  if (track.cuatrimestre_override) {
-    year = new Date().getFullYear();
-  } else {
-    const dt = track.db_added_at ? new Date(track.db_added_at) : null;
-    year = dt && !isNaN(dt.getTime()) ? dt.getFullYear() : new Date().getFullYear();
-  }
-  return nombreCuatri(cuatri, year);
-}
 
 function exportCSV(tracks) {
   const header = ['#', 'Título', 'Artista', 'Álbum', 'Cuatrimestre', 'Rating'];
@@ -67,23 +39,19 @@ function exportCSV(tracks) {
   URL.revokeObjectURL(url);
 }
 
-const PAGE_SIZE = 500;
-
 export default function LibraryPage() {
   const [search, setSearch] = useState('');
-  const [tracks, setTracks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [activeChip, setActiveChip] = useState('liked');
   const [sortMode, setSortMode] = useState('spotify');
-  const [isLikedView, setIsLikedView] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [listeningTrack, setListeningTrack] = useState(null);
   const [ratingPickerOpen, setRatingPickerOpen] = useState(false);
-  const [likedOffset, setLikedOffset] = useState(0);
-  const [hasMoreLiked, setHasMoreLiked] = useState(false);
   const menuRef = useRef(null);
-  const toast = useToast();
+  // La lógica vive en el hook desde la fase 4 del rediseño: la comparte con la
+  // vista de escritorio. Esta pantalla no cambió.
+  const {
+    lista: activeChip, isLikedView, tracks, loading, loadingMore, hasMoreLiked,
+    loadMoreLiked, seleccionar, doSearch, calificar,
+  } = useBiblioteca();
 
   useEffect(() => {
     const handler = (e) => {
@@ -96,95 +64,14 @@ export default function LibraryPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const loadLiked = useCallback(async () => {
-    setLoading(true);
-    setActiveChip('liked');
-    setIsLikedView(true);
-    setSearch('');
-    setLikedOffset(0);
-    try {
-      const data = await preloadCache.load('likedAll', () => api.getLikedAll(PAGE_SIZE, 0));
-      setTracks(data || []);
-      setHasMoreLiked((data?.length ?? 0) >= PAGE_SIZE);
-      setLikedOffset(PAGE_SIZE);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  const loadMoreLiked = async () => {
-    setLoadingMore(true);
-    try {
-      const data = await api.getLikedAll(PAGE_SIZE, likedOffset);
-      setTracks(prev => [...prev, ...data]);
-      setHasMoreLiked(data.length >= PAGE_SIZE);
-      setLikedOffset(prev => prev + PAGE_SIZE);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  useEffect(() => { loadLiked(); }, [loadLiked]);
-
-  const doSearch = useCallback(async (q) => {
-    if (!q.trim()) return;
-    setLoading(true);
-    setActiveChip('');
-    setIsLikedView(false);
-    setHasMoreLiked(false);
-    try {
-      const data = await api.searchTracks(q.trim(), 200);
-      setTracks(data);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  const handleChip = useCallback(async (key) => {
-    if (key === 'liked') { loadLiked(); return; }
-    setLoading(true);
-    setActiveChip(key);
-    setIsLikedView(false);
-    setHasMoreLiked(false);
-    setSearch('');
-    try {
-      const dist = await preloadCache.load('distribution', () => api.getDistribution());
-      const playlistId = key === 'calificar' ? dist.calificar : dist[key];
-      if (!playlistId) throw new Error(`No hay playlist para esta opción`);
-      const data = await preloadCache.load(`playlist_${key}`, () => api.getPlaylistTracks(playlistId));
-      setTracks(data || []);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [toast, loadLiked]);
-
+  const handleChip = (key) => { setSearch(''); seleccionar(key); };
   const handleSearch = () => doSearch(search);
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSearch(); };
 
-  const handleRate = async (track, rating) => {
-    const tid = track.track_id || track.id;
-    setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating } : t));
+  const handleRate = (track, rating) => {
     setOpenMenuId(null);
     setRatingPickerOpen(false);
-    try {
-      const rateArgs = {
-        track_id: tid, name: track.name,
-        artist: track.artist, album: track.album || '', rating,
-      };
-      await (isLikedView ? api.rateTrackSoft(rateArgs) : api.rateTrack(rateArgs));
-      toast(`${track.name} → ${rating}`, 'success');
-    } catch (err) {
-      setTracks(prev => prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating: track.rating } : t));
-      toast(`Error: ${err.message}`, 'error');
-    }
+    calificar(track, rating);
   };
 
   const filtered = search
@@ -193,17 +80,7 @@ export default function LibraryPage() {
       )
     : tracks;
 
-  const sorted = sortMode === 'recent'
-    ? [...filtered].sort((a, b) => {
-        const da = new Date(a.rated_at || a.db_added_at || a.added_at || 0);
-        const db = new Date(b.rated_at || b.db_added_at || b.added_at || 0);
-        return db - da;
-      })
-    : sortMode === 'rating'
-    ? [...filtered].sort((a, b) =>
-        (RATING_ORDER[b.rating] ?? -1) - (RATING_ORDER[a.rating] ?? -1)
-      )
-    : filtered;
+  const sorted = ordenar(filtered, sortMode);
 
   const aTierCount = sorted.filter(t => ['A', 'A+'].includes(t.rating)).length;
 

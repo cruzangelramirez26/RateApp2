@@ -992,6 +992,259 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   .esc-esc-pie { margin-top: 14px; padding-top: 12px; }
 }
 
+/* -- Biblioteca (fase 4) ---------------------------------- */
+/* A diferencia de Calificar y Escuchas, esta sí hace scroll: son cientos de
+   portadas. La cabecera, las tarjetas y la barra de controles van arriba y la
+   cuadrícula corre debajo. */
+.esc-bib {
+  width: 100%;
+  max-width: 2400px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 26px 56px 48px 36px;
+}
+.esc-bib .esc-rotulo { font-size: clamp(11px, 0.7vw, 14px); }
+
+/* Las tarjetas de listas */
+.esc-bib-tarjetas {
+  --card: clamp(128px, 9.4vw, 210px);
+  display: flex;
+  gap: clamp(16px, 1.5vw, 28px);
+  margin: clamp(20px, 1.6vw, 32px) -8px 0;
+  padding: 8px 8px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.esc-bib-tarjetas::-webkit-scrollbar { display: none; }
+.esc-bib-card {
+  /* Se encogen antes de desbordar: en 1024 px las 7 caben a ~105 px. */
+  flex: 0 1 var(--card);
+  min-width: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: esc-sube 0.7s var(--esc-ease) both;
+  transition: transform 0.5s var(--esc-ease);
+}
+.esc-bib-card:hover { transform: translateY(-6px); }
+.esc-bib-card-portada {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: box-shadow 0.3s;
+}
+.esc-bib-card.activa .esc-bib-card-portada { box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5), 0 0 0 2px var(--esc-crema); }
+.esc-bib-card-img, .esc-bib-mosaico { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--esc-ease); }
+.esc-bib-card:hover .esc-bib-card-img, .esc-bib-card:hover .esc-bib-mosaico { transform: scale(1.05); }
+.esc-bib-mosaico { display: grid; grid-template-columns: 1fr 1fr; }
+.esc-bib-mosaico img { width: 100%; height: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.esc-bib-tag {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  background: rgba(13, 12, 11, 0.72);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.esc-bib-tag span { width: 6px; height: 6px; border-radius: 50%; background: var(--esc-crema); animation: esc-respira 2s ease-in-out infinite; }
+.esc-bib-card-nombre { font-size: clamp(13px, 0.9vw, 17px); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-bib-card-meta { font-size: clamp(11px, 0.75vw, 14px); color: rgba(243, 239, 231, 0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-bib-card:not(.activa) .esc-bib-card-nombre { color: rgba(243, 239, 231, 0.85); }
+
+/* La barra de la lista activa: título, chips de nota, filtro y vista. */
+.esc-bib-barra { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; margin-top: clamp(14px, 1.2vw, 26px); }
+.esc-bib-titulo { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.esc-bib-titulo h2 { margin: 0; font-size: clamp(28px, 2.2vw, 48px); line-height: 1; font-weight: 600; letter-spacing: -0.04em; white-space: nowrap; }
+.esc-bib-titulo span { font-size: clamp(12px, 0.85vw, 16px); color: rgba(243, 239, 231, 0.55); white-space: nowrap; }
+.esc-bib-controles { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.esc-bib-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.esc-bib-chips button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  border: 1px solid rgba(243, 239, 231, 0.12);
+  background: rgba(13, 12, 11, 0.4);
+  color: rgba(243, 239, 231, 0.75);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.esc-bib-chips button:hover { border-color: rgba(243, 239, 231, 0.3); color: var(--esc-crema); }
+.esc-bib-chips button.activo { background: var(--esc-crema); border-color: var(--esc-crema); color: var(--esc-tinta); }
+.esc-bib-filtro {
+  width: 170px;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(243, 239, 231, 0.12);
+  background: rgba(13, 12, 11, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(243, 239, 231, 0.5);
+}
+.esc-bib-filtro:focus-within { border-color: rgba(243, 239, 231, 0.3); }
+.esc-bib-filtro input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--esc-crema); font: inherit; font-size: 12px; }
+.esc-bib-filtro input::placeholder { color: rgba(243, 239, 231, 0.45); }
+.esc-bib-filtro button { border: 0; background: none; color: inherit; padding: 0; display: grid; cursor: pointer; }
+.esc-bib-vistas { display: flex; gap: 2px; }
+.esc-icono.activo { background: rgba(243, 239, 231, 0.12); color: var(--esc-crema); }
+
+/* La cuadrícula */
+.esc-bib-cuadricula {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(140px, 9.6vw, 230px), 1fr));
+  gap: clamp(18px, 1.4vw, 28px) clamp(16px, 1.5vw, 28px);
+  margin-top: 18px;
+}
+.esc-bib-hueco { aspect-ratio: 1; border-radius: 8px; background: rgba(243, 239, 231, 0.06); animation: esc-respira 1.6s ease-in-out infinite; }
+.esc-bib-vacio { padding: 60px 0; font-size: 16px; color: rgba(243, 239, 231, 0.6); }
+.esc-bib-tile { min-width: 0; display: flex; flex-direction: column; gap: 8px; animation: esc-sube 0.6s var(--esc-ease) both; }
+.esc-bib-tile-portada { position: relative; aspect-ratio: 1; border-radius: 8px; box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45); }
+.esc-bib-tile-portada > img, .esc-bib-tile-portada > .esc-sin-portada {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.esc-bib-sonando { position: absolute; left: 10px; top: 10px; padding: 5px 7px; border-radius: 7px; background: rgba(13, 12, 11, 0.7); display: flex; }
+.esc-bib-play, .esc-bib-mas {
+  position: absolute;
+  border: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.25s, transform 0.25s var(--esc-ease), background 0.2s;
+}
+.esc-bib-play { left: 10px; bottom: 10px; width: 36px; height: 36px; border-radius: 50%; background: var(--esc-crema); color: var(--esc-negro); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); }
+.esc-bib-play svg { margin-left: 2px; }
+.esc-bib-mas { right: 8px; top: 8px; width: 30px; height: 30px; border-radius: 8px; background: rgba(13, 12, 11, 0.65); color: var(--esc-crema); }
+.esc-bib-mas:hover { background: rgba(13, 12, 11, 0.9); }
+.esc-bib-tile:hover .esc-bib-play, .esc-bib-tile:hover .esc-bib-mas,
+.esc-bib-tile.activa .esc-bib-mas,
+.esc-bib-play:focus-visible, .esc-bib-mas:focus-visible { opacity: 1; transform: none; }
+/* Las 7 notas encima de la portada, en rejilla de 4. */
+.esc-bib-sobre {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(13, 12, 11, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  animation: esc-abre 0.2s var(--esc-ease) both;
+}
+.esc-bib-sobre .esc-esc-teclas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; animation: none; }
+.esc-bib-sobre .esc-mini { width: auto; height: 30px; }
+.esc-bib-tile-pie { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.esc-bib-tile-texto { flex: 1; min-width: 0; }
+.esc-bib-nombre, .esc-bib-artista { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-bib-nombre { font-size: clamp(13px, 0.85vw, 16px); font-weight: 500; }
+.esc-bib-artista { font-size: clamp(12px, 0.78vw, 15px); color: rgba(243, 239, 231, 0.55); }
+.esc-bib-tile-pie .esc-esc-calificar { height: 22px; padding: 0 8px; font-size: 10.5px; flex-shrink: 0; }
+
+/* El menú ⋯ */
+.esc-bib-menu {
+  position: absolute;
+  right: 8px;
+  top: 42px;
+  z-index: 5;
+  min-width: 160px;
+  padding: 5px;
+  border-radius: 10px;
+  background: rgba(20, 18, 16, 0.96);
+  border: 1px solid rgba(243, 239, 231, 0.12);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  animation: esc-sube 0.2s var(--esc-ease) both;
+}
+.esc-bib-menu button, .esc-bib-menu a {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: rgba(243, 239, 231, 0.85);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.esc-bib-menu button:hover, .esc-bib-menu a:hover { background: rgba(255, 255, 255, 0.07); color: var(--esc-crema); }
+
+/* La lista */
+.esc-bib-filas { list-style: none; margin: 14px 0 0; padding: 0; }
+.esc-bib-fila {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding-right: 8px;
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+.esc-bib-fila:hover, .esc-bib-fila.suena, .esc-bib-fila.eligiendo { background: rgba(255, 255, 255, 0.05); }
+.esc-bib-fila-play {
+  flex: 1 1 40%;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 0 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.esc-bib-fila-play:hover .esc-esc-rank-num, .esc-bib-fila-play:hover .esc-eq { opacity: 0; }
+.esc-bib-fila-play:hover .esc-esc-rank-play { opacity: 1; }
+.esc-bib-fila .esc-esc-rank { width: 32px; }
+.esc-bib-fila-img { width: 42px; height: 42px; border-radius: 5px; object-fit: cover; flex-shrink: 0; }
+.esc-bib-fila-texto { min-width: 0; display: flex; flex-direction: column; }
+.esc-bib-fila-album, .esc-bib-fila-cuatri { font-size: 13px; color: rgba(243, 239, 231, 0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-bib-fila-album { flex: 1 1 26%; min-width: 0; }
+.esc-bib-fila-cuatri { flex: 0 0 110px; }
+.esc-bib-fila-nota { flex-shrink: 0; min-width: 84px; display: flex; justify-content: flex-end; }
+.esc-bib-fila-mas { position: relative; flex-shrink: 0; }
+.esc-bib-fila .esc-bib-menu { top: 36px; right: 0; }
+.esc-bib-fila.eligiendo .esc-bib-fila-album,
+.esc-bib-fila.eligiendo .esc-bib-fila-cuatri { display: none; }
+@media (max-width: 1199px) {
+  .esc-bib-fila-album { display: none; }
+}
+
+.esc-bib-mas-cargar { display: flex; justify-content: center; margin-top: 32px; }
+
 @media (prefers-reduced-motion: reduce) {
   .esc-fondo-img { animation: none; }
   .esc-buscador-lista { animation: none; }
@@ -1000,4 +1253,6 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   .esc-cal-titulo, .esc-cal-velo, .esc-tarjeta, .esc-cal-fuera, .esc-cal-aldia { animation: none; }
   .esc-esc-cab, .esc-esc-uno, .esc-esc-lista, .esc-esc-fila, .esc-esc-barra span, .esc-esc-nota-btn, .esc-esc-teclas { animation: none; }
   .esc-esc-portada, .esc-esc-portada img { transition: none; }
+  .esc-bib-card, .esc-bib-tile, .esc-bib-hueco, .esc-bib-sobre, .esc-bib-menu, .esc-bib-tag span { animation: none; }
+  .esc-bib-card, .esc-bib-card-img, .esc-bib-mosaico { transition: none; }
 }

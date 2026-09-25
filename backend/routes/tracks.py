@@ -11,7 +11,7 @@ import config
 import utils
 from models import (
     RateRequest, TrackOut, StatsOut, AplusApplyRequest, MigrateRequest,
-    PlayContextRequest, UnlikeRequest, QueuePlaylistRequest,
+    PlayContextRequest, PlayTrackRequest, UnlikeRequest, QueuePlaylistRequest,
     SeekRequest,
     LikeRequest,
 )
@@ -264,6 +264,44 @@ def _reproducir(sp, arrancar) -> Optional[str]:
         if "No active device" in texto or "NO_ACTIVE_DEVICE" in texto:
             return SIN_DISPOSITIVO
         return f"Spotify rechazó la reproducción: {texto}"
+
+
+@router.post("/player/play-track")
+def player_play_track(req: PlayTrackRequest):
+    """
+    Reproduce una cancion DENTRO de tus Me Gusta, para que lo que siga sea tu
+    siguiente like y no la radio de Spotify. Lo usa el play de Biblioteca en la
+    vista Me Gusta (en las playlists se usa play-in-context).
+
+    El contexto de Me Gusta (`spotify:user:<id>:collection`) no esta en la
+    documentacion de Spotify, aunque funciona en la practica. Si lo rechaza, se
+    cae a la cancion sola: sonar es mas importante que el contexto.
+    """
+    sp = spotify.get_client()
+    uri = f"spotify:track:{req.track_id}"
+    try:
+        uid = (sp.current_user() or {}).get("id")
+    except Exception:
+        uid = None
+
+    def _start(device_id=None):
+        if uid:
+            try:
+                sp.start_playback(device_id=device_id,
+                                  context_uri=f"spotify:user:{uid}:collection",
+                                  offset={"uri": uri})
+                return
+            except Exception as e:
+                # Sin dispositivo no es culpa del contexto: que _reproducir
+                # pruebe el siguiente paso.
+                if "No active device" in str(e) or "NO_ACTIVE_DEVICE" in str(e):
+                    raise
+        sp.start_playback(device_id=device_id, uris=[uri])
+
+    error = _reproducir(sp, _start)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    return {"ok": True}
 
 
 @router.post("/player/play-in-context")

@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react';
 import { Play, RefreshCw } from 'lucide-react';
 import { api } from '../../utils/api';
 import { preloadCache } from '../../utils/preloadCache';
-import { RATINGS_ORDEN, ratingDeTecla, esEscritura } from '../../utils/ratings';
 import { useEscuchas } from '../../hooks/useEscuchas';
 import QueuePlaylistLink from '../QueuePlaylistLink';
 import { usePortadaDeFondo } from './FondoPortada';
 import { useSonando } from './sonando';
-import Nota from './Nota';
+import Calificador, { useTeclasNota } from './Calificador';
 
 /**
  * Escuchas, versión de escritorio (fase 3 del rediseño, 2026-09-24). Sale de
@@ -51,35 +50,6 @@ function Eq() {
   return <span className="esc-eq" aria-label="Sonando"><span /><span /><span /></span>;
 }
 
-/**
- * La nota de una canción: la cajita (o "Calificar") y, abierta, las 7 notas.
- * Cerrada, picarla la abre; abierta, elegir una califica y la cierra.
- */
-function Calificador({ t, abierto, ocupado, onAbrir, onElegir, grande = false }) {
-  if (abierto) {
-    return (
-      <div className="esc-esc-teclas" role="group" aria-label={`Calificar ${t.name}`}>
-        {RATINGS_ORDEN.map((r, i) => (
-          <button key={r} type="button" disabled={ocupado}
-            className={`esc-mini${t.rating === r ? ' activa' : ''}`}
-            title={`${r} (tecla ${i + 1})`} onClick={() => onElegir(r)}>{r}</button>
-        ))}
-      </div>
-    );
-  }
-  if (t.rating) {
-    return (
-      <button type="button" className="esc-esc-nota-btn" onClick={onAbrir}
-        title="Cambiar la nota" aria-label={`Nota ${t.rating}. Cambiarla`}>
-        <Nota rating={t.rating} grande={grande} />
-      </button>
-    );
-  }
-  return (
-    <button type="button" className="esc-esc-calificar" onClick={onAbrir}>Calificar</button>
-  );
-}
-
 export default function EscuchasEscritorio() {
   const [dias, setDias] = useState(30);
   const {
@@ -107,25 +77,8 @@ export default function EscuchasEscritorio() {
   useEffect(() => { setEligiendo(null); }, [dias]);
 
   // Con las notas abiertas: 1-7 califica, Esc cierra, un clic fuera cierra.
-  useEffect(() => {
-    if (!eligiendo) return undefined;
-    const t = items.find((x) => x.track_id === eligiendo);
-    const onKey = (e) => {
-      if (esEscritura(e) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === 'Escape') { setEligiendo(null); return; }
-      const r = ratingDeTecla(e.key);
-      if (r && t) { e.preventDefault(); elegir(t, r); }
-    };
-    const onClic = (e) => {
-      if (!e.target.closest?.('.esc-esc-teclas')) setEligiendo(null);
-    };
-    window.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onClic);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onClic);
-    };
-  }, [eligiendo, items]); // eslint-disable-line react-hooks/exhaustive-deps
+  const abierta = eligiendo ? items.find((x) => x.track_id === eligiendo) || null : null;
+  useTeclasNota(abierta, () => setEligiendo(null), (t, r) => elegir(t, r));
 
   async function elegir(t, r) {
     if (busy) return;

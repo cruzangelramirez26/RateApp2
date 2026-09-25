@@ -27,6 +27,11 @@ export const preloadCache = {
     return data;
   },
 
+  // Lo que haya en cache, sin pedir nada ni esperar. undefined si no hay.
+  peek(key) {
+    return _cache[key];
+  },
+
   set(key, data) {
     _cache[key] = data;
   },

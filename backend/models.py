@@ -119,6 +119,11 @@ class LikeRequest(BaseModel):
     track_ids: list[str]
 
 
+class PlayTrackRequest(BaseModel):
+    """Reproducir una cancion de los Me Gusta (Biblioteca de escritorio)."""
+    track_id: str
+
+
 class PlayContextRequest(BaseModel):
     """Reproducir un track DENTRO del contexto de una playlist."""
     track_id: str
