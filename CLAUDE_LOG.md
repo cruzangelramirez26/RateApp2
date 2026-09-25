@@ -2,6 +2,53 @@
 
 ---
 
+## 2026-09-25 (sesion: rediseño de escritorio, fase 5 — Resumen)
+
+**Maquina: PC `AngelPC`.** Angel: *"sigue con la fase 5, resumen"*. Se paso a
+React la pantalla del lienzo (`project/Dashboard.dc.html`): "Tu 2026, en tres
+partes".
+
+**Lo que el lienzo decia mal, y se le pregunto antes de construir:** la
+tarjeta decia "280 **en la playlist**", pero `by_cuatri.count` son las
+**calificadas en esos meses** (sin D y sin las migradas). Con sus datos:
+PT.-2 = **138 calificadas, 303 en la playlist**. Decisiones de Angel:
+
+- **Los dos numeros** en cada tarjeta. La barra de notas mide las calificadas.
+- **El selector (Cuatrimestre / Año / Todo) solo cambia los paneles** de
+  abajo; las tres tarjetas son siempre del año. "Mes" se fue: filtraba por año.
+- **Sin la proporcion A+ por A** (se le ofrecio por el pendiente 6b; dijo que no).
+- **Picar una tarjeta abre ese cuatrimestre en Biblioteca.**
+
+**Como quedo:** `components/escritorio/Resumen.jsx`, sin hook (la vista vieja
+solo llama a `/tracks/stats`) y **sin cambios de backend**. El largo de cada
+playlist sale del cache que App.jsx ya llena. Top set = (A+ + A + B+) / todas
+las calificadas del periodo, D incluidas. Artistas: los del año en
+Cuatrimestre y Año (el backend no tiene por cuatrimestre), los de siempre en
+Todo. Un cuatrimestre que no ha empezado sale atenuado y sin clic. Fondo: la
+portada del cuatrimestre actual.
+
+**En Biblioteca, por el camino:** `useBiblioteca(inicial)` para abrir en la
+lista que manda el Resumen, y **cada carga lleva turno**: al leer el hook
+salio que picar dos listas rapido dejaba que la respuesta mas lenta pisara a
+la ultima. Verificado: desde el Resumen abre PT.-2 (303 portadas) y Me Gusta no
+la pisa; desde el riel sigue abriendo Me Gusta.
+
+**Verificado en navegador** contra el backend de mentiras con `/tracks/stats`
+real: los tres periodos (Año 467 canciones / 65 %, Cuatrimestre 14 / 43 %,
+Todo 1,324 / 64 %) sin mover las tarjetas; 1440x900, 1024x700 (se pasaba 8 px,
+un conteo cortado y el titulo de artistas en dos renglones: arreglado) y
+2560x1392, sin desborde. A 800 px sale la pantalla de siempre.
+
+Commit `af6fd35`.
+
+**PENDIENTES:**
+
+- [ ] Que Angel lo vea en produccion.
+- [ ] Fase 6: Herramientas (con backfill y limpieza al estilo nuevo, y la
+      tarjeta "Apariencia", que en escritorio no hace nada).
+
+---
+
 ## 2026-09-25 (sesion: rediseño de escritorio, fase 4 — Biblioteca)
 
 **Maquina: PC `AngelPC`.** Angel: *"sigue con la fase 4, biblioteca"*. Se paso
