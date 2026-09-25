@@ -72,7 +72,8 @@
   color-scheme: dark;
 }
 
-html.movil, html.movil body { background: var(--mv-negro); overscroll-behavior-y: none; }
+html.movil, html.movil body { background: var(--mv-negro); }
+html.movil { overscroll-behavior-y: none; }
 html.movil body { color: var(--mv-crema); font-family: var(--font-body); -webkit-tap-highlight-color: transparent; }
 .mv button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .mv button:focus-visible { outline: 2px solid var(--mv-crema); outline-offset: 2px; }
@@ -99,7 +100,11 @@ html.movil body { color: var(--mv-crema); font-family: var(--font-body); -webkit
 /* Las pantallas viejas tienen filas que se salen de lado (los chips de
    Biblioteca): el layout de siempre lo cortaba con .main-content. */
 .mv-main { min-height: 100dvh; overflow-x: clip; }
-html.movil, html.movil body { overflow-x: hidden; }
+/* clip y NO hidden: hidden vuelve al body una zona de scroll que no se mueve,
+   y con overscroll-behavior no le pasa el gesto a <html> (en el S24 no se
+   podia bajar en Recientes ni Escuchas). En <html>, clip se trata como hidden
+   y aun asi impide que la vista se ensanche. */
+html.movil, html.movil body { overflow-x: clip; }
 html.movil .page { padding-top: calc(16px + var(--mv-arriba)); padding-bottom: calc(120px + var(--mv-abajo)); }
 html.movil .page-header { background: transparent; }
 
