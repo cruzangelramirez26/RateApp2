@@ -52,9 +52,35 @@ pantalla en produccion.
 
 Commit `7d81da8`.
 
+**SEGUNDA RONDA, con Escuchas en produccion.** Angel: *"salio ese error pero
+fuera de eso todo bien"* — un toast crudo en ingles al picar una fila:
+`403 ... Player command failed: Restriction violated`. Y pidio que "Saltar" en
+el PiP cambie tambien la cancion. Hecho en `54587b4`:
+
+- **El 403, leido en los logs de Cloud Run antes de tocar nada:** Spotify
+  abierto pero inactivo contesto `No active device found`; el backend nombro
+  el dispositivo (`75a059f9…`) y Spotify lo rechazo con `Restriction
+  violated`. La playlist SI se armaba; fallaba arrancarla. `_reproducir()`
+  junta los intentos que estaban copiados en tres lugares (play,
+  play-in-context y la playlist de colas) y agrega el tercero:
+  `transfer_playback(dev, force_play=False)` y otra vez. Devuelve el motivo en
+  espanol. `_resolve_device_id` ya no elige dispositivos `is_restricted`.
+  9 comprobaciones con un Spotify de mentiras que repite la secuencia real
+  (404 -> 403 -> transfer). **NO VERIFICADO contra el Spotify de Angel:** que el
+  transfer despierte ESE dispositivo es la explicacion mas probable, no una
+  medida. Si vuelve a salir, ahora dira "Spotify no dejo reproducir en ese
+  dispositivo".
+- **Saltar = siguiente PENDIENTE** (Angel eligio esto sobre el ⏭ de Spotify,
+  que caeria en una ya calificada de `<3333>`), en el PiP y en Calificar de
+  escritorio. Solo si lo que suena es la del frente; si no, avanza la tarjeta
+  como antes. Verificado en navegador: con "Futuro" sonando, S manda
+  `play-in-context` con "Japon"; la siguiente S, ya sin sonar la del frente,
+  no manda nada. Una prueba mando dos llamadas: era la prueba (dos eventos
+  de tecla en el mismo instante), no el codigo.
+
 **PENDIENTES:**
 
-- [ ] Que Angel la vea en produccion (y siguen las de la fase 2: Calificar a
+- [ ] Que Angel pruebe Saltar en el PiP y el play con Spotify dormido. Escuchas ya la vio en produccion (y siguen las de la fase 2: Calificar a
       ojo y en Tauri).
 - [ ] El pie a 1024 px se parte en dos renglones. Se ve bien, pero se nota.
 - [ ] Fase 4: Biblioteca.
