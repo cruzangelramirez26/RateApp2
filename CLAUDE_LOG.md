@@ -2,6 +2,49 @@
 
 ---
 
+## 2026-09-26 (sesion: rediseño movil — modo "sonando" en Calificar)
+
+**Maquina: PC `AngelPC`.** Angel confirmo que **ya jala el scroll** en
+Recientes y Escuchas. Y reporto: en el movil la pildora de lo que suena (fuera
+de `<3333>`) solo abria una hoja de notas; no ponia la cancion al frente con
+la cola de reproduccion atras, como el escritorio. Pidio eso **antes** de la
+fase 4 y que la cola **se pueda deslizar** (en escritorio solo se ve).
+
+**Como quedo** (`components/movil/Calificar.jsx`; la hoja se fue):
+
+- La pildora: si lo que suena es de `<3333>` te lleva a ella (como antes); si
+  no, **modo sonando**: la cancion al frente y detras la cola de Spotify
+  (`/tracks/player/queue`, el mismo endpoint del escritorio, sin backend
+  nuevo). Cabecera "Sonando · Spotify / Tu cola" con "← <3333>".
+- Deslizar recorre esa cola para calificar lo que viene. Fuera de la que
+  suena: "En tu cola · 02" y un boton "Volver a lo que suena" (Spotify no deja
+  saltar a una de su cola sin tirar la cola, asi que no hay "Escuchar").
+- Al cambiar la cancion: si estabas en la que sonaba, la nueva pasa al
+  frente; si andabas mas adelante, **te quedas en esa carta**. Si la nueva es
+  de `<3333>`, regresa a la cola en ella.
+- ⏭ en este modo es el siguiente de Spotify, no la siguiente pendiente.
+- Califica con el **flujo completo** y manda nombre, artista principal y album.
+
+**Verificado en navegador** a 375x812 contra un backend de mentiras con la
+cola real que Angel estaba oyendo (solo lectura; para probar se sacaron de
+pendientes las 5 primeras, porque sonaba `<3333>` mismo): pildora con la cola
+vacia -> modo sonando; deslizar dos veces -> @OJITOS "En tu cola · 02"; A ->
+`/tracks/rate` sin `soft` con nombre/artista/album; cambio de cancion viendo
+la 02 -> se queda (ahora 01); cuando suena -> "Sonando" y controles; una
+pendiente que empieza a sonar -> regresa a `<3333>` en ella; ⏭ ->
+`/tracks/player/next`; "← <3333>" regresa. `npm run build` OK.
+
+**NO VERIFICADO:** en el celular, y las animaciones en movimiento (el panel
+de pruebas oculto no da cuadros; una captura salio a media transicion y el
+DOM confirmo el estado correcto).
+
+**PENDIENTES:**
+
+- [ ] Que Angel lo pruebe en el celular.
+- [ ] Fase 4: Biblioteca (siguiente, con OK de Angel), Resumen, Herramientas.
+
+---
+
 ## 2026-09-25 (sesion: rediseño movil — lienzo aprobado, fases 1 y 2)
 
 **Maquina: PC `AngelPC`.** Angel pidio rediseñar el movil *"con la esencia de
