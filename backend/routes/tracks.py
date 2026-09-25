@@ -1080,6 +1080,82 @@ def listening_reindex():
     return database.reindex_listening_keys()
 
 
+@router.post("/avisos/sin-nota")
+def avisos_sin_nota(min_plays: int = Query(5, ge=1), dias: int = Query(30, ge=1, le=365),
+                    limite: int = Query(3, ge=1, le=10), marcar: bool = Query(True)):
+    """Canciones con `min_plays`+ escuchas en `dias` dias y sin nota, que NO se
+    han avisado. Para la notificacion del celular (REDISENO_MOVIL.md, fase 5):
+    "5 escuchas en un mes, una vez por cancion".
+
+    Es POST porque con `marcar` (el default) deja registradas las que devuelve
+    en `avisos_sin_nota`: la siguiente llamada ya no las trae. `marcar=false`
+    solo consulta, para probar sin gastar avisos.
+
+    "Sin nota" se mide por track_id Y por match_key: una cancion calificada con
+    otro id (reedicion) no es "sin nota". Todo en tres queries (ventana,
+    load_all y avisados), nunca una por cancion.
+    """
+    items = database.get_top_window(dias=int(dias), limit=300)
+    candidatos = [it for it in items if int(it.get("plays") or 0) >= int(min_plays)]
+    if not candidatos:
+        return {"items": []}
+
+    ids_con_nota, claves_con_nota = set(), set()
+    df = database.load_all()
+    if not df.empty:
+        for _, r in df.iterrows():
+            if _rating_limpio(r.get("rating", "")):
+                ids_con_nota.add(r["track_id"])
+                claves_con_nota.add(utils.listening_key(r.get("name"), r.get("artist")))
+
+    def clave(it):
+        return it.get("match_key") or utils.listening_key(it.get("name"), it.get("artist"))
+
+    sin_nota = [it for it in candidatos
+                if it.get("track_id") not in ids_con_nota and clave(it) not in claves_con_nota]
+    ya = database.get_avisados([clave(it) for it in sin_nota])
+    nuevos = [it for it in sin_nota if clave(it) not in ya][:int(limite)]
+    if not nuevos:
+        return {"items": []}
+
+    # La fecha para catalogar es la PRIMERA escucha real (la del agregado), no
+    # la de la ventana: la misma trampa que /listening/window.
+    try:
+        historico = database.get_listening_for(nuevos)
+    except Exception:
+        historico = {}
+
+    # Portada de ~300 px, no fatal: sin Spotify el aviso sale igual.
+    imgs = {}
+    try:
+        sp = spotify.get_client()
+        res = sp.tracks([it["track_id"] for it in nuevos if it.get("track_id")])
+        for t in (res.get("tracks") or []):
+            if t:
+                ii = (t.get("album") or {}).get("images") or []
+                medio = next((x for x in ii if (x.get("width") or 0) <= 320), ii[-1] if ii else None)
+                imgs[t["id"]] = medio.get("url") if medio else None
+    except Exception:
+        pass
+
+    if marcar:
+        database.marcar_avisados([(clave(it), it.get("track_id")) for it in nuevos])
+
+    salida = []
+    for it in nuevos:
+        tid = it.get("track_id")
+        h = historico.get(tid) or {}
+        salida.append({
+            "track_id": tid,
+            "name": it.get("name"),
+            "artist": it.get("artist"),
+            "plays": it.get("plays"),
+            "image": imgs.get(tid),
+            "suggested_added_at": h.get("first_played") or it.get("first_played"),
+        })
+    return {"items": salida}
+
+
 @router.get("/listening/window")
 def listening_window(dias: int = Query(30, description="0 = historico"),
                      limit: int = Query(100, ge=1, le=1000)):

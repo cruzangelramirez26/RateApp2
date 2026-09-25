@@ -1055,3 +1055,58 @@ def get_window_plays_for(tracks: list, dias=None, chunk: int = 500) -> dict:
         cur.close()
 
     return {tid: porClave.get(k, 0) for tid, k in claves.items()}
+
+
+# ─── Avisos de "sin nota" (notificaciones del celular) ───────────────────────
+#
+# El celular avisa cuando una cancion lleva 5+ escuchas en 30 dias y sigue sin
+# nota, UNA SOLA VEZ por cancion (decision de Angel, REDISENO_MOVIL.md fase 5).
+# Lo ya avisado vive aqui y no en el telefono: si se reinstala la app o se
+# borran sus datos, no vuelven a salir los mismos avisos.
+#
+# Por match_key, como todo lo de escuchas: la misma cancion con otro track_id
+# (reedicion, otro album) ya fue avisada.
+
+def ensure_avisos_table():
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS avisos_sin_nota (
+                match_key  VARCHAR(255) NOT NULL PRIMARY KEY,
+                track_id   VARCHAR(64)  NULL,
+                avisado_at DATETIME     NOT NULL
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+        """)
+        conn.commit()
+        cur.close()
+
+
+def get_avisados(claves: list) -> set:
+    """Cuales de estas claves ya se avisaron. Una query, nunca una por clave."""
+    claves = [k for k in claves if k]
+    if not claves:
+        return set()
+    marks = ",".join(["%s"] * len(claves))
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT match_key FROM avisos_sin_nota WHERE match_key IN (" + marks + ")", tuple(claves))
+        fuera = {row[0] for row in cur.fetchall()}
+        cur.close()
+    return fuera
+
+
+def marcar_avisados(filas: list):
+    """Guarda (match_key, track_id). INSERT IGNORE: avisar dos veces no cambia nada."""
+    from datetime import datetime, timezone
+    filas = [(k, t) for k, t in filas if k]
+    if not filas:
+        return
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.executemany(
+            "INSERT IGNORE INTO avisos_sin_nota (match_key, track_id, avisado_at) VALUES (%s, %s, %s)",
+            [(k, t, ahora) for k, t in filas],
+        )
+        conn.commit()
+        cur.close()
