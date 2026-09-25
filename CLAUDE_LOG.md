@@ -77,6 +77,40 @@ Commit `ac40e1b`.
       (pide reinstalar).
 - [ ] Fase 3: Recientes y Escuchas moviles.
 
+**PRIMERA VISTA DE ANGEL EN EL CELULAR (app de Android), sin cambios de codigo.**
+Mando dos capturas y tres quejas:
+
+- **Recientes "no se parece al mockup", "se ve como una version barata".** Es
+  la pantalla VIEJA dentro del marco (fase 3 sin hacer): los 7 botones sueltos
+  por fila, el icono verde de enlace, letras grandes. Se le explico.
+- **Arriba de Calificar "todo muy desproporcionado, grande, amontonado".**
+  Dos causas probables: (1) en el lienzo el telefono dibujado tenia 52 px de
+  barra de estado que le daban aire; en el celular la app arranca pegada debajo
+  de la barra, con 10 px, y titulo + contador + recargar + pildora + portada
+  quedan apilados arriba con el hueco sobrando bajo la portada; (2) sospecha
+  **sin medir**: el tamaño de letra del sistema del S24 arriba de 1.0, que la
+  WebView respeta (textZoom) y agranda todo el texto.
+- **"El encabezado de la hora puede estar juntado a la app? se corta."** La
+  franja solida es el acolchado de `SystemBars` de Capacitor 8. Leido en
+  `node_modules/@capacitor/android/.../plugin/SystemBars.java`: si la pagina
+  trae `viewport-fit=cover` (y la WebView es nueva), deja de acolchar, pasa los
+  insets a `env(safe-area-inset-*)` e inyecta `--safe-area-inset-*`. Lo revisa
+  al cargar la pagina, asi que **es cambio web, sin reinstalar el APK**. Riesgo:
+  iconos de la barra oscuros sobre fondo oscuro (eso si pide config en el APK:
+  `SystemBars.style`).
+
+**Plan propuesto, sin OK todavia** (Angel: *"mañana le seguimos"*):
+1. `viewport-fit=cover` en `frontend/index.html` + `padding-top:
+   env(safe-area-inset-top)` a las pantallas viejas (`html.movil .page`);
+   Calificar ya lo usa.
+2. Rebalancear la cabecera de Calificar: encabezado mas chico, aire para la
+   pildora, portada + nombre como un bloque centrado.
+3. Fase 3: Recientes y Escuchas como el lienzo.
+
+**Quedaron dos preguntas sin respuesta:** si conecta el S24 por USB para medir
+la pantalla real (font scale, medidas; solo lectura, sin picar notas) y si le
+late ese orden o prefiere empezar por Recientes.
+
 ---
 
 ## 2026-09-25 (sesion: rediseño de escritorio, fase 6 — Herramientas y Recientes)
