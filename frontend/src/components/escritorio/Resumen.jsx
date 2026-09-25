@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { preloadCache } from '../../utils/preloadCache';
 import { RATINGS_ORDEN } from '../../utils/ratings';
@@ -20,7 +19,9 @@ import { usePortadaDeFondo } from './FondoPortada';
  *  - Las tres tarjetas son siempre del año; el selector Cuatrimestre / Año /
  *    Todo cambia solo los paneles de abajo.
  *  - Sin la proporción A+ por A (lo de 6b se mide aparte, en enero).
- *  - Picar una tarjeta abre ese cuatrimestre en Biblioteca.
+ *  - Picar una tarjeta muestra abajo LOS NÚMEROS DE ESE CUATRIMESTRE; picarla
+ *    otra vez regresa al año. Primero abría Biblioteca, y Angel lo corrigió:
+ *    "no es muy intuitivo". El botón "Cuatrimestre" elige el actual.
  */
 
 const PERIODOS = [
@@ -49,13 +50,14 @@ function juntar(lista) {
 
 export default function ResumenEscritorio() {
   const toast = useToast();
-  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
+  // 'año' | 'todo' | 'c:<slot>' (un cuatrimestre del año, el de la tarjeta).
   const [periodo, setPeriodo] = useState('año');
   const [enPlaylist, setEnPlaylist] = useState({});   // slot -> canciones en la playlist
 
   const anio = anioActual();
   const actual = cuatriActual();
+  const elegido = periodo.startsWith('c:') ? periodo.slice(2) : null;
 
   useEffect(() => {
     api.getStats().then(setStats).catch((e) => toast(e.message, 'error'));
@@ -82,7 +84,7 @@ export default function ResumenEscritorio() {
     return {
       key: k,
       nombre: info.nombre,
-      img: info.img,
+      img: info.imgGrande,
       meses: MESES[k],
       calificadas: c?.count || 0,
       playlist: enPlaylist[k],
@@ -97,20 +99,23 @@ export default function ResumenEscritorio() {
   // Los paneles de abajo: el periodo elegido.
   const notas = useMemo(() => {
     if (periodo === 'todo') return stats?.by_rating || {};
-    if (periodo === 'cuatrimestre') return delAnio.find((c) => c.cuatri === actual)?.by_rating || {};
+    if (elegido) return delAnio.find((c) => c.cuatri === elegido)?.by_rating || {};
     return juntar(delAnio.map((c) => c.by_rating));
-  }, [periodo, stats, delAnio, actual]);
+  }, [periodo, stats, delAnio, elegido]);
 
   const total = suma(notas);
   const maxNota = Math.max(1, ...Object.values(notas));
   const top = TOP_SET.reduce((s, r) => s + (notas[r] || 0), 0);
   const pct = total ? Math.round((top / total) * 100) : 0;
-  const artistas = ((periodo === 'todo' ? stats?.top_artists : stats?.top_artists_year) || []).slice(0, 5);
-  const dePeriodo = {
-    cuatrimestre: `de ${cuatriInfo(actual, anio).nombre}`,
-    año: `de ${anio}`,
-    todo: 'de siempre',
-  }[periodo];
+  const artistas = ((periodo === 'todo' ? stats?.top_artists
+    : elegido ? (stats?.top_artists_cuatri?.[elegido] ?? stats?.top_artists_year)
+      : stats?.top_artists_year) || []).slice(0, 5);
+  const nombreElegido = elegido ? cuatriInfo(elegido, anio).nombre : '';
+  const dePeriodo = periodo === 'todo' ? 'de siempre' : elegido ? `de ${nombreElegido}` : `de ${anio}`;
+  const tituloArtistas = periodo === 'todo' ? 'Artistas de siempre'
+    : elegido && stats?.top_artists_cuatri ? `Artistas de ${nombreElegido}` : 'Artistas del año';
+  const periodoActivo = (key) => (key === 'cuatrimestre' ? !!elegido : periodo === key);
+  const elegirPeriodo = (key) => { if (key !== 'cuatrimestre' || actual) setPeriodo(key === 'cuatrimestre' ? `c:${actual}` : key); };
 
   return (
     <div className="esc-res">
@@ -121,8 +126,8 @@ export default function ResumenEscritorio() {
         </div>
         <div className="esc-segmento" role="group" aria-label="Periodo de los paneles">
           {PERIODOS.map((p) => (
-            <button key={p.key} type="button" aria-pressed={periodo === p.key}
-              className={periodo === p.key ? 'activo' : ''} onClick={() => setPeriodo(p.key)}>{p.label}</button>
+            <button key={p.key} type="button" aria-pressed={periodoActivo(p.key)}
+              className={periodoActivo(p.key) ? 'activo' : ''} onClick={() => elegirPeriodo(p.key)}>{p.label}</button>
           ))}
         </div>
       </header>
@@ -163,9 +168,10 @@ export default function ResumenEscritorio() {
           return p.futuro ? (
             <div key={p.key} className="esc-res-parte futuro" style={{ animationDelay: p.delay }}>{cuerpo}</div>
           ) : (
-            <button key={p.key} type="button" className="esc-res-parte" style={{ animationDelay: p.delay }}
-              onClick={() => navigate('/library', { state: { lista: p.key } })}
-              aria-label={`Abrir ${p.nombre} en Biblioteca`}>
+            <button key={p.key} type="button" className={`esc-res-parte${elegido === p.key ? ' activa' : ''}`}
+              style={{ animationDelay: p.delay }} aria-pressed={elegido === p.key}
+              onClick={() => setPeriodo(elegido === p.key ? 'año' : `c:${p.key}`)}
+              aria-label={`Ver los números de ${p.nombre}`}>
               {cuerpo}
             </button>
           );
@@ -205,7 +211,7 @@ export default function ResumenEscritorio() {
 
         <section className="esc-res-panel" style={{ animationDelay: '460ms' }}>
           <div className="esc-res-panel-cab">
-            <h2>{periodo === 'todo' ? 'Artistas de siempre' : 'Artistas del año'}</h2>
+            <h2>{tituloArtistas}</h2>
             <span className="esc-rotulo esc-res-opcional">Canciones calificadas</span>
           </div>
           <ol className="esc-res-artistas">

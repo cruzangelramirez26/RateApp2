@@ -1280,6 +1280,8 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
 }
 .esc-res-parte:hover:not(.futuro) { transform: translateY(-6px); }
 .esc-res-parte.futuro { cursor: default; opacity: 0.55; }
+/* La tarjeta cuyos números se ven abajo. */
+.esc-res-parte.activa { box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5), 0 0 0 2px var(--esc-crema); }
 .esc-res-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--esc-ease); }
 .esc-res-parte:hover:not(.futuro) .esc-res-img { transform: scale(1.05); }
 .esc-res-velo { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(13, 12, 11, 0) 30%, rgba(13, 12, 11, 0.92)); }

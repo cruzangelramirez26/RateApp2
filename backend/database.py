@@ -305,6 +305,31 @@ def get_stats_extended() -> dict:
         """)
         top_artists_year = [{"artist": a, "count": c} for a, c in cur.fetchall()]
 
+        # Artistas POR CUATRIMESTRE del anio actual, para el Resumen de
+        # escritorio: picar una tarjeta muestra los numeros de ese cuatri.
+        # Mismo criterio que by_cuatri (mes de added_at, sin D), asi que cuadra
+        # con el "N calificadas" de la tarjeta. Una query; el top 5 se corta aqui.
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN MONTH(added_at) BETWEEN 1 AND 4 THEN 'perla'
+                    WHEN MONTH(added_at) BETWEEN 5 AND 8 THEN 'miel'
+                    ELSE 'latte'
+                END AS cuatri,
+                artist,
+                COUNT(*) AS cnt
+            FROM tracks
+            WHERE rating NOT IN ('D', '') AND rating IS NOT NULL
+              AND YEAR(added_at) = YEAR(NOW())
+            GROUP BY cuatri, artist
+            ORDER BY cnt DESC, artist
+        """)
+        top_artists_cuatri = {}
+        for c, a, cnt in cur.fetchall():
+            lista = top_artists_cuatri.setdefault(c, [])
+            if len(lista) < 5:
+                lista.append({"artist": a, "count": int(cnt)})
+
         cur.execute("""
             SELECT
                 YEAR(added_at) AS yr,
@@ -359,7 +384,8 @@ def get_stats_extended() -> dict:
             })
 
         cur.close()
-        return {"top_artists": top_artists, "top_artists_year": top_artists_year, "by_cuatri": by_cuatri}
+        return {"top_artists": top_artists, "top_artists_year": top_artists_year,
+                "top_artists_cuatri": top_artists_cuatri, "by_cuatri": by_cuatri}
 
 
 _CUATRI_MONTHS = {

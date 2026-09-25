@@ -53,7 +53,7 @@ export function cuatriInfo(cuatri, year = anioActual()) {
   const info = MAPA?.[String(year)]?.[cuatri] ?? MAPA?.[year]?.[cuatri];
   const nombre = info?.nombre
     ?? (cuatri ? cuatri.charAt(0).toUpperCase() + cuatri.slice(1) : '');
-  return {
+  const base = {
     cuatri,
     year,
     nombre,
@@ -64,6 +64,10 @@ export function cuatriInfo(cuatri, year = anioActual()) {
     // nombres como "2026 PT.-1".
     img: (info && 'img' in info) ? info.img : `/portadas/${year}/${nombre}.jpg`,
   };
+  // La de 640 px, para las tarjetas grandes del Resumen de escritorio. Solo
+  // la manda el backend para el anio actual; si no, la de siempre.
+  base.imgGrande = info?.img_grande || base.img;
+  return base;
 }
 
 /** Solo el nombre visible. Es el reemplazo de los viejos CUATRI_DISPLAY. */

@@ -1241,6 +1241,7 @@ def get_stats():
         "top_set_pct": top_set_pct,
         "top_artists": extended["top_artists"],
         "top_artists_year": extended["top_artists_year"],
+        "top_artists_cuatri": extended.get("top_artists_cuatri", {}),
         "by_cuatri": extended["by_cuatri"],
     }
 

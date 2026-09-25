@@ -63,9 +63,10 @@ def get_distribution_playlists():
         try:
             ids = {c: config.DISTRIBUTION_PLAYLISTS.get(c) for c in slots_actuales}
             sp = spotify.get_client()
-            for c, url in spotify.get_playlist_covers(sp, ids).items():
+            for c, cover in spotify.get_playlist_covers(sp, ids).items():
                 if c in slots_actuales:
-                    slots_actuales[c]["img"] = url
+                    slots_actuales[c]["img"] = cover["img"]
+                    slots_actuales[c]["img_grande"] = cover["img_grande"]
         except Exception:
             pass
 

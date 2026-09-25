@@ -180,8 +180,13 @@ def get_user_playlists(sp: spotipy.Spotify) -> list[dict]:
     return playlists
 
 
-def get_playlist_covers(sp: spotipy.Spotify, ids: dict[str, str]) -> dict[str, str]:
-    """Portada real de cada playlist, {clave: url}.
+def get_playlist_covers(sp: spotipy.Spotify, ids: dict[str, str]) -> dict[str, dict]:
+    """Portada real de cada playlist, {clave: {"img": url, "img_grande": url}}.
+
+    `img` es la ligera (~300 px: el movil y las tarjetas chicas) e `img_grande`
+    la mas grande que tenga Spotify (640 px): las tarjetas del Resumen de
+    escritorio miden hasta ~680 px y con la de 300 se veian borrosas (Angel,
+    2026-09-25). Salen de la MISMA llamada.
 
     Existe para que la portada de un cuatrimestre NO sea un archivo que hay que
     copiar al repo cada vez: Angel la cambia en Spotify y la app la refleja
@@ -198,9 +203,10 @@ def get_playlist_covers(sp: spotipy.Spotify, ids: dict[str, str]) -> dict[str, s
         if not pid:
             continue
         try:
-            url = _cover_url(sp.playlist_cover_image(pid) or [])
+            imgs = sp.playlist_cover_image(pid) or []
+            url = _cover_url(imgs)
             if url:
-                covers[clave] = url
+                covers[clave] = {"img": url, "img_grande": _cover_grande(imgs) or url}
         except Exception:
             continue
     return covers
@@ -230,6 +236,17 @@ def _cover_url(imgs: list[dict]) -> str | None:
                          key=lambda i: i["width"])
         elegida = grandes[0] if grandes else max(conocidas, key=lambda i: i["width"])
         return elegida.get("url")
+    return (imgs[0] or {}).get("url")
+
+
+def _cover_grande(imgs: list[dict]) -> str | None:
+    """La variante mas grande. Sin tamanos conocidos, la primera (Spotify manda
+    la mas grande primero)."""
+    if not imgs:
+        return None
+    conocidas = [i for i in imgs if isinstance((i or {}).get("width"), int)]
+    if conocidas:
+        return max(conocidas, key=lambda i: i["width"]).get("url")
     return (imgs[0] or {}).get("url")
 
 
