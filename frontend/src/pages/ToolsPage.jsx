@@ -1,82 +1,38 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings2, Play, Pause, Zap, RefreshCw, ArrowRightLeft, GripVertical, SunMoon, Headphones, HeartOff, TrendingUp } from 'lucide-react';
-import { api } from '../utils/api';
 import ThemeToggle from '../components/ThemeToggle';
 import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
-import { useToast } from '../hooks/useToast';
 import { nombreCuatri } from '../utils/cuatrimestres';
+import { useHerramientas, REORDER_RATINGS } from '../hooks/useHerramientas';
 
-const RATING_ORDER_MAP = { D: 0, C: 1, 'C+': 2, B: 3, 'B+': 4, A: 5, 'A+': 6 };
 // El nombre visible ya no se arma capitalizando el identificador (eso decia
 // "Perla" aunque el cuatrimestre se llamara Savia): sale de nombreCuatri, que
 // lee lo que mando el backend.
-const REORDER_RATINGS = ['A+', 'A', 'B+', 'B', 'C+', 'C'];
+//
+// La logica vive en hooks/useHerramientas.js desde la fase 6 del rediseño
+// (2026-09-25); esta vista es la del movil y la de ventanas angostas.
 
 export default function ToolsPage() {
   const navigate = useNavigate();
-  const [virtualStatus, setVirtualStatus] = useState(null);
-  const [aplusStatus, setAplusStatus] = useState(null);
-  const [aplusCandidates, setAplusCandidates] = useState([]);
-  const [selectedAplusIds, setSelectedAplusIds] = useState(new Set());
-  const [migData, setMigData] = useState(null);
-  const [migSort, setMigSort] = useState('playlist');
-  const [migSelectedIds, setMigSelectedIds] = useState(new Set());
-  const [migSearch, setMigSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState('');
-  const toast = useToast();
+  const {
+    loading, actionLoading,
+    virtualStatus, virtualBoundaries, simulateChanges,
+    virtualIniciar, virtualSimular, virtualAplicar, virtualFinalizar,
+    reorderData, setReorderData, reorderLoading, reorderApplying, reorderPendingChanges,
+    loadReorder, moverEnReorder, applyReorder,
+    aplusStatus, aplusCandidates, selectedAplusIds,
+    aplusEscanear, aplusAplicar, aplusAlternar, aplusAlternarTodo,
+    migData, migSort, setMigSort, migSearch, setMigSearch, migSelectedIds,
+    filteredMigCandidates, migTodasVisibles,
+    toggleMigAll, migAlternar, migBuscar, migMover, migCancelar,
+    ordenar, ordenarAnual, reconstruir, reconstruirAnual,
+  } = useHerramientas();
 
-  // Modo Virtual — fronteras y cambios detectados
-  const [virtualBoundaries, setVirtualBoundaries] = useState([]);
-  const [simulateChanges, setSimulateChanges] = useState([]);
-
-  // Reordenador
-  const [reorderData, setReorderData] = useState(null);   // { cuatri, blocks: {rating: [track]} }
-  const [reorderLoading, setReorderLoading] = useState(false);
-  const [reorderApplying, setReorderApplying] = useState(false);
+  // Arrastre del Reordenador (solo pantalla)
   const dragSrc = useRef(null);
   const [dragOver, setDragOver] = useState(null);   // { rating, index }
   const [draggingItem, setDraggingItem] = useState(null); // { rating, index }
-
-  useEffect(() => {
-    Promise.all([api.virtualStatus(), api.aplusStatus()])
-      .then(([v, ap]) => { setVirtualStatus(v); setAplusStatus(ap); })
-      .catch(err => toast(err.message, 'error'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const doAction = async (key, fn) => {
-    setActionLoading(key);
-    try {
-      const result = await fn();
-      toast(typeof result === 'string' ? result : JSON.stringify(result), 'success', 4000);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setActionLoading('');
-    }
-  };
-
-  // ─── Reordenador handlers ───────────────────────────────────────────────────
-
-  const loadReorder = async () => {
-    setReorderLoading(true);
-    try {
-      const data = await api.getVirtualPlaylist();
-      const blocks = {};
-      for (const r of REORDER_RATINGS) blocks[r] = [];
-      for (const t of data.tracks) {
-        const r = REORDER_RATINGS.includes(t.rating) ? t.rating : 'C';
-        blocks[r].push(t);
-      }
-      setReorderData({ cuatri: data.cuatri, blocks });
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setReorderLoading(false);
-    }
-  };
 
   const handleDragStart = (e, rating, index) => {
     dragSrc.current = { rating, index };
@@ -95,22 +51,9 @@ export default function ToolsPage() {
     setDragOver(null);
     setDraggingItem(null);
     if (!dragSrc.current) return;
-    const { rating: fromRating, index: fromIndex } = dragSrc.current;
+    const desde = dragSrc.current;
     dragSrc.current = null;
-    if (fromRating === toRating && fromIndex === toIndex) return;
-
-    setReorderData(prev => {
-      if (!prev) return prev;
-      const blocks = {};
-      for (const r of REORDER_RATINGS) blocks[r] = [...prev.blocks[r]];
-
-      const [item] = blocks[fromRating].splice(fromIndex, 1);
-      let insertAt = toIndex;
-      if (fromRating === toRating && fromIndex < toIndex) insertAt = Math.max(0, toIndex - 1);
-      blocks[toRating].splice(insertAt, 0, item);
-
-      return { ...prev, blocks };
-    });
+    moverEnReorder(desde, { rating: toRating, index: toIndex });
   };
 
   const handleDragEnd = () => {
@@ -118,91 +61,6 @@ export default function ToolsPage() {
     setDraggingItem(null);
     setDragOver(null);
   };
-
-  const applyReorder = async () => {
-    if (!reorderData) return;
-    setReorderApplying(true);
-    try {
-      const items = [];
-      for (const r of REORDER_RATINGS) {
-        for (const t of reorderData.blocks[r]) {
-          items.push({ tid: t.tid, rating: r, name: t.name, artist: t.artist, album: t.album || '' });
-        }
-      }
-      const res = await api.reorderPlaylist(items);
-      toast(
-        res.changes_applied > 0
-          ? `Playlist actualizada — ${res.changes_applied} calificación(es) cambiada(s)`
-          : 'Playlist reordenada (sin cambios de calificación)',
-        'success',
-        4000,
-      );
-      setReorderData(null);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setReorderApplying(false);
-    }
-  };
-
-  // ─── Memos (migración) ──────────────────────────────────────────────────────
-
-  const sortedMigCandidates = useMemo(() => {
-    if (!migData?.candidates?.length) return [];
-    // 'playlist' = el orden que ya trae el backend, que son las posiciones
-    // reales en Spotify. Ordenar aqui por rating+fecha era el criterio de mayo
-    // y dejo de replicar la playlist el 2026-08-21, cuando el orden real gano
-    // el bloque de novedades.
-    if (migSort === 'playlist') return migData.candidates;
-    return [...migData.candidates].sort((a, b) => {
-      if (migSort === 'recent') return new Date(b.added_at) - new Date(a.added_at);
-      const rd = (RATING_ORDER_MAP[b.rating] ?? -1) - (RATING_ORDER_MAP[a.rating] ?? -1);
-      if (rd !== 0) return rd;
-      return new Date(b.added_at) - new Date(a.added_at);
-    });
-  }, [migData, migSort]);
-
-  const filteredMigCandidates = useMemo(() => {
-    if (!migSearch.trim()) return sortedMigCandidates;
-    const q = migSearch.toLowerCase();
-    return sortedMigCandidates.filter(c =>
-      c.name?.toLowerCase().includes(q) ||
-      c.artist?.toLowerCase().includes(q) ||
-      c.album?.toLowerCase().includes(q)
-    );
-  }, [sortedMigCandidates, migSearch]);
-
-  // Las ya migradas se ensenan pero no se tocan.
-  const migMigrables = useMemo(
-    () => filteredMigCandidates.filter(c => !c.migrated),
-    [filteredMigCandidates],
-  );
-
-  const toggleMigAll = () => {
-    const visibleIds = migMigrables.map(c => c.track_id);
-    const allVisible = visibleIds.every(id => migSelectedIds.has(id));
-    setMigSelectedIds(prev => {
-      const next = new Set(prev);
-      if (allVisible) {
-        visibleIds.forEach(id => next.delete(id));
-      } else {
-        visibleIds.forEach(id => next.add(id));
-      }
-      return next;
-    });
-  };
-
-  // ─── Reorder: pending rating changes count ──────────────────────────────────
-  const reorderPendingChanges = useMemo(() => {
-    if (!reorderData) return 0;
-    let count = 0;
-    for (const r of REORDER_RATINGS) {
-      for (const t of reorderData.blocks[r]) {
-        if (t.rating !== r) count++;
-      }
-    }
-    return count;
-  }, [reorderData]);
 
   if (loading) {
     return (
@@ -330,46 +188,24 @@ export default function ToolsPage() {
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {!virtualStatus?.active ? (
             <button className="btn btn-accent btn-sm"
-              onClick={() => doAction('vstart', async () => {
-                const r = await api.virtualStart();
-                setVirtualStatus(await api.virtualStatus());
-                setVirtualBoundaries(r.boundaries || []);
-                setSimulateChanges([]);
-                return `Modo Virtual iniciado en ${r.cuatri?.toUpperCase()} — ${r.track_count} canciones.`;
-              })}
+              onClick={virtualIniciar}
               disabled={!!actionLoading}>
               <Play size={14} /> Iniciar
             </button>
           ) : (
             <>
               <button className="btn btn-sm"
-                onClick={() => doAction('vsim', async () => {
-                  const r = await api.virtualSimulate();
-                  setVirtualBoundaries(r.boundaries || []);
-                  setSimulateChanges(r.changes || []);
-                  return r.summary ?? 'Simulación completada.';
-                })}
+                onClick={virtualSimular}
                 disabled={!!actionLoading}>
                 <Zap size={14} /> Simular
               </button>
               <button className="btn btn-accent btn-sm"
-                onClick={() => doAction('vapply', async () => {
-                  const r = await api.virtualApply(false);
-                  setVirtualStatus(await api.virtualStatus());
-                  setSimulateChanges([]);
-                  return r.message ?? r.summary ?? `${r.changes_applied ?? 0} cambios aplicados.`;
-                })}
+                onClick={virtualAplicar}
                 disabled={!!actionLoading}>
                 Aplicar cambios
               </button>
               <button className="btn btn-sm"
-                onClick={() => doAction('vend', async () => {
-                  await api.virtualEnd();
-                  setVirtualStatus(await api.virtualStatus());
-                  setVirtualBoundaries([]);
-                  setSimulateChanges([]);
-                  return 'Modo Virtual finalizado.';
-                })}
+                onClick={virtualFinalizar}
                 disabled={!!actionLoading}
                 style={{ color: 'var(--rating-d)' }}>
                 <Pause size={14} /> Finalizar
@@ -650,13 +486,7 @@ export default function ToolsPage() {
               <span>{aplusCandidates.length} candidatos detectados</span>
               <button
                 style={{ background: 'none', border: 'none', fontSize: '0.7rem', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-mono)' }}
-                onClick={() => {
-                  if (selectedAplusIds.size === aplusCandidates.length) {
-                    setSelectedAplusIds(new Set());
-                  } else {
-                    setSelectedAplusIds(new Set(aplusCandidates.map(c => c.id)));
-                  }
-                }}>
+                onClick={aplusAlternarTodo}>
                 {selectedAplusIds.size === aplusCandidates.length ? 'Desmarcar todo' : 'Marcar todo'}
               </button>
             </div>
@@ -670,13 +500,7 @@ export default function ToolsPage() {
               }}>
                 <input type="checkbox"
                   checked={selectedAplusIds.has(c.id)}
-                  onChange={() => {
-                    setSelectedAplusIds(prev => {
-                      const next = new Set(prev);
-                      if (next.has(c.id)) next.delete(c.id); else next.add(c.id);
-                      return next;
-                    });
-                  }}
+                  onChange={() => aplusAlternar(c.id)}
                   style={{ accentColor: 'var(--rating-a-plus)', width: '14px', height: '14px' }}
                 />
                 {c.name} <span style={{ color: 'var(--text-muted)' }}>— {c.artist}</span>
@@ -689,15 +513,7 @@ export default function ToolsPage() {
           <button
             className="btn btn-sm"
             style={{ borderColor: 'var(--rating-a-plus)', color: 'var(--rating-a-plus)' }}
-            onClick={() => doAction('aplus-scan', async () => {
-              const res = await api.aplusScan();
-              if (res.candidates?.length > 0) {
-                setAplusCandidates(res.candidates);
-                setSelectedAplusIds(new Set(res.candidates.map(c => c.id)));
-              }
-              setAplusStatus(await api.aplusStatus());
-              return res.message;
-            })}
+            onClick={aplusEscanear}
             disabled={!!actionLoading}>
             Escanear nuevos likes
           </button>
@@ -705,13 +521,7 @@ export default function ToolsPage() {
             <button
               className="btn btn-sm"
               style={{ background: 'var(--rating-a-plus-dim)', borderColor: 'var(--rating-a-plus)', color: 'var(--rating-a-plus)' }}
-              onClick={() => doAction('aplus-apply', async () => {
-                const res = await api.aplusApply(Array.from(selectedAplusIds));
-                setAplusCandidates([]);
-                setSelectedAplusIds(new Set());
-                setAplusStatus(await api.aplusStatus());
-                return res.message;
-              })}
+              onClick={aplusAplicar}
               disabled={!!actionLoading || selectedAplusIds.size === 0}>
               Aplicar {selectedAplusIds.size} como A+
             </button>
@@ -737,21 +547,7 @@ export default function ToolsPage() {
             </p>
             <button
               className="btn btn-sm"
-              onClick={() => doAction('mig-scan', async () => {
-                const data = await api.getMigrationCandidates();
-                if (!data.from_cuatri) {
-                  return 'No hay migración disponible para este cuatrimestre.';
-                }
-                setMigData(data);
-                setMigSelectedIds(new Set());
-                const migrables = data.migrables ?? data.candidates.length;
-                const ya = data.ya_migradas ?? 0;
-                if (data.candidates.length === 0) {
-                  return `No hay canciones en ${nombreCuatri(data.from_cuatri)} para migrar.`;
-                }
-                return `${migrables} por migrar de ${nombreCuatri(data.from_cuatri)}` +
-                  (ya > 0 ? ` · ${ya} ya en ${nombreCuatri(data.to_cuatri)}.` : '.');
-              })}
+              onClick={migBuscar}
               disabled={!!actionLoading}>
               Buscar candidatos
             </button>
@@ -761,7 +557,7 @@ export default function ToolsPage() {
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
               No hay canciones en {nombreCuatri(migData.from_cuatri) ?? migData.from_cuatri} para migrar.
             </p>
-            <button className="btn btn-sm" onClick={() => setMigData(null)}>Volver</button>
+            <button className="btn btn-sm" onClick={migCancelar}>Volver</button>
           </div>
         ) : (
           <>
@@ -814,7 +610,7 @@ export default function ToolsPage() {
               </span>
               <button className="btn btn-sm" style={{ fontSize: '0.72rem', padding: '3px 12px' }}
                 onClick={toggleMigAll}>
-                {migMigrables.length > 0 && migMigrables.every(c => migSelectedIds.has(c.track_id)) ? 'Desmarcar visibles' : 'Marcar visibles'}
+                {migTodasVisibles ? 'Desmarcar visibles' : 'Marcar visibles'}
               </button>
             </div>
 
@@ -834,14 +630,7 @@ export default function ToolsPage() {
                   <input type="checkbox"
                     checked={c.migrated || migSelectedIds.has(c.track_id)}
                     disabled={!!c.migrated}
-                    onChange={() => {
-                      if (c.migrated) return;
-                      setMigSelectedIds(prev => {
-                        const next = new Set(prev);
-                        if (next.has(c.track_id)) next.delete(c.track_id); else next.add(c.track_id);
-                        return next;
-                      });
-                    }}
+                    onChange={() => migAlternar(c)}
                     style={{ width: '14px', height: '14px', flexShrink: 0 }}
                   />
                   <span style={{
@@ -889,21 +678,12 @@ export default function ToolsPage() {
               <button
                 className="btn btn-accent btn-sm"
                 disabled={!!actionLoading || migSelectedIds.size === 0}
-                onClick={() => doAction('migrate', async () => {
-                  const res = await api.migrateTracks(
-                    Array.from(migSelectedIds),
-                    migData.to_cuatri
-                  );
-                  setMigData(null);
-                  setMigSelectedIds(new Set());
-                  setMigSearch('');
-                  return res.message;
-                })}>
+                onClick={migMover}>
                 Mover {migSelectedIds.size > 0 ? migSelectedIds.size : ''} a {nombreCuatri(migData.to_cuatri)}
               </button>
               <button
                 className="btn btn-sm"
-                onClick={() => { setMigData(null); setMigSelectedIds(new Set()); setMigSearch(''); }}
+                onClick={migCancelar}
                 disabled={!!actionLoading}>
                 Cancelar
               </button>
@@ -925,22 +705,14 @@ export default function ToolsPage() {
           {['perla', 'miel', 'latte'].map(c => (
             <button key={c}
               className="btn btn-sm btn-spotify"
-              onClick={() => doAction(`order-${c}`, async () => {
-                const dist = await api.getDistribution();
-                await api.orderPlaylist(dist[c], 1);
-                return `${nombreCuatri(c)} ordenada`;
-              })}
+              onClick={() => ordenar(c)}
               disabled={!!actionLoading}>
               Ordenar {nombreCuatri(c)}
             </button>
           ))}
           <button
             className="btn btn-sm btn-spotify"
-            onClick={() => doAction('order-anual', async () => {
-              const dist = await api.getDistribution();
-              await api.orderPlaylist(dist.anual, 4);
-              return 'Galería Anual ordenada';
-            })}
+            onClick={ordenarAnual}
             disabled={!!actionLoading}>
             Ordenar Galería Anual
           </button>
@@ -955,10 +727,7 @@ export default function ToolsPage() {
               <button key={c}
                 className="btn btn-sm"
                 style={{ color: 'var(--rating-a)' }}
-                onClick={() => doAction(`rebuild-${c}`, async () => {
-                  const res = await api.rebuildPlaylist(c);
-                  return res.message;
-                })}
+                onClick={() => reconstruir(c)}
                 disabled={!!actionLoading}>
                 Reconstruir {nombreCuatri(c)}
               </button>
@@ -966,10 +735,7 @@ export default function ToolsPage() {
             <button
               className="btn btn-sm"
               style={{ color: 'var(--rating-a-plus)' }}
-              onClick={() => doAction('rebuild-anual', async () => {
-                const res = await api.rebuildAnual();
-                return res.message;
-              })}
+              onClick={reconstruirAnual}
               disabled={!!actionLoading}>
               Reconstruir Galería
             </button>

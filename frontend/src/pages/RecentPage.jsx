@@ -1,14 +1,15 @@
 /**
  * RecentPage — Toggle between recently rated and recently played on Spotify.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Clock } from 'lucide-react';
-import { api } from '../utils/api';
-import { preloadCache } from '../utils/preloadCache';
 import TrackCard from '../components/TrackCard';
 import SearchBar from '../components/SearchBar';
 import LoadingSkeleton from '../components/LoadingSkeleton';
-import { useToast } from '../hooks/useToast';
+import { useRecientes } from '../hooks/useRecientes';
+
+// La logica vive en hooks/useRecientes.js desde la fase 6 del rediseño
+// (2026-09-25); esta vista es la del movil y la de ventanas angostas.
 
 const TABS = [
   { id: 'played', label: 'Escuchados' },
@@ -16,74 +17,8 @@ const TABS = [
 ];
 
 export default function RecentPage() {
-  const [tab, setTab] = useState('played');
-  const [rated, setRated] = useState([]);
-  const [played, setPlayed] = useState([]);
-  const [loadingRated, setLoadingRated] = useState(true);
-  const [loadingPlayed, setLoadingPlayed] = useState(false);
-  const [playedFetched, setPlayedFetched] = useState(false);
+  const { tab, setTab, tracks, loading, calificar } = useRecientes();
   const [search, setSearch] = useState('');
-  const toast = useToast();
-
-  const fetchRated = useCallback(async () => {
-    try {
-      const data = await preloadCache.load('recent', () => api.getRecent(100));
-      setRated(data || []);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoadingRated(false);
-    }
-  }, [toast]);
-
-  const fetchPlayed = useCallback(async () => {
-    if (playedFetched) return;
-    setLoadingPlayed(true);
-    try {
-      const data = await preloadCache.load('recentlyPlayed', () => api.getRecentlyPlayed());
-      setPlayed(data || []);
-      setPlayedFetched(true);
-    } catch (err) {
-      toast(err.message, 'error');
-    } finally {
-      setLoadingPlayed(false);
-    }
-  }, [playedFetched, toast]);
-
-  useEffect(() => { fetchPlayed(); }, [fetchPlayed]);
-
-  useEffect(() => {
-    if (tab === 'rated' && rated.length === 0) fetchRated();
-  }, [tab, fetchRated, rated.length]);
-
-  const handleRate = async (track, rating, isPlayed = false) => {
-    const tid = track.track_id || track.id;
-    const setter = isPlayed ? setPlayed : setRated;
-
-    setter(prev =>
-      prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating } : t)
-    );
-
-    try {
-      await api.rateTrack({
-        track_id: tid,
-        name: track.name,
-        artist: track.artist,
-        album: track.album || '',
-        rating,
-      });
-      toast(`${track.name} → ${rating}`, 'success');
-    } catch (err) {
-      setter(prev =>
-        prev.map(t => (t.track_id || t.id) === tid ? { ...t, rating: track.rating } : t)
-      );
-      toast(`Error: ${err.message}`, 'error');
-    }
-  };
-
-  const tracks = tab === 'rated' ? rated : played;
-  const loading = tab === 'rated' ? loadingRated : loadingPlayed;
-  const isPlayed = tab === 'played';
 
   const filtered = search
     ? tracks.filter(t =>
@@ -127,7 +62,7 @@ export default function RecentPage() {
             <TrackCard
               key={t.track_id || t.id}
               track={{ ...t, id: t.track_id || t.id }}
-              onRate={(track, rating) => handleRate(track, rating, isPlayed)}
+              onRate={calificar}
               index={i}
             />
           ))}

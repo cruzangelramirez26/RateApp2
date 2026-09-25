@@ -13,6 +13,8 @@ import CalificarEscritorio from './components/escritorio/Calificar';
 import EscuchasEscritorio from './components/escritorio/Escuchas';
 import BibliotecaEscritorio from './components/escritorio/Biblioteca';
 import ResumenEscritorio from './components/escritorio/Resumen';
+import HerramientasEscritorio from './components/escritorio/Herramientas';
+import RecientesEscritorio from './components/escritorio/Recientes';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
 import LibraryPage from './pages/LibraryPage';
@@ -105,8 +107,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={escritorio ? <CalificarEscritorio /> : <PendingPage />} />
       <Route path="/library" element={escritorio ? <BibliotecaEscritorio /> : <LibraryPage />} />
-      <Route path="/recent" element={<RecentPage />} />
-      <Route path="/tools" element={<ToolsPage />} />
+      <Route path="/recent" element={escritorio ? <RecientesEscritorio /> : <RecentPage />} />
+      <Route path="/tools" element={escritorio ? <HerramientasEscritorio /> : <ToolsPage />} />
       {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
           desde Herramientas. */}
       <Route path="/backfill" element={<BackfillPage />} />
