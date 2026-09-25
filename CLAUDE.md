@@ -196,7 +196,7 @@ Son dos cosas distintas:
 - Se fija la **primera vez** que el usuario escanea y **nunca se mueve**
 - `aplus_apply` acepta lista de IDs seleccionados por el usuario (no aplica todo automáticamente)
 
-## Biblioteca (LibraryPage)
+## Biblioteca (`useBiblioteca`, vistas de escritorio y móvil)
 
 - Abre por defecto mostrando **todos los Me Gusta nativos de Spotify** (hasta 500, newest first)
 - Calificar desde la vista Me Gusta usa modo **soft** (solo DB, sin distribución)

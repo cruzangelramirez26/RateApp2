@@ -133,7 +133,7 @@ TOP_SET      = {"B+", "A", "A+"}   # el umbral que dispara la distribución
 | `miel` | may–ago | `PL_MIEL` |
 | `latte` | sep–dic | `PL_LATTE` |
 
-Los nombres cambian por año (2025 fueron Savia / Lirio / Marea) — eso vive **solo en el frontend**, en `StatsPage.jsx`. El backend siempre habla de perla/miel/latte.
+Los nombres cambian por año (2025 fueron Savia / Lirio / Marea) — viven en `config.CUATRI_NOMBRES` y viajan al frontend en `/playlists/distribution` (`utils/cuatrimestres.js`). El backend siempre habla de perla/miel/latte.
 
 `CUATRIMESTRE_PREV` en `utils.py` define el ciclo para la migración: `miel ← perla`, `latte ← miel`, y `perla` no tiene anterior.
 
@@ -364,13 +364,25 @@ En dev el frontend corre en `:5173` y el proxy de Vite manda `/auth`, `/tracks`,
 
 ### Rutas
 
-| Ruta | Página | Qué hace |
+Desde el rediseño (sep 2026) cada pantalla tiene **dos vistas**: escritorio
+(`components/escritorio/`, dentro del `Shell`) y móvil (`components/movil/`,
+dentro de `Movil`). Cuál se monta lo decide `useEscritorio()` por **tipo de
+dispositivo**, no por ancho: Tauri o navegador con mouse = escritorio;
+Android, teléfono o tablet táctil = móvil. La lógica vive una sola vez en un
+hook (`useCalificar`, `useRecientes`, `useEscuchas`, `useBiblioteca`,
+`useHerramientas`); el Resumen solo llama `/tracks/stats`. Las páginas
+viejas (`PendingPage`, `LibraryPage`, ...) se borraron el 2026-09-26.
+
+| Ruta | Pantalla | Qué hace |
 |---|---|---|
-| `/` | `PendingPage` | Cola de `<3333`. Vista *individual* (portada grande, atajos 1–7 y S, botón "Reproducir en `<3333`") o *lista*. Tiene su propio PiP |
-| `/recent` | `RecentPage` | Tabs "Escuchados" (recently played) y calificaciones recientes |
-| `/library` | `LibraryPage` | Abre en Me Gusta nativo (500 más recientes, paginable). Chips para Perla/Miel/Latte/Galería/`<3333`. Export CSV |
-| `/dashboard` | `StatsPage` | Métricas, distribución, top artistas, flujo A+ Instantáneo |
-| `/tools` | `ToolsPage` | Modo Virtual, reordenador drag & drop, migración, rebuilds |
+| `/` | `Calificar` | Cola de `<3333>`: pila de portadas, notas 1–7, controles si la de enfrente es la que suena. Modo "sonando" para lo que suena fuera de `<3333>`, con la cola de Spotify detrás. Flujo completo |
+| `/recent` | `Recientes` | Escuchadas (recently played) y Calificadas, agrupadas por día. Flujo completo |
+| `/window` | `Escuchas` | Lo más escuchado por ventana (30 días / 90 / año / siempre). Cataloga en soft con la primera escucha real |
+| `/library` | `Biblioteca` | Me Gusta, `<3333>`, cuatrimestres, Galería, Mis Me Gusta. Me Gusta en soft; playlists con flujo completo |
+| `/dashboard` | `Resumen` | El año en tres cuatrimestres; tocar uno cambia los paneles |
+| `/tools` | `Herramientas` | Reordenador, Modo virtual, A+ instantáneos, Migración, Orden de playlists. La tarjeta crece a ventana |
+| `/backfill`, `/abandoned` | `BackfillPage`, `CleanupPage` | Las dos colas de Me Gusta; aún con su diseño viejo |
+| `/player` | `PlayerPage` | El reproductor flotante (PiP de Chrome y ventana de Tauri) |
 | — | `LoginPage` | Cuando no hay sesión de Spotify |
 
 `App.jsx` es el *gate*: llama `/auth/status`, muestra Login si no hay sesión, y si la hay, precalienta los caches.
@@ -381,8 +393,7 @@ En dev el frontend corre en `:5173` y el proxy de Vite manda `/auth`, `/tracks`,
 - **`preloadCache.js`** es un cache de sesión en memoria (se pierde al recargar). `prime()` dispara el fetch en background y `load()` reutiliza, espera lo que esté en vuelo, o va fresco. `App.jsx` precalienta `likedAll`, `recent`, `recentlyPlayed` y `distribution`, y esa última a su vez precalienta cada playlist por chip.
 - **Design system en CSS puro.** Todo son custom properties en `:root` en `global.css`, más un bloque `:root[data-theme="dark"]` que solo redefine tokens. El modo elegido (`light` | `dark` | `system`) vive en `localStorage`; lo que se escribe al DOM es siempre el tema *resuelto*, primero por un script inline en `index.html` antes del primer paint y después por `useTheme`. Los colores de rating se consumen desde JSX con `ratingColor()` / `ratingDim()` / `ratingSoft()` (`utils/theme.js`), que devuelven referencias `var(...)` — no hay hex duplicado entre CSS y JS.
 - **Los documentos de PiP no heredan custom properties.** `pipThemeCss()` lee los tokens ya resueltos y los inyecta como un `:root` propio en la ventana del PiP; al cambiar de tema se reescribe esa hoja y se redibuja.
-- **Mobile-first con dos renders separados.** `NavBar` dibuja tab bar (móvil) *y* sidebar (desktop), controlados por media queries a 768px. Varias páginas hacen lo mismo.
-- **Los PiP se dibujan con strings de HTML.** `documentPictureInPicture` + `innerHTML` reescrito completo en cada poll de 5 s. Funciona, pero parpadea, pierde el foco y hace imposible animar. Hay dos implementaciones casi duplicadas (`NavBar.jsx` y `PendingPage.jsx`). **Está agendada su reescritura como React real** — ver `Mejoras.txt` punto 3.
+- **El reproductor flotante es una ruta de React** (`/player`), la misma en el PiP de Chrome y en la ventana de Tauri.
 - **Polling, no websockets.** El Now Playing se consulta cada 5 s. No hay estado en tiempo real en ninguna parte.
 - **Sin state manager.** Todo es `useState` local más `refs` para evitar closures obsoletas dentro de los callbacks del PiP.
 

@@ -6,8 +6,9 @@ import { useToast } from './useToast';
 /**
  * La lógica de "Mis más escuchadas" (/window), sin nada de pantalla.
  *
- * La usan las dos vistas: la de siempre (WindowPage, el móvil y las ventanas
- * angostas) y la de escritorio (components/escritorio/Escuchas.jsx). Salió de
+ * La usan las dos vistas: la de escritorio (components/escritorio/Escuchas.jsx)
+ * y la del móvil (components/movil/). La pantalla vieja (WindowPage) se borró el
+ * 2026-09-26, cuando el móvil tuvo todas las suyas. Salió de
  * WindowPage en la fase 3 del rediseño (2026-09-24) tal cual estaba.
  *
  * LA REGLA QUE NO SE MUEVE: calificar aquí es SIEMPRE soft y SIEMPRE con la

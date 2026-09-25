@@ -8,8 +8,9 @@ import { useToast } from './useToast';
  * (`recently-played`, 50 como máximo) y lo último calificado (la base, las 100
  * con la primera nota más nueva).
  *
- * La usan las dos vistas: la de siempre (RecentPage, el móvil y las ventanas
- * angostas) y la de escritorio (components/escritorio/Recientes.jsx). Salió de
+ * La usan las dos vistas: la de escritorio (components/escritorio/Recientes.jsx)
+ * y la del móvil (components/movil/). La pantalla vieja (RecentPage) se borró el
+ * 2026-09-26, cuando el móvil tuvo todas las suyas. Salió de
  * RecentPage en la fase 6 del rediseño (2026-09-25).
  *
  * Calificar aquí es con el FLUJO COMPLETO, como siempre en esta pantalla (no

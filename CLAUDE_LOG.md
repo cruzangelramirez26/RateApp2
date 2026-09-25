@@ -38,10 +38,71 @@ pendiente que empieza a sonar -> regresa a `<3333>` en ella; ⏭ ->
 de pruebas oculto no da cuadros; una captura salio a media transicion y el
 DOM confirmo el estado correcto).
 
+Commit `cefa821`.
+
+**SEGUNDA TANDA: FASE 4 + la transicion de la pila en PC.** Angel: *"sigue
+con lo demas, yo no puedo estar al pendiente, termina todo lo que puedas; lo
+que sea decision importante dejala al final; si solo es de diseño lo
+revisamos despues"*. Y a media tanda: en la PC, al darle siguiente, la portada
+*"como que se transparenta y veo tambien la que esta atras"*.
+
+- **La pila (escritorio y movil):** la profundidad se hacia con opacidad
+  (la de atras al 55 %), asi que la que pasaba al frente seguia medio
+  transparente 0.7 s y se veia la de atras a traves. Ahora las de atras son
+  opacas y se **oscurecen** (`filter: brightness`); solo las del fondo
+  (o2/om2) llevan algo de transparencia. Medido en el CSS compilado; la
+  transicion en movimiento no se puede ver en el panel de pruebas.
+- **El lienzo** no se pudo leer como artifact ("not found" desde esta
+  sesion); se uso la copia local de la sesion anterior (`movil.html`, en su
+  scratchpad).
+- `components/movil/Biblioteca.jsx`: listas en fila (las del escritorio),
+  buscador de la lista, chips de nota, cuadricula de 3 y una pildora que rota
+  el orden (Spotify / Recientes / Calificacion). Tocar una portada abre la
+  hoja con las 7 notas y **Escuchar / Mis escuchas / Spotify** (`HojaNota`
+  acepta `children`). Soft en Me Gusta, flujo completo en playlists (el hook).
+- `components/movil/Resumen.jsx`: los tres cuatrimestres en tarjetas
+  deslizables (el actual primero), con los dos numeros; tocar una cambia los
+  paneles (Top set, Como calificas, Artistas) y se centra; chips `2026` y
+  `Siempre`.
+- `components/movil/Herramientas.jsx`: tarjetas en dos columnas; la tarjeta
+  crece a pantalla completa (`Crece`, mismo truco del escritorio). Catalogar y
+  Limpiar abren sus pantallas de siempre. **Reordenador en una columna**: el
+  arrastre de HTML5 no existe con el dedo, asi que se arrastra desde el agarre
+  (⋮⋮) con eventos de puntero y autodesplazamiento en las orillas; y **tocar
+  una cancion abre sus notas para mandarla al principio de otro bloque**
+  (agregado mio, no estaba en el lienzo: en 300 canciones es mas practico).
+- **Borradas las paginas viejas** (`PendingPage`, `RecentPage`,
+  `WindowPage`, `LibraryPage`, `StatsPage`, `ToolsPage`) y los componentes
+  que solo ellas usaban (`NavBar`, `TrackCard`, `SearchBar`,
+  `LoadingSkeleton`). Ninguna ruta las montaba ya. `ARQUITECTURA.md` §10 al
+  dia.
+
+**Verificado en navegador** contra el backend de mentiras con datos reales
+(solo GET: 500 Me Gusta, las 6 playlists, stats, estado virtual y A+,
+candidatas de migracion; las escrituras solo se registran): Biblioteca a
+375x812 sin desborde; nota en Me Gusta -> `/tracks/rate?soft=true`, en PT.-3
+-> `/tracks/rate` sin soft, ▶ -> `play-in-context` con PT.-3. Resumen: PT.-1
+-> 307 canciones / 68 % y "Artistas de 2026 PT.-1". Herramientas: el
+reordenador crece a 355x792 con 83 canciones; arrastrar "te quiero tanto"
+bajo PAPARAZZI la mueve; tocar "Hombre De Bien" -> B la pone al principio de
+B marcada; Aplicar manda las 83 a `/virtual/reorder` y cierra. Migracion 246
++ 68 (las de produccion), "Mover 2 a PT.-3"; A+ escanea y ofrece aplicar;
+Modo virtual inicia; Orden con sus 8 botones; Catalogar abre `/backfill`.
+Migracion a 360x740 sin desborde. Todas las rutas de escritorio siguen
+cargando. `npm run build` OK.
+
+**NO VERIFICADO:** en el celular; animaciones en movimiento; la tablet (el
+panel no emula tactil a 768+); arrastrar de un bloque a otro lejano con el
+autodesplazamiento (el arrastre se probo dentro de A+). `/backfill` truena
+en el mock porque no le da datos: esa pantalla no se toco.
+
 **PENDIENTES:**
 
-- [ ] Que Angel lo pruebe en el celular.
-- [ ] Fase 4: Biblioteca (siguiente, con OK de Angel), Resumen, Herramientas.
+- [ ] Que Angel pruebe en el celular: modo sonando, Biblioteca, Resumen,
+      Herramientas (sobre todo el Reordenador con el dedo).
+- [ ] Que Angel vea en PC la transicion nueva de la pila.
+- [ ] Backfill y Limpieza al estilo nuevo (movil y escritorio).
+- [ ] Fases 5 y 6 (notificaciones y widgets, Java; piden reinstalar el APK).
 
 ---
 

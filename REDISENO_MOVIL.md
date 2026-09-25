@@ -56,8 +56,9 @@ Mismo patrón que el escritorio (ver `CLAUDE_LOG.md`, fases 1-6):
   (`useCalificar`, `useRecientes`, `useEscuchas`, `useBiblioteca`,
   `useHerramientas`). Resumen no tiene hook (solo llama `/tracks/stats`).
 - `App.jsx` elige marco y pantalla por el tipo de dispositivo.
-- Las páginas viejas (`PendingPage`, `RecentPage`, ...) se quedan de respaldo
-  para las pantallas que todavía no tengan versión móvil. Se borran al final.
+- Las páginas viejas (`PendingPage`, `RecentPage`, ...) se borraron el
+  2026-09-26, cuando la fase 4 terminó. Solo quedan `BackfillPage` y
+  `CleanupPage`, que se rediseñan aparte.
 
 Reglas que no cambian (y hay que verificar en cada fase):
 
@@ -101,7 +102,7 @@ reinstalar el APK**. Las fases 5 y 6 son Java y sí piden reinstalar
   totales históricos.
 - Hoja de notas desde abajo (portada + 7 notas + una línea de qué hace).
 
-### Fase 4 — Biblioteca, Resumen y Herramientas
+### Fase 4 — Biblioteca, Resumen y Herramientas (hecha 2026-09-26)
 - Biblioteca: fila de listas, chips de nota, cuadrícula de 3.
 - Resumen: tarjetas de cuatrimestre deslizables; tocar una cambia los números.
 - Herramientas: tarjetas que crecen hasta ocupar la pantalla. Backfill y
@@ -138,4 +139,4 @@ reinstalar el APK**. Las fases 5 y 6 son Java y sí piden reinstalar
 - [ ] Revisar el escritorio en ventanas < 1024 px (fase 1).
 - [ ] Backfill y Limpieza al estilo nuevo (móvil y escritorio).
 - [ ] Icono propio de la app (sigue el genérico).
-- [ ] Borrar las páginas viejas cuando todas tengan versión nueva.
+- [x] Borrar las páginas viejas (2026-09-26).

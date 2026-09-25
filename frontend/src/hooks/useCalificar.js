@@ -7,8 +7,9 @@ import { escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
 /**
  * La lógica de Calificar (la cola de <3333>), sin nada de pantalla.
  *
- * La usan las dos vistas: la de siempre (PendingPage, el móvil y las ventanas
- * angostas) y la de escritorio (components/escritorio/Calificar.jsx). Salió de
+ * La usan las dos vistas: la de escritorio (components/escritorio/Calificar.jsx)
+ * y la del móvil (components/movil/). La pantalla vieja (PendingPage) se borró el
+ * 2026-09-26, cuando el móvil tuvo todas las suyas. Salió de
  * PendingPage en la fase 2 del rediseño (2026-09-24) tal cual estaba, para que
  * el móvil no cambie en nada.
  *

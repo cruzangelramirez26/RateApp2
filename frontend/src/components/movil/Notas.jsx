@@ -36,8 +36,10 @@ export function FilaNotas({ actual, onNota, deshabilitado = false }) {
  * La hoja de notas de una cancion: portada, nombre y las siete. La usan
  * Calificar (lo que suena fuera de <3333>), Recientes y Escuchas. `aviso` dice
  * en una linea que hace calificar desde ahi (flujo completo o solo catalogar).
+ * `children` va debajo: acciones extra (Biblioteca pone escuchar, escuchas y
+ * abrir en Spotify).
  */
-export function HojaNota({ abierta, onCerrar, track, actual, onNota, aviso, ocupado = false }) {
+export function HojaNota({ abierta, onCerrar, track, actual, onNota, aviso, ocupado = false, children }) {
   return (
     <Hoja abierta={abierta} onCerrar={onCerrar} etiqueta="Calificar">
       {track && (
@@ -48,6 +50,7 @@ export function HojaNota({ abierta, onCerrar, track, actual, onNota, aviso, ocup
           </div>
           <FilaNotas actual={actual} onNota={onNota} deshabilitado={ocupado} />
           {aviso && <div className="mv-hoja-aviso">{aviso}</div>}
+          {children}
         </>
       )}
     </Hoja>

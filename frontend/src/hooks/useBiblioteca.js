@@ -7,8 +7,9 @@ import { useToast } from './useToast';
 /**
  * La lógica de Biblioteca, sin nada de pantalla.
  *
- * La usan las dos vistas: la de siempre (LibraryPage, el móvil y las ventanas
- * angostas) y la de escritorio (components/escritorio/Biblioteca.jsx). Salió de
+ * La usan las dos vistas: la de escritorio (components/escritorio/Biblioteca.jsx)
+ * y la del móvil (components/movil/). La pantalla vieja (LibraryPage) se borró el
+ * 2026-09-26, cuando el móvil tuvo todas las suyas. Salió de
  * LibraryPage en la fase 4 del rediseño (2026-09-25) tal cual estaba.
  *
  * `lista` es 'liked' (los Me Gusta nativos, de 500 en 500), una playlist

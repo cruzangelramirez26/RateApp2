@@ -55,8 +55,10 @@ function conFeat(nombres) {
 function estilo(d) {
   if (d < 0) return { transform: 'translateX(-135%) rotate(-14deg)', opacity: 0 };
   if (d === 0) return { transform: 'none', opacity: 1 };
-  if (d === 1) return { transform: 'translateY(-24px) scale(.91)', opacity: 0.75, filter: 'brightness(.7)' };
-  if (d === 2) return { transform: 'translateY(-44px) scale(.82)', opacity: 0.4, filter: 'brightness(.55)' };
+  // Profundidad oscureciendo, no transparentando: con opacidad, la que pasaba
+  // al frente se veía a través durante la transición (Angel, 2026-09-26).
+  if (d === 1) return { transform: 'translateY(-24px) scale(.91)', opacity: 1, filter: 'brightness(.5)' };
+  if (d === 2) return { transform: 'translateY(-44px) scale(.82)', opacity: 0.55, filter: 'brightness(.35)' };
   return { transform: 'translateY(-56px) scale(.75)', opacity: 0 };
 }
 

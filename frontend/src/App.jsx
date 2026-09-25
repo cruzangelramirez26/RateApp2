@@ -10,6 +10,9 @@ import Movil from './components/movil/Movil';
 import CalificarMovil from './components/movil/Calificar';
 import RecientesMovil from './components/movil/Recientes';
 import EscuchasMovil from './components/movil/Escuchas';
+import BibliotecaMovil from './components/movil/Biblioteca';
+import ResumenMovil from './components/movil/Resumen';
+import HerramientasMovil from './components/movil/Herramientas';
 import BarraVentana from './components/BarraVentana';
 import Shell from './components/escritorio/Shell';
 import CalificarEscritorio from './components/escritorio/Calificar';
@@ -19,9 +22,6 @@ import ResumenEscritorio from './components/escritorio/Resumen';
 import HerramientasEscritorio from './components/escritorio/Herramientas';
 import RecientesEscritorio from './components/escritorio/Recientes';
 import LoginPage from './pages/LoginPage';
-import LibraryPage from './pages/LibraryPage';
-import StatsPage from './pages/StatsPage';
-import ToolsPage from './pages/ToolsPage';
 import BackfillPage from './pages/BackfillPage';
 import CleanupPage from './pages/CleanupPage';
 import PlayerPage from './pages/PlayerPage';
@@ -107,15 +107,15 @@ export default function App() {
   const rutas = (
     <Routes>
       <Route path="/" element={escritorio ? <CalificarEscritorio /> : <CalificarMovil />} />
-      <Route path="/library" element={escritorio ? <BibliotecaEscritorio /> : <LibraryPage />} />
+      <Route path="/library" element={escritorio ? <BibliotecaEscritorio /> : <BibliotecaMovil />} />
       <Route path="/recent" element={escritorio ? <RecientesEscritorio /> : <RecientesMovil />} />
-      <Route path="/tools" element={escritorio ? <HerramientasEscritorio /> : <ToolsPage />} />
+      <Route path="/tools" element={escritorio ? <HerramientasEscritorio /> : <HerramientasMovil />} />
       {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
           desde Herramientas. */}
       <Route path="/backfill" element={<BackfillPage />} />
       <Route path="/window" element={escritorio ? <EscuchasEscritorio /> : <EscuchasMovil />} />
       <Route path="/abandoned" element={<CleanupPage />} />
-      <Route path="/dashboard" element={escritorio ? <ResumenEscritorio /> : <StatsPage />} />
+      <Route path="/dashboard" element={escritorio ? <ResumenEscritorio /> : <ResumenMovil />} />
     </Routes>
   );
 

@@ -7,8 +7,9 @@ import { useToast } from './useToast';
  * La lógica de Herramientas (Modo virtual, Reordenador, A+ instantáneos,
  * Migración y Orden de playlists), sin nada de pantalla.
  *
- * La usan las dos vistas: la de siempre (ToolsPage, el móvil y las ventanas
- * angostas) y la de escritorio (components/escritorio/Herramientas.jsx). Salió
+ * La usan las dos vistas: la de escritorio (components/escritorio/Herramientas.jsx)
+ * y la del móvil (components/movil/). La pantalla vieja (ToolsPage) se borró el
+ * 2026-09-26, cuando el móvil tuvo todas las suyas. Salió
  * de ToolsPage en la fase 6 del rediseño (2026-09-25) tal cual estaba: mismas
  * llamadas y mismos mensajes.
  *

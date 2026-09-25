@@ -556,19 +556,26 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   background: none;
   box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
   transform-origin: center;
-  transition: opacity 0.7s ease, transform 0.9s var(--esc-ease), filter 0.3s;
+  transition: opacity 0.7s ease, transform 0.9s var(--esc-ease), filter 0.6s ease;
   animation: esc-asoma 0.7s ease both;
 }
 .esc-portada-btn { cursor: pointer; }
 .esc-portada-btn img,
 .esc-portada-btn .esc-sin-portada { display: block; width: 100%; height: 100%; object-fit: cover; }
 .esc-cal-portada.o0  { z-index: 10; opacity: 1; transform: none; }
-.esc-cal-portada.o1  { z-index: 9;  opacity: 0.55; transform: translateX(calc(var(--cal-portada) * 0.16)) scale(0.92); }
-.esc-cal-portada.o2  { z-index: 8;  opacity: 0.25; transform: translateX(calc(var(--cal-portada) * 0.32)) scale(0.84); }
-.esc-cal-portada.om1 { z-index: 9;  opacity: 0.4;  transform: translateX(calc(var(--cal-portada) * -0.12)) scale(0.9) rotate(-2deg); }
-.esc-cal-portada.om2 { z-index: 8;  opacity: 0.16; transform: translateX(calc(var(--cal-portada) * -0.22)) scale(0.8) rotate(-4deg); }
+/* La profundidad se hace oscureciendo, no transparentando: con opacidad, la
+   que pasaba al frente seguía medio transparente durante la transición y se
+   veía la de atrás a través de ella (Angel, 2026-09-26). Solo las del fondo
+   (o2 / om2) llevan algo de transparencia, porque detrás de ellas no hay nada. */
+.esc-cal-portada.o1  { z-index: 9;  opacity: 1;    filter: brightness(0.42); transform: translateX(calc(var(--cal-portada) * 0.16)) scale(0.92); }
+.esc-cal-portada.o2  { z-index: 8;  opacity: 0.5;  filter: brightness(0.3);  transform: translateX(calc(var(--cal-portada) * 0.32)) scale(0.84); }
+.esc-cal-portada.om1 { z-index: 9;  opacity: 1;    filter: brightness(0.32); transform: translateX(calc(var(--cal-portada) * -0.12)) scale(0.9) rotate(-2deg); }
+.esc-cal-portada.om2 { z-index: 8;  opacity: 0.35; filter: brightness(0.25); transform: translateX(calc(var(--cal-portada) * -0.22)) scale(0.8) rotate(-4deg); }
 .esc-cal-portada.salida { z-index: 11; opacity: 0; transform: translateY(-6%) rotate(-6deg) scale(0.86); pointer-events: none; }
-.esc-cal-portada.esc-portada-btn:hover { opacity: 0.85; filter: brightness(1.08); }
+.esc-cal-portada.o1.esc-portada-btn:hover,
+.esc-cal-portada.om1.esc-portada-btn:hover { filter: brightness(0.62); }
+.esc-cal-portada.o2.esc-portada-btn:hover,
+.esc-cal-portada.om2.esc-portada-btn:hover { filter: brightness(0.45); }
 /* Solo "desde": la que entra se funde hasta la opacidad de su lugar. */
 @keyframes esc-asoma { from { opacity: 0; } }
 

@@ -46,3 +46,29 @@ export const IcoSiguiente = () => (
 export const IcoCorazon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.4-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.6-7.5 10-7.5 10Z" /></svg>
 );
+
+// Herramientas (fase 4 del rediseño móvil).
+export const IcoCerrar = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+);
+export const IcoOrdenar = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><path d="M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3" /></svg>
+);
+export const IcoVirtual = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3" /><path d="M8 10h8M8 14h5" /></svg>
+);
+export const IcoMigrar = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><path d="M4 12h14M13 7l5 5-5 5" /></svg>
+);
+export const IcoEstrella = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><path d="m12 3.8 2.5 5 5.5.8-4 3.9.9 5.5L12 16.4 7.1 19l.9-5.5-4-3.9 5.5-.8Z" /></svg>
+);
+export const IcoArchivo = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="5" rx="1.5" /><path d="M5.5 9.5v8a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-8M10 13.5h4" /></svg>
+);
+export const IcoLimpiar = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><path d="M5 7h14M9 7V5h6v2M6.5 7l1 12.5h9l1-12.5" /></svg>
+);
+export const IcoAsa = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
+);
