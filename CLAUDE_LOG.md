@@ -65,9 +65,18 @@ de ese cuatrimestre.
 
 **PENDIENTES:**
 
-- [ ] Que Angel lo vea en produccion.
-- [ ] Fase 6: Herramientas (con backfill y limpieza al estilo nuevo, y la
-      tarjeta "Apariencia", que en escritorio no hace nada).
+- [ ] Que Angel lo vea en produccion: portadas en 640 px (recargar la app) y
+      el clic en las tarjetas.
+- [ ] **SIGUIENTE SESION (Angel): Herramientas y Recientes.**
+  - Fase 6, Herramientas: hay lienzo (`project/Herramientas.dc.html`). Incluye
+    `/backfill` y `/abandoned` (limpieza) al estilo nuevo, y la tarjeta
+    "Apariencia", que en escritorio no hace nada (es solo oscuro).
+  - **Recientes NO tiene pantalla en el lienzo** (se quedo en el riel por
+    decision de Angel). Hay que proponerle un diseño antes de construir.
+- [ ] Sin verificar con el Spotify real: el ▶ de Me Gusta en Biblioteca
+      (contexto de Me Gusta o la cancion sola), el arreglo del 403 con
+      Spotify dormido y "Saltar" que cambia la cancion.
+- [ ] Despues: fase 7, Reproductor. Y el rediseño movil, en otra sesion.
 
 ---
 
