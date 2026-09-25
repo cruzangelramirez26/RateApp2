@@ -96,13 +96,44 @@ panel no emula tactil a 768+); arrastrar de un bloque a otro lejano con el
 autodesplazamiento (el arrastre se probo dentro de A+). `/backfill` truena
 en el mock porque no le da datos: esa pantalla no se toco.
 
+Commit `e190ea5`.
+
+**TERCERA TANDA: Catalogar (`/backfill`) y Limpiar (`/abandoned`) al estilo
+nuevo, movil y escritorio.** Era el ultimo pendiente web del plan; no tenian
+lienzo, asi que se hicieron con el lenguaje de Recientes (escritorio) y de
+Escuchas (movil). **Revisable de diseño.**
+
+- `hooks/useBackfill.js` y `hooks/useLimpieza.js`: la logica de
+  `BackfillPage` / `CleanupPage` tal cual (se borraron las dos). Lo que suena
+  ya no se sondea aparte: sale del `SonandoCtx` del marco.
+- Catalogar: fila = escuchar desde ahi; la nota (7) **cataloga**; "↑
+  Rotacion" (A+/A/B+) usa el flujo completo. En movil las dos van en la misma
+  hoja, separadas. Si suena una de la cola, sale arriba.
+- Limpiar: casilla para marcar, fila = escuchar, nota = catalogar. Con algo
+  marcado, barra "Quitar N de Me Gusta" (abajo en movil, pegajosa arriba en
+  escritorio) que **siempre** pasa por confirmacion. "0 meses sin oir" dice
+  ahora "este mes".
+
+**Verificado en navegador** con las dos colas reales de produccion (GET) en
+el mock: movil 375x812 — catalogar B manda `?soft=true` con `added_at`
+2024-05-17; "↑ A" manda `/tracks/rate` sin soft con `added_at` 2021-07-08;
+tocar la 3a fila manda el tramo desde ahi; sin dispositivo sale el link.
+Limpiar: marcar 2 -> barra centrada; el boton abre la confirmacion **sin
+llamar nada**; "Si, quitarlas" -> `/tracks/unlike` con exactamente esas 2,
+sin ninguna nota. Escritorio 1440x900: tecla 3 -> B+ soft con fecha, Rotacion
+A+ con flujo completo, confirmacion en barra. 1024x700 sin desborde.
+
 **PENDIENTES:**
 
 - [ ] Que Angel pruebe en el celular: modo sonando, Biblioteca, Resumen,
-      Herramientas (sobre todo el Reordenador con el dedo).
-- [ ] Que Angel vea en PC la transicion nueva de la pila.
-- [ ] Backfill y Limpieza al estilo nuevo (movil y escritorio).
+      Herramientas (sobre todo el Reordenador con el dedo), Catalogar y
+      Limpiar.
+- [ ] Que Angel vea en PC la transicion nueva de la pila, y Catalogar y
+      Limpiar (su diseño no salio de un lienzo).
 - [ ] Fases 5 y 6 (notificaciones y widgets, Java; piden reinstalar el APK).
+      **No se empezaron**: el S24 no estaba conectado, y sin el no hay forma
+      de probar ni una notificacion. Ademas la de "sin nota" pide una tabla
+      nueva en MySQL.
 
 ---
 

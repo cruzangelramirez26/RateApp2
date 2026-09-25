@@ -1650,6 +1650,50 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   .esc-rec-album { display: none; }
 }
 
+/* ─── Catalogar y Limpiar (2026-09-26) ──────────────────────────
+   Las dos colas de Me Gusta, con las filas de Recientes (.esc-rec-*). */
+.esc-cola .esc-rotulo { font-size: clamp(11px, 0.7vw, 14px); }
+.esc-cola .esc-fantasma, .esc-cola .esc-segmento button { white-space: nowrap; }
+.esc-cola-aviso { margin: 14px 0 0; max-width: 880px; font-size: clamp(13px, 0.8vw, 15px); line-height: 1.55; color: rgba(243, 239, 231, 0.55); }
+.esc-cola-aviso b { color: rgba(243, 239, 231, 0.85); font-weight: 600; }
+.esc-cola .esc-rec-lista { margin-top: 18px; }
+.esc-cola-destacada { margin-top: 16px; }
+.esc-cola-destacada .esc-rec-fila { background: rgba(243, 239, 231, 0.08); border-color: rgba(243, 239, 231, 0.26); }
+.esc-cola-sonando { display: block; margin-bottom: 2px; font-size: 10px !important; letter-spacing: 0.14em; }
+.esc-cola-fila.ocupada { opacity: 0.5; }
+.esc-cola-fila.marcada { background: rgba(243, 239, 231, 0.09); border-color: rgba(243, 239, 231, 0.26); }
+.esc-cola-plays { flex-shrink: 0; min-width: 150px; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.esc-cola-plays b { font-family: var(--font-mono); font-size: clamp(16px, 1vw, 20px); font-weight: 600; color: var(--esc-crema); }
+.esc-cola-plays span { font-family: var(--font-mono); font-size: 11px; color: rgba(243, 239, 231, 0.45); white-space: nowrap; }
+.esc-cola-plays.apagada b { color: rgba(243, 239, 231, 0.45); }
+.esc-cola-plays.poco b { text-decoration: underline; text-decoration-color: rgba(243, 239, 231, 0.35); text-underline-offset: 4px; }
+.esc-cola-subir { flex-shrink: 0; }
+.esc-cola-rotacion { flex-shrink: 0; align-items: center; }
+.esc-cola-rotacion .esc-rotulo { margin-right: 4px; font-size: 10px !important; }
+.esc-cola-casilla { flex-shrink: 0; width: 40px; align-self: stretch; display: grid; place-items: center; padding: 0 0 0 6px; border: 0; background: none; cursor: pointer; }
+.esc-cola-num { flex-shrink: 0; width: 28px; margin-right: -10px; font-family: var(--font-mono); font-size: 11px; color: rgba(243, 239, 231, 0.35); text-align: right; }
+.esc-cola-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+.esc-cola-tope { display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(243, 239, 231, 0.6); }
+.esc-cola-tope input {
+  width: 64px; height: 30px; padding: 0 8px; border-radius: 8px; box-sizing: border-box; text-align: center;
+  border: 1px solid rgba(243, 239, 231, 0.14); background: rgba(13, 12, 11, 0.4); color: var(--esc-crema);
+  font: 500 13px var(--font-mono); outline: none;
+}
+.esc-cola-tope input:focus { border-color: rgba(243, 239, 231, 0.35); }
+.esc-cola-quitar {
+  position: sticky; top: 12px; z-index: 5; display: flex; align-items: center; gap: 12px; margin-top: 16px;
+  padding: 10px 12px 10px 16px; border-radius: 12px; font-size: 13px;
+  background: rgba(24, 22, 20, 0.86); border: 1px solid rgba(243, 239, 231, 0.2);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); animation: esc-sube 0.35s var(--esc-ease) both;
+}
+.esc-cola-quitar > span { flex: 1; color: rgba(243, 239, 231, 0.8); line-height: 1.45; }
+.esc-cola-quitar.confirmando { border-color: rgba(243, 239, 231, 0.45); }
+.esc-cola-quitar .esc-primario { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 1199px) {
+  .esc-cola-plays { min-width: 110px; }
+  .esc-cola-plays span { font-size: 10px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .esc-fondo-img { animation: none; }
   .esc-buscador-lista { animation: none; }

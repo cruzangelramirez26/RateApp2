@@ -370,8 +370,9 @@ dentro de `Movil`). Cuál se monta lo decide `useEscritorio()` por **tipo de
 dispositivo**, no por ancho: Tauri o navegador con mouse = escritorio;
 Android, teléfono o tablet táctil = móvil. La lógica vive una sola vez en un
 hook (`useCalificar`, `useRecientes`, `useEscuchas`, `useBiblioteca`,
-`useHerramientas`); el Resumen solo llama `/tracks/stats`. Las páginas
-viejas (`PendingPage`, `LibraryPage`, ...) se borraron el 2026-09-26.
+`useHerramientas`, `useBackfill`, `useLimpieza`); el Resumen solo llama
+`/tracks/stats`. Las páginas viejas (`PendingPage`, `LibraryPage`,
+`BackfillPage`, ...) se borraron el 2026-09-26.
 
 | Ruta | Pantalla | Qué hace |
 |---|---|---|
@@ -381,7 +382,8 @@ viejas (`PendingPage`, `LibraryPage`, ...) se borraron el 2026-09-26.
 | `/library` | `Biblioteca` | Me Gusta, `<3333>`, cuatrimestres, Galería, Mis Me Gusta. Me Gusta en soft; playlists con flujo completo |
 | `/dashboard` | `Resumen` | El año en tres cuatrimestres; tocar uno cambia los paneles |
 | `/tools` | `Herramientas` | Reordenador, Modo virtual, A+ instantáneos, Migración, Orden de playlists. La tarjeta crece a ventana |
-| `/backfill`, `/abandoned` | `BackfillPage`, `CleanupPage` | Las dos colas de Me Gusta; aún con su diseño viejo |
+| `/backfill` | `Backfill` | Los Me Gusta sin calificar, por escuchas reales. Calificar cataloga (soft + primera escucha); "Rotación" usa el flujo completo (`useBackfill`) |
+| `/abandoned` | `Limpieza` | Todos los Me Gusta de menos a más escuchados; quitar el like pide confirmación, tope 200 (`useLimpieza`) |
 | `/player` | `PlayerPage` | El reproductor flotante (PiP de Chrome y ventana de Tauri) |
 | — | `LoginPage` | Cuando no hay sesión de Spotify |
 

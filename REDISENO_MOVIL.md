@@ -56,9 +56,9 @@ Mismo patrón que el escritorio (ver `CLAUDE_LOG.md`, fases 1-6):
   (`useCalificar`, `useRecientes`, `useEscuchas`, `useBiblioteca`,
   `useHerramientas`). Resumen no tiene hook (solo llama `/tracks/stats`).
 - `App.jsx` elige marco y pantalla por el tipo de dispositivo.
-- Las páginas viejas (`PendingPage`, `RecentPage`, ...) se borraron el
-  2026-09-26, cuando la fase 4 terminó. Solo quedan `BackfillPage` y
-  `CleanupPage`, que se rediseñan aparte.
+- Las páginas viejas (`PendingPage`, `RecentPage`, `BackfillPage`, ...) se
+  borraron el 2026-09-26: ya todas las pantallas tienen vista de escritorio y
+  de móvil.
 
 Reglas que no cambian (y hay que verificar en cada fase):
 
@@ -137,6 +137,6 @@ reinstalar el APK**. Las fases 5 y 6 son Java y sí piden reinstalar
 ## 4. Pendientes que salen del plan
 
 - [ ] Revisar el escritorio en ventanas < 1024 px (fase 1).
-- [ ] Backfill y Limpieza al estilo nuevo (móvil y escritorio).
+- [x] Backfill y Limpieza al estilo nuevo, móvil y escritorio (2026-09-26).
 - [ ] Icono propio de la app (sigue el genérico).
 - [x] Borrar las páginas viejas (2026-09-26).

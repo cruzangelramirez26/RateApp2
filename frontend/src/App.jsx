@@ -13,6 +13,8 @@ import EscuchasMovil from './components/movil/Escuchas';
 import BibliotecaMovil from './components/movil/Biblioteca';
 import ResumenMovil from './components/movil/Resumen';
 import HerramientasMovil from './components/movil/Herramientas';
+import BackfillMovil from './components/movil/Backfill';
+import LimpiezaMovil from './components/movil/Limpieza';
 import BarraVentana from './components/BarraVentana';
 import Shell from './components/escritorio/Shell';
 import CalificarEscritorio from './components/escritorio/Calificar';
@@ -21,9 +23,9 @@ import BibliotecaEscritorio from './components/escritorio/Biblioteca';
 import ResumenEscritorio from './components/escritorio/Resumen';
 import HerramientasEscritorio from './components/escritorio/Herramientas';
 import RecientesEscritorio from './components/escritorio/Recientes';
+import BackfillEscritorio from './components/escritorio/Backfill';
+import LimpiezaEscritorio from './components/escritorio/Limpieza';
 import LoginPage from './pages/LoginPage';
-import BackfillPage from './pages/BackfillPage';
-import CleanupPage from './pages/CleanupPage';
 import PlayerPage from './pages/PlayerPage';
 
 export default function App() {
@@ -112,9 +114,9 @@ export default function App() {
       <Route path="/tools" element={escritorio ? <HerramientasEscritorio /> : <HerramientasMovil />} />
       {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
           desde Herramientas. */}
-      <Route path="/backfill" element={<BackfillPage />} />
+      <Route path="/backfill" element={escritorio ? <BackfillEscritorio /> : <BackfillMovil />} />
       <Route path="/window" element={escritorio ? <EscuchasEscritorio /> : <EscuchasMovil />} />
-      <Route path="/abandoned" element={<CleanupPage />} />
+      <Route path="/abandoned" element={escritorio ? <LimpiezaEscritorio /> : <LimpiezaMovil />} />
       <Route path="/dashboard" element={escritorio ? <ResumenEscritorio /> : <ResumenMovil />} />
     </Routes>
   );
