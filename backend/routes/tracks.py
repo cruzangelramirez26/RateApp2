@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+import time
 import pandas as pd
 
 import database
@@ -192,21 +193,9 @@ def player_play():
     y por lo tanto el caso mas probable de este boton.
     """
     sp = spotify.get_client()
-    try:
-        sp.start_playback()
-        return {"ok": True}
-    except Exception as first_error:
-        device_id = _resolve_device_id(sp)
-        if not device_id:
-            raise HTTPException(
-                status_code=400,
-                detail="No hay ningun dispositivo de Spotify disponible. Abre "
-                       "Spotify en alguna parte y vuelve a intentar.",
-            )
-        try:
-            sp.start_playback(device_id=device_id)
-        except Exception:
-            raise HTTPException(status_code=400, detail=str(first_error))
+    error = _reproducir(sp, lambda dev: sp.start_playback(device_id=dev))
+    if error:
+        raise HTTPException(status_code=400, detail=error)
     return {"ok": True}
 
 
@@ -220,12 +209,61 @@ def _resolve_device_id(sp) -> Optional[str]:
         devices = (sp.devices() or {}).get("devices") or []
     except Exception:
         return None
+    # `is_restricted` = el dispositivo no acepta comandos de la Web API. Mandarle
+    # un play da 403 "Restriction violated", asi que ni se intenta.
+    devices = [d for d in devices if d.get("id") and not d.get("is_restricted")]
     if not devices:
         return None
     for d in devices:
         if d.get("is_active"):
             return d.get("id")
     return devices[0].get("id")
+
+
+SIN_DISPOSITIVO = ("No hay ningún dispositivo de Spotify disponible. "
+                   "Abre Spotify en la compu o el celular y vuelve a intentar.")
+NO_DEJO = ("Spotify no dejó reproducir en ese dispositivo. Dale play una vez "
+           "en Spotify y vuelve a intentar.")
+
+
+def _reproducir(sp, arrancar) -> Optional[str]:
+    """
+    Corre `arrancar(device_id)` hasta que Spotify lo acepte. Devuelve None si
+    arranco, o el mensaje (en espanol) de por que no.
+
+    Tres intentos, cada uno por un motivo que ya se vio en produccion:
+      1. sin device: el caso normal, con algo sonando o recien pausado.
+      2. con device explicito: Spotify abierto pero idle contesta
+         NO_ACTIVE_DEVICE, y nombrar el dispositivo suele revivirlo.
+      3. transfer_playback y otra vez: a veces el paso 2 da 403 "Restriction
+         violated" (2026-09-25, desde Escuchas: el dispositivo dormido no
+         acepta play hasta que se le transfiere la reproduccion).
+    """
+    try:
+        arrancar(None)
+        return None
+    except Exception:
+        pass
+    dev = _resolve_device_id(sp)
+    if not dev:
+        return SIN_DISPOSITIVO
+    try:
+        arrancar(dev)
+        return None
+    except Exception:
+        pass
+    try:
+        sp.transfer_playback(dev, force_play=False)
+        time.sleep(0.6)   # Spotify tarda un momento en tomar el dispositivo
+        arrancar(dev)
+        return None
+    except Exception as e:
+        texto = str(e)
+        if "Restriction" in texto or "403" in texto:
+            return NO_DEJO
+        if "No active device" in texto or "NO_ACTIVE_DEVICE" in texto:
+            return SIN_DISPOSITIVO
+        return f"Spotify rechazó la reproducción: {texto}"
 
 
 @router.post("/player/play-in-context")
@@ -251,25 +289,9 @@ def player_play_in_context(req: PlayContextRequest):
     def _start(device_id=None):
         sp.start_playback(device_id=device_id, context_uri=context_uri, offset=offset)
 
-    try:
-        _start()
-    except Exception as first_err:
-        device_id = _resolve_device_id(sp)
-        if not device_id:
-            raise HTTPException(
-                status_code=400,
-                detail="No hay ningún dispositivo de Spotify disponible. "
-                       "Abre Spotify en la compu o el celular y vuelve a intentar.",
-            )
-        try:
-            _start(device_id)
-        except Exception as second_err:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Spotify rechazó la reproducción: {second_err} "
-                       f"(primer intento: {first_err}). "
-                       f"Requiere Spotify Premium.",
-            )
+    error = _reproducir(sp, _start)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
 
     # Reintenta apagar shuffle ya con reproducción activa — antes de tener
     # contexto, Spotify a veces ignora el toggle.
@@ -923,22 +945,8 @@ def backfill_playlist(
                 sp.start_playback(device_id=device_id, context_uri=ctx,
                                   offset={"position": 0})
 
-        try:
-            _arrancar()
-            started = True
-        except Exception as first:
-            dev = _resolve_device_id(sp)
-            if dev:
-                try:
-                    _arrancar(dev)
-                    started = True
-                except Exception as second:
-                    error_play = str(second)
-            else:
-                error_play = ("No hay ningún dispositivo de Spotify disponible. "
-                              "Abre Spotify y vuelve a intentar.")
-            if not started and error_play is None:
-                error_play = str(first)
+        error_play = _reproducir(sp, _arrancar)
+        started = error_play is None
 
     return {
         "ok": True,

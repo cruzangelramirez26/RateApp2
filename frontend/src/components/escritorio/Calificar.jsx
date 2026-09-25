@@ -257,11 +257,26 @@ export default function Calificar() {
 
   useEffect(() => () => clearTimeout(retenerRef.current), []);
 
+  // Saltar también cambia la canción SI lo que suena es la del frente (Angel,
+  // 2026-09-25, igual que en el PiP): pone a sonar la siguiente PENDIENTE en
+  // <3333>, no el ⏭ de Spotify, que caería en una ya calificada. La que queda
+  // al frente tras saltar es siempre lista[centro + 1], con o sin velo.
   const onSaltar = useCallback(() => {
-    if (retenida) { terminarRetencion(); return; }
-    if (!actual || modo !== 'cola') return;
-    saltar(actual);
-  }, [retenida, actual, modo, saltar, terminarRetencion]);
+    if (modo !== 'cola') { if (retenida) terminarRetencion(); return; }
+    const saliente = retenida ? retenida.track : actual;
+    if (!saliente) return;
+    const destino = lista[centro + 1] || null;
+    if (retenida) terminarRetencion();
+    else saltar(actual);
+    if (destino && idSonando === saliente.id) {
+      escuchar(destino).then((ok) => {
+        if (!ok) return;
+        setEscuchando({ id: destino.id, hasta: Date.now() + ESCUCHA_MS });
+        setTimeout(refrescar, 700);
+        setTimeout(refrescar, 2200);
+      });
+    }
+  }, [retenida, actual, modo, saltar, terminarRetencion, lista, centro, idSonando, escuchar, refrescar]);
 
   // 1-7 califica (durante el velo re-califica la que se ve), S salta, ← → navegan.
   const teclasRef = useRef({});

@@ -330,11 +330,22 @@ export default function PlayerPage() {
     }
   }, [track, saved]);
 
+  // Saltar también cambia la canción SI lo que suena es la de la tarjeta
+  // (decisión de Angel, 2026-09-25): pone a sonar la siguiente PENDIENTE en
+  // <3333>, no el ⏭ de Spotify, que caería en una ya calificada. Si no suena
+  // nada de la cola, solo avanza la tarjeta, como siempre. La tarjeta que
+  // queda al frente tras saltar es siempre `siguienteCola`.
   const saltarEnCola = useCallback(() => {
-    if (retenida) { clearTimeout(retencionRef.current); setRetenida(null); return; }
     if (!actualCola) return;
-    setSaltadas((prev) => [...prev.filter((id) => id !== actualCola.id), actualCola.id]);
-  }, [actualCola, retenida]);
+    const destino = siguienteCola && siguienteCola.id !== actualCola.id ? siguienteCola : null;
+    if (retenida) { clearTimeout(retencionRef.current); setRetenida(null); }
+    else setSaltadas((prev) => [...prev.filter((id) => id !== actualCola.id), actualCola.id]);
+    if (colaSuena && destino) {
+      api.playInContext(destino.id)
+        .then(() => setTimeout(fetchNow, 700))
+        .catch((e) => setError(mensajeDeError(e, 'No se pudo pasar a la siguiente')));
+    }
+  }, [actualCola, siguienteCola, retenida, colaSuena, fetchNow]);
 
   const escucharEnCola = useCallback(async () => {
     if (!actualCola || escuchando) return;
