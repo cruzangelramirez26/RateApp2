@@ -1107,16 +1107,23 @@ def listening_window(dias: int = Query(30, description="0 = historico"),
                         ii = album.get("images") or []
                         imgs[t["id"]] = {
                             "image": ii[-1].get("url") if ii else None,
+                            # La grande (images[0], 640 px) viene en la MISMA
+                            # respuesta: la vista de escritorio pinta la #1 hasta
+                            # 640 px y el fondo difuminado sale de ahi. Con la de
+                            # 64 px se veria pixeleada. Cero llamadas extra.
+                            "image_grande": ii[0].get("url") if ii else None,
                             "album": album.get("name", ""),
                         }
             for it in items:
                 extra = imgs.get(it.get("track_id")) or {}
                 it["image"] = extra.get("image")
+                it["image_grande"] = extra.get("image_grande")
                 it["album"] = extra.get("album", "")
         except Exception:
             # Sin Spotify la lista sale igual: los numeros son de MySQL.
             for it in items:
                 it.setdefault("image", None)
+                it.setdefault("image_grande", None)
                 it.setdefault("album", "")
 
     return {

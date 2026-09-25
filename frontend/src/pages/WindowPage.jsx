@@ -1,9 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, Play, RefreshCw, Search } from 'lucide-react';
-import { api } from '../utils/api';
-import { preloadCache } from '../utils/preloadCache';
 import { ratingColor, ratingDim } from '../utils/theme';
-import { useToast } from '../hooks/useToast';
+import { useEscuchas } from '../hooks/useEscuchas';
 import QueuePlaylistLink from '../components/QueuePlaylistLink';
 
 /**
@@ -46,33 +44,16 @@ function horas(ms) {
 
 export default function WindowPage() {
   const [dias, setDias] = useState(30);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [q, setQ] = useState('');
   const [soloSinCalificar, setSoloSinCalificar] = useState(false);
-  const [busy, setBusy] = useState(null);
-  const [sonando, setSonando] = useState(false);
-  const [linkCola, setLinkCola] = useState(null);
   const [visibles, setVisibles] = useState(50);
-  const toast = useToast();
+  // La lógica vive en el hook desde la fase 3 del rediseño: la comparte con la
+  // vista de escritorio. Esta pantalla no cambió.
+  const {
+    data, loading, error, cargar, busy, calificar,
+    armando: sonando, escuchar: escucharLista, linkCola, cerrarLinkCola,
+  } = useEscuchas(dias);
 
-  // Una clave de cache POR VENTANA: son consultas distintas, y cambiar de
-  // pestaña no debe volver a esperar la que ya se pidió.
-  const cacheKey = `window_${dias}`;
-
-  const cargar = useCallback((forzar = false) => {
-    setLoading(true);
-    setError(null);
-    const key = `window_${dias}`;
-    if (forzar) preloadCache.invalidate(key);
-    preloadCache.load(key, () => api.getListeningWindow(dias, 100))
-      .then(d => setData(d))
-      .catch(() => setError('No se pudo leer tu historial de escuchas.'))
-      .finally(() => setLoading(false));
-  }, [dias]);
-
-  useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => { setVisibles(50); }, [dias]);
 
   const lista = useMemo(() => {
@@ -86,61 +67,8 @@ export default function WindowPage() {
     return xs;
   }, [data, soloSinCalificar, q]);
 
-  function aplicarLocal(fn) {
-    setData(d => {
-      if (!d) return d;
-      const next = fn(d);
-      preloadCache.set(cacheKey, next);   // que el cache no quede viejo
-      return next;
-    });
-  }
-
-  // SIEMPRE soft y SIEMPRE con la fecha de la primera escucha real: esta
-  // pantalla cataloga. Sin la fecha, una canción de 2019 entraría al
-  // cuatrimestre actual.
-  async function calificar(t, rating) {
-    setBusy(t.track_id);
-    try {
-      await api.rateTrackSoft({
-        track_id: t.track_id, name: t.name, artist: t.artist,
-        album: t.album || '', rating,
-        added_at: t.suggested_added_at || undefined,
-      });
-      aplicarLocal(d => ({
-        ...d,
-        sin_calificar: Math.max(0, (d.sin_calificar || 0) - (t.rating ? 0 : 1)),
-        items: d.items.map(x =>
-          x.track_id === t.track_id ? { ...x, rating } : x),
-      }));
-    } catch {
-      toast('No se pudo guardar la calificación', 'error');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  // El mix de una ventana, que es lo que Angel pidió: una playlist REAL con
-  // sus favoritas de ese periodo. Se manda el tramo exacto que se está viendo.
-  async function escuchar(desde = 0) {
-    setSonando(true);
-    try {
-      const ids = lista.slice(desde, desde + 50).map(t => t.track_id);
-      const r = await api.buildQueuePlaylist('window', 50, true, ids);
-      setLinkCola(r.playing ? null
-        : { url: r.spotify_url, count: r.count, error: r.error });
-      toast(
-        r.playing
-          ? `Sonando ${r.count} canciones desde la #${desde + 1}`
-          : (r.error || 'Playlist lista, pero no se pudo reproducir'),
-        r.playing ? 'success' : 'error', 5000,
-      );
-    } catch (e) {
-      setLinkCola(null);
-      toast(e.message || 'No se pudo armar la playlist', 'error');
-    } finally {
-      setSonando(false);
-    }
-  }
+  // Se manda el tramo exacto que se está viendo (con filtros aplicados).
+  const escuchar = (desde = 0) => escucharLista(lista, desde);
 
   const ventana = VENTANAS.find(v => v.dias === dias);
 
@@ -180,7 +108,7 @@ export default function WindowPage() {
         </div>
       </div>
 
-      <QueuePlaylistLink info={linkCola} onClose={() => setLinkCola(null)} />
+      <QueuePlaylistLink info={linkCola} onClose={cerrarLinkCola} />
 
       {/* La ventana. Es la pantalla entera: cambiarla cambia la pregunta. */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '14px 0 10px' }}>

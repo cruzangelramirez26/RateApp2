@@ -790,10 +790,214 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
   .esc-cal-fila-album { display: none; }
 }
 
+/* -- Escuchas (fase 3) ------------------------------------ */
+/* El top 10 del lienzo. --esc-portada manda: la #1, el "01" (en proporción a
+   la portada) y el alto de las filas, para que la lista mida lo mismo que la
+   columna de la izquierda. Resta ~470 px de alto fijo (barra, cabecera, textos
+   de la #1 y el pie) para que quepa sin scroll desde 1024x700. */
+.esc-esc {
+  --esc-portada: clamp(220px, min(30vw, calc(100vh - 470px)), 640px);
+  width: 100%;
+  max-width: 2400px;
+  margin: 0 auto;
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 56px 30px 36px;
+}
+.esc-esc .esc-rotulo { font-size: clamp(11px, 0.7vw, 14px); }
+.esc-esc-cab { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; animation: esc-sube 0.7s var(--esc-ease) both; }
+.esc-esc-titulo { margin: 8px 0 0; font-size: clamp(40px, 3.6vw, 88px); line-height: 1; font-weight: 600; letter-spacing: -0.04em; }
+
+.esc-segmento { display: flex; flex-shrink: 0; padding: 3px; border-radius: 10px; background: rgba(13, 12, 11, 0.5); border: 1px solid rgba(243, 239, 231, 0.1); }
+.esc-segmento button {
+  height: clamp(30px, 2vw, 40px);
+  padding: 0 clamp(14px, 0.9vw, 20px);
+  border-radius: 8px;
+  border: 0;
+  background: none;
+  color: rgba(243, 239, 231, 0.6);
+  font: inherit;
+  font-size: clamp(12px, 0.8vw, 15px);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.esc-segmento button:hover { color: var(--esc-crema); }
+.esc-segmento button.activo { background: rgba(243, 239, 231, 0.14); color: var(--esc-crema); }
+
+.esc-esc-centro { flex: 1; display: flex; align-items: flex-start; gap: clamp(36px, 3.6vw, 96px); margin-top: clamp(24px, 2vw, 44px); transition: opacity 0.2s; }
+.esc-esc-centro.recargando { opacity: 0.55; }
+
+/* La #1 */
+/* El texto de la #1 nunca baja de 300 px aunque la portada si: en 1024 px el
+   nombre se cortaba. */
+.esc-esc-uno { width: max(var(--esc-portada), 300px); flex-shrink: 0; animation: esc-sube 0.8s var(--esc-ease) 0.1s both; }
+.esc-esc-marco { position: relative; width: var(--esc-portada); height: var(--esc-portada); }
+.esc-esc-portada {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transition: transform 0.5s var(--esc-ease);
+}
+.esc-esc-portada:disabled { cursor: progress; }
+.esc-esc-portada img, .esc-esc-portada .esc-sin-portada { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--esc-ease); }
+.esc-esc-portada:hover { transform: translateY(-6px); }
+.esc-esc-portada:hover img { transform: scale(1.05); }
+.esc-esc-play {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: clamp(54px, 3.6vw, 76px);
+  height: clamp(54px, 3.6vw, 76px);
+  border-radius: 50%;
+  background: var(--esc-crema);
+  color: var(--esc-tinta);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s, transform 0.3s var(--esc-ease);
+}
+.esc-esc-play svg { margin-left: 3px; }
+.esc-esc-portada:hover .esc-esc-play, .esc-esc-portada:focus-visible .esc-esc-play { opacity: 1; transform: none; }
+/* El único serif de todo el escritorio: Angel lo pidió así. */
+.esc-esc-numeral {
+  position: absolute;
+  left: calc(var(--esc-portada) * -0.04);
+  bottom: calc(var(--esc-portada) * -0.105);
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: calc(var(--esc-portada) * 0.41);
+  line-height: 1;
+  color: var(--esc-crema);
+  text-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.esc-esc-uno-pie { margin-top: calc(var(--esc-portada) * 0.13); display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.esc-esc-uno-texto { min-width: 0; }
+.esc-esc-uno-nombre {
+  font-size: clamp(30px, 3vw, 72px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  padding-bottom: 0.06em;
+}
+.esc-esc-uno-artista { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: clamp(14px, 1.05vw, 22px); color: rgba(243, 239, 231, 0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-esc-uno-plays { flex-shrink: 0; text-align: right; font-size: clamp(30px, 3vw, 72px); line-height: 1; font-weight: 600; letter-spacing: -0.04em; }
+.esc-esc-uno-plays .esc-rotulo { margin-top: 6px; font-size: clamp(9px, 0.62vw, 12px); letter-spacing: 0.12em; font-weight: 400; }
+.esc-esc-uno-linea { margin-top: 12px; min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: clamp(13px, 0.9vw, 17px); color: rgba(243, 239, 231, 0.55); }
+
+/* La lista: 02 a 10. Las filas se reparten el alto de la columna izquierda. */
+.esc-esc-lista { flex: 1; min-width: 0; display: flex; flex-direction: column; animation: esc-sube 0.8s var(--esc-ease) 0.15s both; }
+.esc-esc-lista-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 10px; border-bottom: 1px solid rgba(243, 239, 231, 0.1); }
+.esc-esc-lista-acciones { display: flex; align-items: center; gap: 6px; }
+.esc-esc-filas { list-style: none; margin: 0; padding: 6px 0 0; display: flex; flex-direction: column; }
+.esc-esc-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: clamp(46px, calc((var(--esc-portada) + 80px) / 9), 88px);
+  padding-right: 12px;
+  border-radius: 10px;
+  transition: background 0.2s;
+  animation: esc-sube 0.6s var(--esc-ease) both;
+}
+.esc-esc-fila:hover, .esc-esc-fila.suena, .esc-esc-fila.eligiendo { background: rgba(255, 255, 255, 0.05); }
+.esc-esc-fila-play {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 1.1vw, 22px);
+  padding: 0 0 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.esc-esc-fila-play:disabled { cursor: progress; }
+.esc-esc-rank { position: relative; width: 24px; flex-shrink: 0; display: grid; place-items: center; font-family: var(--font-mono); font-size: clamp(12px, 0.8vw, 15px); color: rgba(243, 239, 231, 0.45); }
+.esc-esc-rank > * { grid-area: 1 / 1; transition: opacity 0.2s; }
+.esc-esc-rank-play { opacity: 0; color: var(--esc-crema); }
+.esc-esc-fila-play:hover .esc-esc-rank-num,
+.esc-esc-fila-play:hover .esc-eq { opacity: 0; }
+.esc-esc-fila-play:hover .esc-esc-rank-play { opacity: 1; }
+.esc-esc-fila-img { width: clamp(40px, 2.9vw, 64px); height: clamp(40px, 2.9vw, 64px); border-radius: 5px; object-fit: cover; flex-shrink: 0; }
+.esc-esc-fila-texto { flex: 0 1 clamp(170px, 17vw, 400px); min-width: 0; display: flex; flex-direction: column; }
+.esc-esc-fila-nombre, .esc-esc-fila-artista { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.esc-esc-fila-nombre { font-size: clamp(13px, 0.95vw, 18px); font-weight: 500; }
+.esc-esc-fila-artista { font-size: clamp(12px, 0.8vw, 15px); color: rgba(243, 239, 231, 0.55); }
+.esc-esc-barra { flex: 1; min-width: 40px; height: 4px; border-radius: 2px; background: rgba(243, 239, 231, 0.08); overflow: hidden; }
+.esc-esc-barra span { display: block; height: 100%; border-radius: 2px; background: rgba(243, 239, 231, 0.75); transform-origin: left; animation: esc-crece 1s var(--esc-ease) both; }
+@keyframes esc-crece { from { transform: scaleX(0); } }
+.esc-esc-plays { width: 32px; flex-shrink: 0; text-align: right; font-family: var(--font-mono); font-size: clamp(13px, 0.9vw, 17px); }
+.esc-esc-fila-nota { flex-shrink: 0; min-width: 84px; display: flex; justify-content: flex-end; }
+/* Con las 7 notas abiertas, la barra y el número se hacen a un lado. */
+.esc-esc-fila.eligiendo .esc-esc-barra,
+.esc-esc-fila.eligiendo .esc-esc-plays { display: none; }
+
+.esc-esc-calificar {
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 13px;
+  border: 1px solid rgba(243, 239, 231, 0.22);
+  background: none;
+  color: var(--esc-crema);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.esc-esc-calificar:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(243, 239, 231, 0.4); }
+.esc-esc-nota-btn { padding: 2px; border: 0; border-radius: 8px; background: none; cursor: pointer; transition: transform 0.2s var(--esc-ease); animation: esc-pop 0.35s var(--esc-ease) both; }
+.esc-esc-nota-btn:hover { transform: translateY(-2px); }
+@keyframes esc-pop { from { opacity: 0; transform: scale(1.4); } }
+.esc-esc-teclas { display: flex; gap: 4px; animation: esc-abre 0.25s var(--esc-ease) both; }
+@keyframes esc-abre { from { opacity: 0; transform: translateX(10px); } }
+
+.esc-esc-cargando { width: var(--esc-portada); height: var(--esc-portada); border-radius: 12px; background: rgba(243, 239, 231, 0.06); box-shadow: none; animation: esc-respira 1.6s ease-in-out infinite; }
+.esc-esc-aviso { margin: 0; padding: 14px 12px; color: rgba(243, 239, 231, 0.55); }
+.esc-esc-vacio { flex: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 16px; font-size: 18px; color: rgba(243, 239, 231, 0.72); }
+.esc-esc-vacio p { margin: 0; }
+
+.esc-esc-pie { margin-top: clamp(20px, 2vw, 40px); padding-top: 18px; border-top: 1px solid rgba(243, 239, 231, 0.1); display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px clamp(28px, 3vw, 64px); }
+.esc-esc-pie b { font-size: clamp(24px, 2vw, 44px); font-weight: 600; letter-spacing: -0.04em; }
+.esc-esc-pie span { margin-left: 8px; font-size: clamp(13px, 0.85vw, 16px); color: rgba(243, 239, 231, 0.55); }
+.esc-esc-pie-der { margin-left: auto; }
+/* Pantallas bajas (una laptop con la ventana a media altura): menos aire. */
+@media (max-height: 780px) {
+  .esc-esc { padding-top: 18px; padding-bottom: 18px; }
+  .esc-esc-centro { margin-top: 16px; }
+  .esc-esc-fila { min-height: 42px; }
+  .esc-esc-pie { margin-top: 14px; padding-top: 12px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .esc-fondo-img { animation: none; }
   .esc-buscador-lista { animation: none; }
   .esc-eq span { animation: none; transform: scaleY(0.6); }
   .esc-cal-portada, .esc-cal-repro, .esc-tecla, .esc-tarjeta { transition: none; }
   .esc-cal-titulo, .esc-cal-velo, .esc-tarjeta, .esc-cal-fuera, .esc-cal-aldia { animation: none; }
+  .esc-esc-cab, .esc-esc-uno, .esc-esc-lista, .esc-esc-fila, .esc-esc-barra span, .esc-esc-nota-btn, .esc-esc-teclas { animation: none; }
+  .esc-esc-portada, .esc-esc-portada img { transition: none; }
 }

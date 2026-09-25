@@ -10,6 +10,7 @@ import NavBar from './components/NavBar';
 import BarraVentana from './components/BarraVentana';
 import Shell from './components/escritorio/Shell';
 import CalificarEscritorio from './components/escritorio/Calificar';
+import EscuchasEscritorio from './components/escritorio/Escuchas';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
 import LibraryPage from './pages/LibraryPage';
@@ -96,7 +97,8 @@ export default function App() {
   }
 
   // Lo que cambia entre los dos diseños es el marco y, conforme llega cada
-  // fase del rediseño, la pantalla: Calificar ya tiene la suya (fase 2).
+  // fase del rediseño, la pantalla: Calificar (fase 2) y Escuchas (fase 3) ya
+  // tienen la suya.
   const rutas = (
     <Routes>
       <Route path="/" element={escritorio ? <CalificarEscritorio /> : <PendingPage />} />
@@ -106,7 +108,7 @@ export default function App() {
       {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
           desde Herramientas. */}
       <Route path="/backfill" element={<BackfillPage />} />
-      <Route path="/window" element={<WindowPage />} />
+      <Route path="/window" element={escritorio ? <EscuchasEscritorio /> : <WindowPage />} />
       <Route path="/abandoned" element={<CleanupPage />} />
       <Route path="/dashboard" element={<StatsPage />} />
     </Routes>
