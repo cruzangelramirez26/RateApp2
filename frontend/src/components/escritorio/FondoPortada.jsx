@@ -8,6 +8,8 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
  * puede pedir otra con `usePortadaDeFondo(url)` —Calificar la de la canción en
  * turno, Escuchas la de la #1— y al salir de la pantalla vuelve la de antes.
  */
+// El móvil (components/movil/) usa el mismo fondo con otras clases:
+// `prefijo="mv"` pinta .mv-fondo en vez de .esc-fondo.
 const FondoCtx = createContext(() => {});
 
 export function usePortadaDeFondo(url) {
@@ -19,11 +21,11 @@ export function usePortadaDeFondo(url) {
   }, [url, pedir]);
 }
 
-export function FondoProvider({ porDefecto, children }) {
+export function FondoProvider({ porDefecto, prefijo = 'esc', children }) {
   const [pedida, setPedida] = useState(null);
   return (
     <FondoCtx.Provider value={setPedida}>
-      <FondoPortada src={pedida || porDefecto} />
+      <FondoPortada src={pedida || porDefecto} prefijo={prefijo} />
       {children}
     </FondoCtx.Provider>
   );
@@ -31,7 +33,7 @@ export function FondoProvider({ porDefecto, children }) {
 
 const FUNDIDO_MS = 1200;
 
-function FondoPortada({ src }) {
+function FondoPortada({ src, prefijo }) {
   // Se guardan las capas vivas: la nueva entra encima con fade y la vieja se
   // quita cuando la nueva ya la tapó. Así nunca se ve el fondo negro en medio.
   const [capas, setCapas] = useState(() => (src ? [{ src, id: 0 }] : []));
@@ -45,11 +47,11 @@ function FondoPortada({ src }) {
   }, [src]);
 
   return (
-    <div className="esc-fondo" aria-hidden="true">
+    <div className={`${prefijo}-fondo`} aria-hidden="true">
       {capas.map((c) => (
-        <img key={c.id} src={c.src} alt="" className="esc-fondo-img" />
+        <img key={c.id} src={c.src} alt="" className={`${prefijo}-fondo-img`} />
       ))}
-      <div className="esc-fondo-velo" />
+      <div className={`${prefijo}-fondo-velo`} />
     </div>
   );
 }

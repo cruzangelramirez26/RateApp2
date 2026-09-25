@@ -6,7 +6,8 @@ import { setCuatriMap } from './utils/cuatrimestres';
 import { ToastProvider } from './hooks/useToast';
 import { ThemeProvider } from './hooks/useTheme';
 import { useEscritorio } from './hooks/useEscritorio';
-import NavBar from './components/NavBar';
+import Movil from './components/movil/Movil';
+import CalificarMovil from './components/movil/Calificar';
 import BarraVentana from './components/BarraVentana';
 import Shell from './components/escritorio/Shell';
 import CalificarEscritorio from './components/escritorio/Calificar';
@@ -16,7 +17,6 @@ import ResumenEscritorio from './components/escritorio/Resumen';
 import HerramientasEscritorio from './components/escritorio/Herramientas';
 import RecientesEscritorio from './components/escritorio/Recientes';
 import LoginPage from './pages/LoginPage';
-import PendingPage from './pages/PendingPage';
 import LibraryPage from './pages/LibraryPage';
 import RecentPage from './pages/RecentPage';
 import StatsPage from './pages/StatsPage';
@@ -101,11 +101,12 @@ export default function App() {
   }
 
   // Lo que cambia entre los dos diseños es el marco y, conforme llega cada
-  // fase del rediseño, la pantalla: Calificar (fase 2), Escuchas (fase 3),
-  // Biblioteca (fase 4) y Resumen (fase 5) ya tienen la suya.
+  // fase del rediseño, la pantalla. El escritorio ya tiene todas; el móvil
+  // (REDISENO_MOVIL.md) va llegando por fases y mientras tanto usa las
+  // pantallas de siempre dentro de su marco.
   const rutas = (
     <Routes>
-      <Route path="/" element={escritorio ? <CalificarEscritorio /> : <PendingPage />} />
+      <Route path="/" element={escritorio ? <CalificarEscritorio /> : <CalificarMovil />} />
       <Route path="/library" element={escritorio ? <BibliotecaEscritorio /> : <LibraryPage />} />
       <Route path="/recent" element={escritorio ? <RecientesEscritorio /> : <RecentPage />} />
       <Route path="/tools" element={escritorio ? <HerramientasEscritorio /> : <ToolsPage />} />
@@ -132,10 +133,7 @@ export default function App() {
               escritorio ? (
                 <Shell usuario={auth.user}>{rutas}</Shell>
               ) : (
-                <div className="app-layout">
-                  <NavBar />
-                  <div className="main-content">{rutas}</div>
-                </div>
+                <Movil>{rutas}</Movil>
               )
             } />
           </Routes>
