@@ -2,6 +2,65 @@
 
 ---
 
+## 2026-09-24 (sesion: rediseño de escritorio, fase 3 — Escuchas)
+
+**Maquina: PC `AngelPC`.** Angel: *"quiero seguir con el cambio de diseño
+web/desktop"*. Se paso a React la pantalla Escuchas del lienzo
+(`project/Escuchas.dc.html`), su favorita.
+
+**Decisiones de Angel, preguntadas antes de tocar codigo** (las tres
+diferencias entre el lienzo y la pantalla de siempre):
+
+- **Solo el top 10**, como el lienzo (se le recomendo la lista de 100 con
+  scroll y eligio el top 10). La de 100 con filtros sigue en la vista de
+  siempre (movil y ventanas < 1024).
+- **Calificar con un boton que abre las 7 notas** en la misma fila; picar una
+  nota puesta la deja cambiar. Con las notas abiertas: 1-7 y Esc.
+- **Clic en una fila = la reproduce**: arma la playlist del periodo desde
+  ahi, con las 50 siguientes de las 100 (no solo las del top).
+
+**Como quedo:** `hooks/useEscuchas.js` tiene la logica que vivia en
+`WindowPage` (que no cambia de aspecto); `components/escritorio/Escuchas.jsx`
+es la vista nueva y `App.jsx` elige por `useEscritorio()`. La #1 en grande con
+el "01" en Instrument Serif italica (se agrego a la hoja de Google Fonts; el
+archivo de la fuente solo se baja donde se usa), fondo con su portada, la
+cancion que suena marcada con ecualizador (por id **o** nombre+artista, por
+los ids distintos de Spotify) y abajo los totales historicos de
+`/listening/summary`. Todo escala con `--esc-portada`, como Calificar.
+
+**Backend, un campo:** `/listening/window` manda `image_grande` (images[0],
+640 px) ademas de la miniatura de 64. Sale de la **misma** respuesta de
+`sp.tracks`, cero llamadas extra; sin Spotify va en `None`.
+
+**La regla de siempre, verificada en la vista nueva:** calificar es soft y con
+la primera escucha real. En la prueba, "¿En Que Momento?" (top de 30 dias,
+escuchada este mes) se mando con `soft=true` y `added_at` **2023-09-06**.
+
+**Verificado en navegador** contra un backend de mentiras con datos reales de
+produccion (solo lectura, las 4 ventanas): 1440x900, 1024x700 y 2560x1392 sin
+desborde (en 1024 salieron 110 px de sobra y el nombre de la #1 cortado:
+arreglado con columna de texto de minimo 300 px y compactando en pantallas
+bajas); abrir notas, tecla 3 -> B+ y el contador de "sin calificar" 33 -> 32;
+Esc cierra; clic en la #5 manda la playlist empezando en ella; Historico con
+titulo largo (2 lineas y elipsis); a 800 px sale la pantalla de siempre, ya
+con el hook. Backend: 7 comprobaciones de `image_grande` sin red ni MySQL.
+`npm run build` OK.
+
+**NO VERIFICADO:** las animaciones en movimiento (el panel de pruebas estaba
+oculto, `document.hidden = true`, la trampa anotada en la fase 2), y la
+pantalla en produccion.
+
+Commit `7d81da8`.
+
+**PENDIENTES:**
+
+- [ ] Que Angel la vea en produccion (y siguen las de la fase 2: Calificar a
+      ojo y en Tauri).
+- [ ] El pie a 1024 px se parte en dos renglones. Se ve bien, pero se nota.
+- [ ] Fase 4: Biblioteca.
+
+---
+
 ## 2026-09-24 (sesion: rediseño de escritorio, fase 2 — Calificar)
 
 **Maquina: PC `AngelPC`.** Angel: *"sigue con la fase 2 del diseño"*. Se
