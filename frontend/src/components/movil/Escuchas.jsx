@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { preloadCache } from '../../utils/preloadCache';
 import { useEscuchas } from '../../hooks/useEscuchas';
@@ -56,6 +57,17 @@ export default function EscuchasMovil() {
     preloadCache.load('listeningSummary', api.getListeningSummary).then(setResumen).catch(() => {});
   }, []);
   useEffect(() => { setEligiendo(null); }, [dias]);
+
+  // El aviso de "sin nota" del celular abre /window?calificar=<track_id>: se
+  // abre la hoja de esa cancion en cuanto llegan los 30 dias. Busca en las
+  // 100 de la ventana, no solo en el top 10 que se pinta.
+  const [params, setParams] = useSearchParams();
+  const pedida = params.get('calificar');
+  useEffect(() => {
+    if (!pedida || dias !== 30 || !items.length) return;
+    if (items.some((x) => x.track_id === pedida)) setEligiendo(pedida);
+    setParams({}, { replace: true });
+  }, [pedida, dias, items, setParams]);
 
   const abierta = eligiendo ? items.find((x) => x.track_id === eligiendo) || null : null;
   async function elegir(r) {
