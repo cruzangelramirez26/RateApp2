@@ -12,6 +12,7 @@ import Shell from './components/escritorio/Shell';
 import CalificarEscritorio from './components/escritorio/Calificar';
 import EscuchasEscritorio from './components/escritorio/Escuchas';
 import BibliotecaEscritorio from './components/escritorio/Biblioteca';
+import ResumenEscritorio from './components/escritorio/Resumen';
 import LoginPage from './pages/LoginPage';
 import PendingPage from './pages/PendingPage';
 import LibraryPage from './pages/LibraryPage';
@@ -98,8 +99,8 @@ export default function App() {
   }
 
   // Lo que cambia entre los dos diseños es el marco y, conforme llega cada
-  // fase del rediseño, la pantalla: Calificar (fase 2), Escuchas (fase 3) y
-  // Biblioteca (fase 4) ya tienen la suya.
+  // fase del rediseño, la pantalla: Calificar (fase 2), Escuchas (fase 3),
+  // Biblioteca (fase 4) y Resumen (fase 5) ya tienen la suya.
   const rutas = (
     <Routes>
       <Route path="/" element={escritorio ? <CalificarEscritorio /> : <PendingPage />} />
@@ -111,7 +112,7 @@ export default function App() {
       <Route path="/backfill" element={<BackfillPage />} />
       <Route path="/window" element={escritorio ? <EscuchasEscritorio /> : <WindowPage />} />
       <Route path="/abandoned" element={<CleanupPage />} />
-      <Route path="/dashboard" element={<StatsPage />} />
+      <Route path="/dashboard" element={escritorio ? <ResumenEscritorio /> : <StatsPage />} />
     </Routes>
   );
 

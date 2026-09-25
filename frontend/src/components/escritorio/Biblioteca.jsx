@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Play, MoreHorizontal, LayoutGrid, List, Search, X } from 'lucide-react';
 import { api } from '../../utils/api';
 import { preloadCache } from '../../utils/preloadCache';
@@ -62,10 +63,12 @@ function Eq() {
 export default function BibliotecaEscritorio() {
   const toast = useToast();
   const { sonando, refrescar } = useSonando();
+  // El Resumen abre Biblioteca en un cuatrimestre: llega en el state de la ruta.
+  const { state } = useLocation();
   const {
     lista, isLikedView, tracks, loading, loadingMore, hasMoreLiked,
     loadMoreLiked, seleccionar, calificar,
-  } = useBiblioteca();
+  } = useBiblioteca(state?.lista || 'liked');
 
   const [dist, setDist] = useState(null);
   const [muestras, setMuestras] = useState({});      // key -> canciones, para las tarjetas

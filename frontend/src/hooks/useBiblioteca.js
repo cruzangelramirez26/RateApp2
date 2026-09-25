@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
 import { nombreCuatri } from '../utils/cuatrimestres';
@@ -66,8 +66,11 @@ export function ordenar(tracks, modo) {
   return tracks;
 }
 
-export function useBiblioteca() {
-  const [lista, setLista] = useState('liked');
+/**
+ * `inicial` es la lista con la que abre (el Resumen manda un cuatrimestre).
+ */
+export function useBiblioteca(inicial = 'liked') {
+  const [lista, setLista] = useState(inicial);
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -77,19 +80,25 @@ export function useBiblioteca() {
 
   const isLikedView = lista === 'liked';
 
+  // Cada carga lleva su número y solo la última pinta: picar dos listas
+  // rápido dejaba que la respuesta más lenta pisara a la que se pidió después.
+  const turno = useRef(0);
+
   const loadLiked = useCallback(async () => {
+    const mio = ++turno.current;
     setLoading(true);
     setLista('liked');
     setLikedOffset(0);
     try {
       const data = await preloadCache.load('likedAll', () => api.getLikedAll(PAGE_SIZE, 0));
+      if (mio !== turno.current) return;
       setTracks(data || []);
       setHasMoreLiked((data?.length ?? 0) >= PAGE_SIZE);
       setLikedOffset(PAGE_SIZE);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
-      setLoading(false);
+      if (mio === turno.current) setLoading(false);
     }
   }, [toast]);
 
@@ -107,25 +116,32 @@ export function useBiblioteca() {
     }
   }, [likedOffset, toast]);
 
-  useEffect(() => { loadLiked(); }, [loadLiked]);
+  // Solo al montar: la lista con la que se abre.
+  const primera = useRef(inicial);
+  useEffect(() => {
+    if (primera.current === 'liked') loadLiked();
+    else seleccionar(primera.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doSearch = useCallback(async (q) => {
     if (!q.trim()) return;
+    const mio = ++turno.current;
     setLoading(true);
     setLista('');
     setHasMoreLiked(false);
     try {
       const data = await api.searchTracks(q.trim(), 200);
-      setTracks(data);
+      if (mio === turno.current) setTracks(data);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
-      setLoading(false);
+      if (mio === turno.current) setLoading(false);
     }
   }, [toast]);
 
   const seleccionar = useCallback(async (key) => {
     if (key === 'liked') { loadLiked(); return; }
+    const mio = ++turno.current;
     setLoading(true);
     setLista(key);
     setHasMoreLiked(false);
@@ -134,11 +150,11 @@ export function useBiblioteca() {
       const playlistId = dist[key];
       if (!playlistId) throw new Error('No hay playlist para esta opción');
       const data = await preloadCache.load(`playlist_${key}`, () => api.getPlaylistTracks(playlistId));
-      setTracks(data || []);
+      if (mio === turno.current) setTracks(data || []);
     } catch (err) {
-      toast(err.message, 'error');
+      if (mio === turno.current) toast(err.message, 'error');
     } finally {
-      setLoading(false);
+      if (mio === turno.current) setLoading(false);
     }
   }, [toast, loadLiked]);
 
