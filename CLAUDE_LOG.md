@@ -2,6 +2,73 @@
 
 ---
 
+## 2026-09-25 (sesion: rediseño de escritorio, fase 4 — Biblioteca)
+
+**Maquina: PC `AngelPC`.** Angel: *"sigue con la fase 4, biblioteca"*. Se paso
+a React la pantalla Biblioteca del lienzo (`project/Biblioteca.dc.html`).
+
+**Decisiones de Angel, preguntadas antes de tocar codigo** (lo que el lienzo
+no traia o cambiaba):
+
+- **Tarjeta de "Me Gusta" al inicio** de la fila de playlists, para regresar.
+- **Cuadricula + boton de lista** (filas con album y cuatrimestre), como
+  Calificar.
+- **Solo el filtro de texto.** El CSV se queda en la vista de siempre.
+- **La nota abre las 7**, igual que en Escuchas (1-7 y Esc). ⋯ lleva "Mis
+  escuchas" y "Abrir en Spotify".
+
+**Como quedo:** `hooks/useBiblioteca.js` tiene la logica de `LibraryPage`
+(que no cambia de aspecto); `components/escritorio/Biblioteca.jsx` es la vista
+nueva. El selector de notas de Escuchas paso a `Calificador.jsx` y lo comparten
+las dos pantallas. Tarjetas: Me Gusta, `<3333>` ("N por calificar" si hay),
+los cuatrimestres del año **hasta el actual** (en enero no salen PT.-2/PT.-3
+vacias), Galeria y Mis Me Gusta, con mosaico sin portadas repetidas. Chips de
+nota (Todas / Sin calificar / A+…D) y los tres ordenes del lienzo.
+
+**Lo que no se movio:** en Me Gusta se califica en **soft**; en una playlist,
+con el flujo completo. Verificado por las llamadas que salen.
+
+**Tres cosas nuevas por el camino:**
+
+- **`POST /tracks/player/play-track`** para el ▶ de Me Gusta: arranca
+  `spotify:user:<id>:collection` con offset en la cancion, asi lo que sigue es
+  tu siguiente like. Ese contexto **no esta documentado** por Spotify; si lo
+  rechaza, suena la cancion sola. Pasa por `_reproducir` (el que despierta el
+  dispositivo). 6 comprobaciones con un Spotify de mentiras. **NO VERIFICADO
+  con el Spotify real de Angel.**
+- **`portadaMedia()`**: `/liked-all` y `/playlist` mandan la portada de 640 px;
+  500 de esas para una cuadricula de ~180 px son decenas de MB. Se cambia el
+  prefijo del id de Spotify a la de 300 px, sin pedir nada mas.
+- **La nota nueva se escribe en el cache de la lista** (`preloadCache.peek`,
+  nuevo). Antes, salir y volver mostraba la nota vieja. Un primer intento con
+  `load` y un fetcher vacio habria dejado `null` en el cache y la lista vacia
+  la siguiente vez; se cazo leyendo el codigo antes de probar.
+
+**Verificado en navegador** contra el backend de mentiras con datos reales de
+produccion (solo lectura: 500 Me Gusta y las 6 playlists): en Me Gusta la nota
+sale con `soft=true` y el ▶ va a `play-track`; en PT.-3 la nota va con el flujo
+completo y el ▶ a `play-in-context` con el id de PT.-3; filtro ("dillom" -> 7
+de 81); vista de lista. 1440x900, 1024x700 (las tarjetas se escondian a la
+derecha sin barra: ahora se encogen a ~106 px) y 2560x1392 (9 columnas), sin
+desborde. A 800 px sale la pantalla de siempre. Escuchas, repasada tras mover
+el selector: sigue calificando en soft con la fecha de 2023. Una prueba vieja
+fallo porque contaba 3 lugares que reproducen y ya son 4: se corrigio la prueba.
+
+**En la lista de una playlist no sale la columna de cuatrimestre:** ese
+endpoint no trae la fecha ni el override (en la vista vieja salia "—").
+
+Commit `264ed10`.
+
+**PENDIENTES:**
+
+- [ ] Que Angel la vea en produccion: sobre todo el ▶ en Me Gusta (si Spotify
+      acepta el contexto de tus Me Gusta o cae a la cancion sola).
+- [ ] "Recientes" ordena por fecha de nota, como la vista vieja; las Me Gusta
+      sin nota caen por su fecha de like. Revisar si es lo que Angel espera.
+- [ ] Fase 5: Resumen.
+
+---
+
 ## 2026-09-24 (sesion: rediseño de escritorio, fase 3 — Escuchas)
 
 **Maquina: PC `AngelPC`.** Angel: *"quiero seguir con el cambio de diseño
