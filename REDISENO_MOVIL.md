@@ -109,7 +109,7 @@ reinstalar el APK**. Las fases 5 y 6 son Java y sí piden reinstalar
   Limpieza siguen abriendo sus pantallas de siempre (se rediseñan después,
   junto con las del escritorio).
 
-### Fase 5 — Notificaciones (Java)
+### Fase 5 — Notificaciones (Java) (hecha 2026-09-26; ver CLAUDE.md, Deploy)
 - **Calificar lo que suena** (`CalificarService`): se rehace con el diseño
   nuevo (una línea + 7 notas; al calificar "Calificada B+ · canción" con
   Deshacer y se va sola). Canal silencioso de prioridad baja para quedar

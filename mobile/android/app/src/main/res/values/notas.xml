@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Las notas de la notificacion, en escala de tinta/crema como la app (sin
+     colores por nota, decision de Angel 2026-09-25). Tema claro; el oscuro
+     esta en values-night. -->
+<resources>
+    <color name="nota_texto_top">#1c1a17</color>
+    <color name="nota_texto_mid">#991c1a17</color>
+    <color name="nota_borde_top">#731c1a17</color>
+    <color name="nota_borde_mid">#2b1c1a17</color>
+    <color name="nota_on_fondo">#1c1a17</color>
+    <color name="nota_on_texto">#ffffff</color>
+</resources>

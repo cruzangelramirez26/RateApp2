@@ -2,10 +2,15 @@ package com.angelrg.rateapp;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.webkit.WebView;
+
+import org.json.JSONObject;
+
+import java.util.regex.Pattern;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -15,6 +20,15 @@ import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+
+    /** La pantalla a abrir (la manda un aviso: "/", "/dashboard", "/window?calificar=..."). */
+    static final String EXTRA_RUTA = "ruta";
+    /** Solo en builds de depuracion: dispara un aviso ya (cola, sin_nota, cierre). */
+    private static final String EXTRA_PRUEBA = "prueba_aviso";
+
+    // Esta actividad esta exportada: cualquier app puede mandarle un intent. La
+    // ruta se valida para que solo pueda ser una pantalla de RateApp.
+    private static final Pattern RUTA_VALIDA = Pattern.compile("^/(?!/)[A-Za-z0-9/_?=&%.-]*$");
 
     private final ActivityResultLauncher<String> pedirNotificaciones =
         registerForActivityResult(new ActivityResultContracts.RequestPermission(), concedido -> arrancarNotificacion());
@@ -44,6 +58,52 @@ public class MainActivity extends BridgeActivity {
                 Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             pedirNotificaciones.launch(Manifest.permission.POST_NOTIFICATIONS);
         }
+
+        Avisos.programar(this);
+
+        // Abierta desde un aviso: la WebView ya empezo a cargar la raiz; se
+        // cambia a la pantalla del aviso.
+        String ruta = rutaDe(getIntent());
+        if (ruta != null && getBridge() != null) {
+            getBridge().getWebView().post(() -> getBridge().getWebView().loadUrl(Servidor.base(this) + ruta));
+        }
+        probar(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String ruta = rutaDe(intent);
+        if (ruta != null && getBridge() != null) {
+            // La app ya estaba abierta: se navega dentro de React sin recargar.
+            // React Router escucha popstate.
+            getBridge().getWebView().evaluateJavascript(
+                "history.pushState({}, '', " + JSONObject.quote(ruta) + ");"
+                    + "dispatchEvent(new PopStateEvent('popstate'));", null);
+        }
+        probar(intent);
+    }
+
+    private static String rutaDe(Intent i) {
+        String r = i != null ? i.getStringExtra(EXTRA_RUTA) : null;
+        return r != null && RUTA_VALIDA.matcher(r).matches() ? r : null;
+    }
+
+    /**
+     * Probar un aviso sin esperar a las 10:00:
+     *   adb shell am start -n com.angelrg.rateapp/.MainActivity --es prueba_aviso cola
+     * Solo en el APK de depuracion. "sin_nota" consulta sin gastar el aviso.
+     */
+    private void probar(Intent i) {
+        boolean depuracion = (getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        String cual = i != null ? i.getStringExtra(EXTRA_PRUEBA) : null;
+        if (!depuracion || cual == null) return;
+        final android.content.Context app = getApplicationContext();
+        new Thread(() -> {
+            if ("cola".equals(cual)) Avisos.revisarCola(app, true);
+            else if ("sin_nota".equals(cual)) Avisos.revisarSinNota(app, true);
+            else if ("cierre".equals(cual)) Avisos.revisarCierre(app, true);
+        }, "prueba-aviso").start();
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.angelrg.rateapp;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -9,8 +10,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -25,70 +24,83 @@ import androidx.core.content.ContextCompat;
 
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * La notificacion fija para calificar lo que suena sin abrir la app.
+ * Calificar lo que suena sin abrir la app (rediseño movil, fase 5).
  *
  * Como sabe que suena: la app de Spotify manda un broadcast cada vez que
  * cambia la cancion, con el track_id exacto — SI Angel tiene prendido
- * "Device Broadcast Status" en Spotify. Asi no hay que sondear el backend ni
- * gastar llamadas a la API de Spotify; solo se le pregunta al backend una vez
- * por cancion, por la portada y la calificacion que ya tenga.
+ * "Device Broadcast Status" en Spotify. Esos broadcasts solo llegan a un
+ * receptor registrado en tiempo de ejecucion (Android 8+), o sea a algo vivo:
+ * por eso un servicio en primer plano.
  *
- * Por que un servicio en primer plano: desde Android 8 esos broadcasts solo
- * llegan a un receptor registrado en tiempo de ejecucion, o sea a algo que
- * este vivo. La notificacion ES la del servicio.
+ * DOS NOTIFICACIONES, y la razon importa: el diseño pide que la de calificar
+ * salga con cada cancion, se pueda deslizar y SE VAYA SOLA al calificar. Una
+ * app no puede quitar la notificacion de su propio servicio (Android ignora el
+ * cancel), asi que:
+ *   - la del servicio es minima ("Atento a Spotify", canal de prioridad
+ *     minima, con "Apagar"); en Android 14+ tambien se puede deslizar y el
+ *     servicio sigue;
+ *   - la de calificar es una notificacion NORMAL: una linea y las 7 notas.
+ *     Deslizarla la esconde hasta la siguiente cancion.
  *
- * Califica por HTTP directo al backend (igual que los atajos de Rust del
- * escritorio), no a traves de la pagina: la pagina remota no recibe ningun
- * permiso nativo. Usa el flujo COMPLETO de rate_track, como el widget del
- * sidebar — por eso NO sirve para la cola de /backfill.
+ * DESHACER sin endpoint nuevo: la nota NO se manda al tocarla. Sale
+ * "Calificada B+ · Deshacer" y se manda a los 4 s; Deshacer antes de eso la
+ * cancela. Si cambia la cancion mientras tanto, se manda en el acto.
  *
- * Vive desde que se abre RateApp hasta que Angel la quita deslizando.
+ * Califica con el flujo COMPLETO de rate_track (como Calificar), mandando
+ * nombre/artista/album. Por eso NO sirve para la cola de /backfill.
  */
 public class CalificarService extends Service {
 
     private static final String TAG = "RateAppCalificar";
+    private static final String CANAL_SERVICIO = "servicio";
     private static final String CANAL = "calificar";
+    private static final int SERVICIO_ID = 6;
     private static final int NOTIF_ID = 7;
+    private static final long VENTANA_DESHACER_MS = 4000;
 
     static final String ACCION_CALIFICAR = "com.angelrg.rateapp.CALIFICAR";
+    static final String ACCION_DESHACER = "com.angelrg.rateapp.DESHACER";
     static final String ACCION_CERRAR = "com.angelrg.rateapp.CERRAR";
 
     // Mismo orden que la app: 1 = A+ ... 7 = D (utils/ratings.js).
     private static final String[] RATINGS = {"A+", "A", "B+", "B", "C+", "C", "D"};
     private static final int[] BOTONES = {
         R.id.btn_ap, R.id.btn_a, R.id.btn_bp, R.id.btn_b, R.id.btn_cp, R.id.btn_c, R.id.btn_d};
-    private static final int[] COLORES = {
-        R.color.rating_ap, R.color.rating_a, R.color.rating_bp, R.color.rating_b,
-        R.color.rating_cp, R.color.rating_c, R.color.rating_d};
-    private static final int[] FONDO_VACIO = {
-        R.drawable.rate_out_ap, R.drawable.rate_out_a, R.drawable.rate_out_bp, R.drawable.rate_out_b,
-        R.drawable.rate_out_cp, R.drawable.rate_out_c, R.drawable.rate_out_d};
-    private static final int[] FONDO_LLENO = {
-        R.drawable.rate_fill_ap, R.drawable.rate_fill_a, R.drawable.rate_fill_bp, R.drawable.rate_fill_b,
-        R.drawable.rate_fill_cp, R.drawable.rate_fill_c, R.drawable.rate_fill_d};
+    // Sin relleno (decision de Angel): borde claro para las que entran a
+    // playlists, casi invisible para B/C+/C, punteado para D. Solo se rellena
+    // la que ya tiene la cancion.
+    private static final int[] FONDO = {
+        R.drawable.nota_top, R.drawable.nota_top, R.drawable.nota_top,
+        R.drawable.nota_mid, R.drawable.nota_mid, R.drawable.nota_mid, R.drawable.nota_d};
+    private static final int[] TEXTO = {
+        R.color.nota_texto_top, R.color.nota_texto_top, R.color.nota_texto_top,
+        R.color.nota_texto_mid, R.color.nota_texto_mid, R.color.nota_texto_mid, R.color.nota_texto_mid};
 
-    // Estado de lo que se muestra. Solo se toca en el hilo principal.
+    // Lo que suena. Solo se toca en el hilo principal.
     private String trackId;
     private String nombre = "";
     private String artista = "";
     private String album = "";
-    private String rating;     // null = sin calificar (o todavia no se sabe)
-    private Bitmap portada;
-    private String estado = ""; // "Calificando...", errores; vacio = derivado del rating
+    private String rating;      // la que ya tiene (null = sin nota o no se sabe)
+    private String aviso = "";  // un error que mostrar en la linea de arriba
+
+    // La nota tocada que todavia no se manda (ventana de deshacer).
+    private Pendiente pendiente;
+
+    private static final class Pendiente {
+        final String tid, n, a, al, nota;
+        Pendiente(String tid, String n, String a, String al, String nota) {
+            this.tid = tid; this.n = n; this.a = a; this.al = al; this.nota = nota;
+        }
+    }
 
     private final ExecutorService red = Executors.newSingleThreadExecutor();
     private final Handler principal = new Handler(Looper.getMainLooper());
-    private String base;
+    private final Runnable alTerminarVentana = this::confirmar;
 
     private final BroadcastReceiver spotify = new BroadcastReceiver() {
         @Override
@@ -101,17 +113,16 @@ public class CalificarService extends Service {
             if (tid.equals(trackId)) return;
             mostrar(tid, texto(i.getStringExtra("track")), texto(i.getStringExtra("artist")),
                 texto(i.getStringExtra("album")));
-            enriquecer(tid);
+            leerNota(tid);
         }
     };
 
     @Override
     public void onCreate() {
         super.onCreate();
-        base = leerServidor();
-        crearCanal();
+        crearCanales();
 
-        ServiceCompat.startForeground(this, NOTIF_ID, construir(),
+        ServiceCompat.startForeground(this, SERVICIO_ID, notifServicio(),
             Build.VERSION.SDK_INT >= 34 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0);
 
         IntentFilter f = new IntentFilter("com.spotify.music.metadatachanged");
@@ -120,27 +131,30 @@ public class CalificarService extends Service {
 
         // El broadcast solo llega al CAMBIAR de cancion. Si ya estaba sonando
         // algo al abrir la app, se pregunta una vez al backend.
-        enriquecer(null);
+        leerNota(null);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String accion = intent != null ? intent.getAction() : null;
         if (ACCION_CERRAR.equals(accion)) {
+            confirmar();
+            NotificationManagerCompat.from(this).cancel(NOTIF_ID);
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
         }
-        if (ACCION_CALIFICAR.equals(accion)) {
-            calificar(intent.getStringExtra("rating"));
-        }
+        if (ACCION_CALIFICAR.equals(accion)) tocar(intent.getStringExtra("rating"));
+        if (ACCION_DESHACER.equals(accion)) deshacer();
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        principal.removeCallbacks(alTerminarVentana);
+        confirmar();  // una nota tocada no se pierde porque se apague el servicio
         try { unregisterReceiver(spotify); } catch (IllegalArgumentException ignored) { }
-        red.shutdownNow();
+        red.shutdown(); // shutdown y no shutdownNow: que termine de mandarla
         super.onDestroy();
     }
 
@@ -150,222 +164,205 @@ public class CalificarService extends Service {
     // ------------------------------------------------------------------ estado
 
     private void mostrar(String tid, String n, String a, String al) {
+        confirmar(); // la de la cancion anterior sale ya, no se pierde
         trackId = tid;
         nombre = n;
         artista = a;
         album = al;
         rating = null;
-        portada = null;
-        estado = "";
+        aviso = "";
         publicar();
     }
 
     /**
-     * Portada y calificacion. Con el id del broadcast se pide
+     * La nota que ya tenga, para rellenarla. Con el id del broadcast se pide
      * /tracks/info/{id}: NO /now-playing, porque la API de Spotify puede ir
      * detras del celular y devolver otra cancion (paso el 2026-09-24).
      * Con tid == null (arranque, aun no llega ningun broadcast) se adopta lo
      * que diga /now-playing.
      */
-    private void enriquecer(final String tid) {
+    private void leerNota(final String tid) {
         red.execute(() -> {
             try {
                 JSONObject t;
                 if (tid != null) {
-                    t = new JSONObject(get(base + "/tracks/info/" + tid));
+                    t = new JSONObject(Servidor.get(this, "/tracks/info/" + tid));
                     t.put("id", tid);
                 } else {
-                    t = new JSONObject(get(base + "/tracks/now-playing")).optJSONObject("track");
+                    t = new JSONObject(Servidor.get(this, "/tracks/now-playing")).optJSONObject("track");
                 }
                 String idBackend = t != null ? t.optString("id", null) : null;
                 if (idBackend == null) return;
                 String rat = t.isNull("rating") ? null : t.optString("rating", null);
-                String img = t.isNull("image") ? null : t.optString("image", null);
-                Bitmap bmp = img != null ? bajarPortada(img) : null;
                 String n = t.optString("name", ""), a = t.optString("artist", ""), al = t.optString("album", "");
                 principal.post(() -> {
                     if (tid == null) {
                         // Arranque: solo si mientras tanto no llego un broadcast.
                         if (trackId != null) return;
-                        trackId = idBackend; nombre = n; artista = a; album = al;
+                        trackId = idBackend;
+                        nombre = n;
+                        // now-playing junta a todos los artistas; en MySQL va el principal.
+                        artista = a.split(", ")[0];
+                        album = al;
                     } else if (!idBackend.equals(trackId)) {
                         return; // ya cambio otra vez
                     }
                     rating = rat;
-                    if (bmp != null) portada = bmp;
-                    publicar();
+                    if (pendiente == null) publicar();
                 });
             } catch (Exception e) {
-                Log.w(TAG, "portada/calificacion fallo", e);
+                Log.w(TAG, "leer la nota fallo", e);
             }
         });
     }
 
-    private void calificar(final String r) {
-        if (r == null) return;
-        if (trackId == null) {
-            estado = "Nada sonando";
-            publicar();
-            return;
-        }
-        // Se captura todo al momento del clic: si la cancion cambia mientras
-        // viaja la peticion, se califica la que Angel estaba viendo.
-        final String tid = trackId, n = nombre, a = artista, al = album;
-        estado = "Calificando " + r + "…";
-        publicar();
+    /** Tocar una nota: todavia no se manda; empieza la ventana de deshacer. */
+    private void tocar(String r) {
+        if (r == null || trackId == null) return;
+        // Se captura todo al momento del toque: si la cancion cambia, se
+        // califica la que Angel estaba viendo.
+        pendiente = new Pendiente(trackId, nombre, artista, album, r);
+        principal.removeCallbacks(alTerminarVentana);
+        principal.postDelayed(alTerminarVentana, VENTANA_DESHACER_MS);
+        publicarHecha();
+    }
+
+    private void deshacer() {
+        principal.removeCallbacks(alTerminarVentana);
+        if (pendiente == null) return;
+        boolean mismaCancion = pendiente.tid.equals(trackId);
+        pendiente = null;
+        if (mismaCancion) publicar();
+    }
+
+    /** Manda la nota pendiente (si hay). Al salir bien, la notificacion se va. */
+    private void confirmar() {
+        principal.removeCallbacks(alTerminarVentana);
+        final Pendiente p = pendiente;
+        if (p == null) return;
+        pendiente = null;
         red.execute(() -> {
-            String resultado;
-            boolean ok = false;
+            boolean ok;
             try {
                 JSONObject body = new JSONObject()
-                    .put("track_id", tid).put("rating", r)
+                    .put("track_id", p.tid).put("rating", p.nota)
                     // Con nombres: sin ellos, una cancion nueva nacia anonima
                     // (el bug del 2026-09-22 con el reproductor).
-                    .put("name", n).put("artist", a).put("album", al);
-                int code = post(base + "/tracks/rate", body.toString());
-                ok = code >= 200 && code < 300;
-                resultado = ok ? "Calificada " + r : "No se pudo calificar (" + code + ")";
+                    .put("name", p.n).put("artist", p.a).put("album", p.al);
+                Servidor.post(this, "/tracks/rate", body.toString());
+                ok = true;
             } catch (Exception e) {
                 Log.w(TAG, "rate fallo", e);
-                resultado = "Sin conexion, no se califico";
+                ok = false;
             }
             final boolean exito = ok;
-            final String texto = resultado;
             principal.post(() -> {
-                if (!tid.equals(trackId)) return;
-                if (exito) rating = r;
-                estado = texto;
-                publicar();
+                if (!p.tid.equals(trackId)) return; // ya suena otra: su notificacion manda
+                if (exito) {
+                    rating = p.nota;
+                    NotificationManagerCompat.from(this).cancel(NOTIF_ID);
+                } else {
+                    aviso = "No se califico, sin conexion";
+                    publicar();
+                }
             });
         });
     }
 
-    // ---------------------------------------------------------- notificacion
+    // ---------------------------------------------------------- notificaciones
 
     private void publicar() {
+        if (trackId == null) return; // nada sonando: no hay que calificar
+        Log.d(TAG, "calificar: " + nombre + " · " + artista + " nota=" + rating + (aviso.isEmpty() ? "" : " aviso=" + aviso));
+        notificar(NOTIF_ID, notifCalificar());
+    }
+
+    private void publicarHecha() {
+        Log.d(TAG, "hecha: " + pendiente.nota + " · " + pendiente.n);
+        notificar(NOTIF_ID, notifHecha());
+    }
+
+    private void notificar(int id, Notification n) {
         try {
-            NotificationManagerCompat.from(this).notify(NOTIF_ID, construir());
+            NotificationManagerCompat.from(this).notify(id, n);
         } catch (SecurityException sinPermiso) {
             // Sin permiso de notificaciones no hay nada que pintar.
         }
     }
 
-    private android.app.Notification construir() {
-        RemoteViews chica = new RemoteViews(getPackageName(), R.layout.notif_small);
-        RemoteViews grande = new RemoteViews(getPackageName(), R.layout.notif_big);
-
-        boolean hay = trackId != null;
-        chica.setTextViewText(R.id.title, hay ? nombre + " · " + artista : "Nada sonando en Spotify");
-        grande.setTextViewText(R.id.title, hay ? nombre : "Nada sonando en Spotify");
-        grande.setTextViewText(R.id.artist, hay ? artista : "Pon algo y aparece aqui");
-        grande.setTextViewText(R.id.status, !estado.isEmpty() ? estado
-            : !hay ? "" : rating != null ? "Calificada " + rating : "Sin calificar");
-        if (portada != null) grande.setImageViewBitmap(R.id.cover, portada);
-        else grande.setImageViewResource(R.id.cover, R.mipmap.ic_launcher);
-
+    private Notification notifCalificar() {
+        RemoteViews v = new RemoteViews(getPackageName(), R.layout.notif_calificar);
+        v.setTextViewText(R.id.title, !aviso.isEmpty() ? aviso + " · " + nombre : nombre + " · " + artista);
         for (int k = 0; k < RATINGS.length; k++) {
-            boolean activa = RATINGS[k].equals(rating);
-            int color = ContextCompat.getColor(this, activa ? R.color.rating_on_fill : COLORES[k]);
-            int fondo = activa ? FONDO_LLENO[k] : FONDO_VACIO[k];
-            PendingIntent pi = PendingIntent.getService(this, 100 + k,
+            boolean actual = RATINGS[k].equals(rating);
+            v.setTextColor(BOTONES[k], ContextCompat.getColor(this, actual ? R.color.nota_on_texto : TEXTO[k]));
+            v.setInt(BOTONES[k], "setBackgroundResource", actual ? R.drawable.nota_on : FONDO[k]);
+            v.setOnClickPendingIntent(BOTONES[k], PendingIntent.getService(this, 100 + k,
                 new Intent(this, CalificarService.class).setAction(ACCION_CALIFICAR).putExtra("rating", RATINGS[k]),
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-            for (RemoteViews v : new RemoteViews[]{chica, grande}) {
-                v.setOnClickPendingIntent(BOTONES[k], pi);
-                v.setTextColor(BOTONES[k], color);
-                v.setInt(BOTONES[k], "setBackgroundResource", fondo);
-            }
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
         }
+        return base(v).build();
+    }
 
-        PendingIntent abrir = PendingIntent.getActivity(this, 1,
-            new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        PendingIntent cerrar = PendingIntent.getService(this, 2,
-            new Intent(this, CalificarService.class).setAction(ACCION_CERRAR),
-            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+    private Notification notifHecha() {
+        RemoteViews v = new RemoteViews(getPackageName(), R.layout.notif_hecha);
+        v.setTextViewText(R.id.status, "Calificada " + pendiente.nota + " · " + pendiente.n);
+        v.setOnClickPendingIntent(R.id.btn_deshacer, PendingIntent.getService(this, 3,
+            new Intent(this, CalificarService.class).setAction(ACCION_DESHACER),
+            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT));
+        return base(v).build();
+    }
 
+    private NotificationCompat.Builder base(RemoteViews v) {
         return new NotificationCompat.Builder(this, CANAL)
             .setSmallIcon(R.drawable.ic_stat_rateapp)
             .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
-            .setCustomContentView(chica)
-            .setCustomBigContentView(grande)
-            .setContentIntent(abrir)
-            // Desde Android 14 la notificacion de un servicio SI se puede
-            // deslizar; al hacerlo se apaga el servicio (opcion "a").
-            .setDeleteIntent(cerrar)
-            .setOngoing(true)
+            .setCustomContentView(v)
+            .setCustomBigContentView(v)
+            .setContentIntent(Avisos.abrirApp(this, "/", 1))
+            // Grupo propio: sin el, Android la junta con la del servicio en un
+            // grupo automatico que hereda lo de "fija" y ya no se desliza.
+            .setGroup("calificar")
             .setOnlyAlertOnce(true)
             .setSilent(true)
+            .setShowWhen(false)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_LOW);
+    }
+
+    private Notification notifServicio() {
+        PendingIntent apagar = PendingIntent.getService(this, 2,
+            new Intent(this, CalificarService.class).setAction(ACCION_CERRAR),
+            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        return new NotificationCompat.Builder(this, CANAL_SERVICIO)
+            .setSmallIcon(R.drawable.ic_stat_rateapp)
+            .setContentTitle("Atento a Spotify")
+            .setContentText("Cada canción nueva trae sus notas")
+            .setContentIntent(Avisos.abrirApp(this, "/", 1))
+            .addAction(0, "Apagar", apagar)
+            .setGroup("servicio")
+            // Sin setOngoing: en Android 14+ asi se puede deslizar, y el grupo
+            // que arma Android con esta y la de calificar no hereda lo de "fija".
+            .setSilent(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .build();
     }
 
-    private void crearCanal() {
+    private void crearCanales() {
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        NotificationChannel s = new NotificationChannel(CANAL_SERVICIO, "Atento a Spotify",
+            NotificationManager.IMPORTANCE_MIN);
+        s.setDescription("Necesaria para que salga la de calificar. Se puede ocultar.");
+        s.setShowBadge(false);
+        nm.createNotificationChannel(s);
+
         NotificationChannel c = new NotificationChannel(CANAL, "Calificar lo que suena",
             NotificationManager.IMPORTANCE_LOW);
-        c.setDescription("Notificacion fija con los botones A+ a D");
-        c.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        c.setDescription("Una línea y las siete notas, con cada canción");
+        c.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         c.setShowBadge(false);
-        getSystemService(NotificationManager.class).createNotificationChannel(c);
-    }
-
-    // -------------------------------------------------------------------- red
-
-    /** La URL del backend sale del capacitor.config.json empaquetado: una sola fuente. */
-    private String leerServidor() {
-        try (InputStream in = getAssets().open("capacitor.config.json")) {
-            String url = new JSONObject(leer(in)).getJSONObject("server").getString("url");
-            return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
-        } catch (Exception e) {
-            throw new IllegalStateException("No pude leer server.url de capacitor.config.json", e);
-        }
-    }
-
-    private static String get(String url) throws Exception {
-        HttpURLConnection c = abrir(url);
-        try {
-            if (c.getResponseCode() / 100 != 2) throw new IllegalStateException("HTTP " + c.getResponseCode());
-            return leer(c.getInputStream());
-        } finally { c.disconnect(); }
-    }
-
-    private static int post(String url, String json) throws Exception {
-        HttpURLConnection c = abrir(url);
-        try {
-            c.setRequestMethod("POST");
-            c.setDoOutput(true);
-            c.setRequestProperty("Content-Type", "application/json");
-            try (OutputStream o = c.getOutputStream()) { o.write(json.getBytes(StandardCharsets.UTF_8)); }
-            return c.getResponseCode();
-        } finally { c.disconnect(); }
-    }
-
-    private static Bitmap bajarPortada(String url) {
-        try {
-            HttpURLConnection c = abrir(url);
-            try (InputStream in = c.getInputStream()) {
-                Bitmap b = BitmapFactory.decodeStream(in);
-                // La de Spotify es de 640 px; la notificacion la pinta a 64dp.
-                return b != null ? Bitmap.createScaledBitmap(b, 256, 256, true) : null;
-            } finally { c.disconnect(); }
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static HttpURLConnection abrir(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(10000);
-        c.setReadTimeout(15000);
-        return c;
-    }
-
-    private static String leer(InputStream in) throws Exception {
-        ByteArrayOutputStream b = new ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        for (int n; (n = in.read(buf)) > 0; ) b.write(buf, 0, n);
-        return b.toString("UTF-8");
+        nm.createNotificationChannel(c);
     }
 
     private static String texto(String s) { return s != null ? s : ""; }

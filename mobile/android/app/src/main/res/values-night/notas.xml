@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nota_texto_top">#f3efe7</color>
+    <color name="nota_texto_mid">#a3f3efe7</color>
+    <color name="nota_borde_top">#5cf3efe7</color>
+    <color name="nota_borde_mid">#24f3efe7</color>
+    <color name="nota_on_fondo">#f3efe7</color>
+    <color name="nota_on_texto">#141210</color>
+</resources>

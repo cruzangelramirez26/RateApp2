@@ -130,10 +130,67 @@ A+ con flujo completo, confirmacion en barra. 1024x700 sin desborde.
       Limpiar.
 - [ ] Que Angel vea en PC la transicion nueva de la pila, y Catalogar y
       Limpiar (su diseño no salio de un lienzo).
-- [ ] Fases 5 y 6 (notificaciones y widgets, Java; piden reinstalar el APK).
-      **No se empezaron**: el S24 no estaba conectado, y sin el no hay forma
-      de probar ni una notificacion. Ademas la de "sin nota" pide una tabla
-      nueva en MySQL.
+- [x] Fase 5 (abajo). Fase 6, widgets: sin empezar.
+
+**CUARTA TANDA: FASE 5, LAS NOTIFICACIONES.** Angel conecto el S24:
+*"sigue con las notificaciones"*. APK reinstalado (`adb install -r --user 0`).
+
+**Calificar lo que suena, rehecha como el lienzo:** una linea y las 7 notas,
+sin portada ni controles, sin colores (borde claro A+/A/B+, tenue B/C+/C,
+punteada D, rellena la que ya tiene; tinta en tema claro y crema en oscuro,
+`values-night`). **Dos notificaciones, y es la decision tecnica de la
+tanda:** el diseño pide que se vaya sola al calificar y se pueda deslizar,
+pero Android ignora el `cancel` de la notificacion del propio servicio. Asi
+que el servicio lleva una minima ("Atento a Spotify", con "Apagar") y la de
+calificar es normal. Deslizar la de calificar ya NO apaga el servicio (antes
+si): vuelve con la siguiente cancion. **Deshacer sin endpoint:** al tocar
+una nota sale "Calificada B+ · Deshacer" y la nota se manda a los 4 s; si
+cambia la cancion o se apaga el servicio, se manda en el acto.
+
+**Android 16 (One UI) agrupa solo las notificaciones de una app** aunque
+cada una tenga `setGroup` propio (reagrupa los grupos de una sola). El
+resumen heredaba lo de "fija" de la del servicio; quitandole `setOngoing` a
+la del servicio queda solo `NO_CLEAR` y la de calificar sigue deslizable.
+Medido con `dumpsys notification`.
+
+**Los otros tres avisos (`Avisos.java`, `AvisosReceiver`,
+`ArranqueReceiver`),** cada uno con su canal y sin sonido, con alarmas
+inexactas (llegan hasta 1 h tarde) que se reprograman al abrir la app, al
+reiniciar y al actualizar:
+- Tu cola: 10:00 cada 3 dias, solo si hay pendientes -> abre Calificar.
+- Sin nota: 20:00, uno al dia. **Backend nuevo:** `POST
+  /tracks/avisos/sin-nota` (5+ escuchas en 30 dias, sin nota por track_id Y
+  por match_key, no avisada) y la tabla `avisos_sin_nota`, para que salga una
+  vez por cancion aunque se reinstale la app. 11 comprobaciones sin red ni
+  MySQL. -> abre `/window?calificar=<id>`: Escuchas movil abre la hoja de esa
+  cancion (cataloga, soft + primera escucha).
+- Cierre: 1 de ene/may/sep (reintenta hasta el 7) -> abre el Resumen.
+- `MainActivity` abre la ruta del aviso (en frio con `loadUrl`, en caliente
+  con `pushState`) y **valida la ruta**: es exportada. Gancho de prueba solo
+  en depuracion: `--es prueba_aviso cola|sin_nota|cierre`.
+
+**Verificado en el S24** (bloqueado, al 3 %: todo por `dumpsys`, `logcat` y
+la depuracion de la WebView, sin tocar la pantalla ni picar notas): broadcast
+simulado -> "@OJITOS · DOME", y al abrir adopto lo que sonaba ("Hombre De
+Bien", A+). Los tres avisos con datos reales: "2 sin nota en <3333>",
+"¿En Que Momento? · 5 escuchas este mes y sin nota", "Se cerro 2026 PT.-2 ·
+138 canciones · 61 en A+". El de prueba NO gasto el aviso (el backend lo
+sigue ofreciendo). Alarmas en `dumpsys alarm`: hoy 20:00 y mañana 10:00. La
+ruta en frio y en caliente abre la hoja de "¿En Que Momento?" y limpia la
+URL; `javascript:` y `//otro` se ignoran.
+
+**NO VERIFICADO (necesita a Angel):** picar una nota en la notificacion, el
+Deshacer y que se vaya sola (escribiria una calificacion real); como se ven
+las notificaciones a ojo (el celular estaba bloqueado); la alarma real a
+su hora.
+
+**PENDIENTES:**
+
+- [ ] Angel: calificar desde la notificacion, probar Deshacer, y ver los
+      avisos a ojo. En el celular quedaron los tres de prueba (datos reales).
+- [ ] Si la notificacion "Atento a Spotify" estorba, se puede ocultar desde
+      los ajustes del canal sin apagar nada.
+- [ ] Fase 6: widgets.
 
 ---
 

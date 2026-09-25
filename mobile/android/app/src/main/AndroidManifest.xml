@@ -45,6 +45,19 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Notificacion para calificar la cancion que suena en Spotify" />
         </service>
+
+        <!-- Los avisos de tu cola, sin nota y cierre (Avisos.java). Solo los
+             dispara el AlarmManager de esta app. -->
+        <receiver android:name=".AvisosReceiver" android:exported="false" />
+
+        <!-- Reprogramar las alarmas al reiniciar o actualizar: Android las
+             borra. Las dos acciones son protegidas (solo las manda el sistema). -->
+        <receiver android:name=".ArranqueReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
@@ -53,4 +66,5 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>
