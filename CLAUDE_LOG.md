@@ -17,7 +17,8 @@ PT.-2 = **138 calificadas, 303 en la playlist**. Decisiones de Angel:
 - **El selector (Cuatrimestre / Año / Todo) solo cambia los paneles** de
   abajo; las tres tarjetas son siempre del año. "Mes" se fue: filtraba por año.
 - **Sin la proporcion A+ por A** (se le ofrecio por el pendiente 6b; dijo que no).
-- **Picar una tarjeta abre ese cuatrimestre en Biblioteca.**
+- **Picar una tarjeta abre ese cuatrimestre en Biblioteca.** (Cambiado en la
+  segunda ronda, abajo.)
 
 **Como quedo:** `components/escritorio/Resumen.jsx`, sin hook (la vista vieja
 solo llama a `/tracks/stats`) y **sin cambios de backend**. El largo de cada
@@ -40,6 +41,27 @@ un conteo cortado y el titulo de artistas en dos renglones: arreglado) y
 2560x1392, sin desborde. A 800 px sale la pantalla de siempre.
 
 Commit `af6fd35`.
+
+**SEGUNDA RONDA** (`da88c93`). Angel: las portadas *"se ven en muy mala
+calidad"*, y picar la tarjeta *"no es muy intuitivo"*; que muestre las stats
+de ese cuatrimestre.
+
+- **Portadas:** se midieron. Las tres eran de ~300 px (280×300, 240×300,
+  300×296), estiradas a tarjetas de hasta 680 px. `_cover_url` elegia la de
+  300 a proposito (el Dashboard viejo pinta una tira de 90 px, en un
+  telefono). Spotify SI guarda la de 640 (prefijo `ab67706c0000bebb`,
+  verificado bajando las tres). Ahora `get_playlist_covers` manda las dos,
+  `img` e `img_grande`, de la misma llamada; el movil y las tarjetas chicas
+  siguen con la ligera.
+- **Clic en la tarjeta = sus numeros abajo** (Como calificas, Top set,
+  Artistas); otro clic regresa al año, y el boton "Cuatrimestre" elige el
+  actual. Ya no abre Biblioteca (`useBiblioteca(inicial)` se queda: no
+  estorba). Para los artistas, `/tracks/stats` trae `top_artists_cuatri`
+  (año actual, mismo criterio que `by_cuatri`), una query mas.
+- 10 comprobaciones de backend (la query corrida en SQLite con
+  `YEAR/MONTH/NOW/FIELD` registradas) y el navegador: PT.-2 -> 146 canciones,
+  62 %, "Artistas de 2026 PT.-2", sin salir de `/dashboard`; la tarjeta carga
+  la portada de 597×640.
 
 **PENDIENTES:**
 
