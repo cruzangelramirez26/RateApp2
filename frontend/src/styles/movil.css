@@ -23,7 +23,11 @@
   --mv-vidrio: rgba(20, 18, 16, 0.42);
   --mv-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --mv-resorte: cubic-bezier(0.34, 1.3, 0.5, 1);
-  --mv-abajo: env(safe-area-inset-bottom, 0px);
+  /* La app dibuja DEBAJO de la barra de la hora y de la de gestos
+     (viewport-fit=cover en index.html). La app de Android pasa sus medidas en
+     env() y tambien en --safe-area-inset-* (Capacitor 8, SystemBars). */
+  --mv-arriba: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --mv-abajo: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
 
   --bg-deep:        transparent;
   --bg-surface:     rgba(255, 255, 255, 0.04);
@@ -89,23 +93,25 @@ html.movil body { color: var(--mv-crema); font-family: var(--font-body); -webkit
 
 /* -- Marco ------------------------------------------------
    En pantallas anchas (una tablet) la app va en una columna centrada. */
-.mv { position: relative; z-index: 1; min-height: 100dvh; max-width: 480px; margin: 0 auto; color: var(--mv-crema); }
+/* #root es flex: sin width 100% el marco toma el ancho de su contenido y se
+   sale de la pantalla (Recientes medía 432 px en una de 384). */
+.mv { position: relative; z-index: 1; min-height: 100dvh; width: 100%; min-width: 0; max-width: 480px; margin: 0 auto; color: var(--mv-crema); }
 /* Las pantallas viejas tienen filas que se salen de lado (los chips de
    Biblioteca): el layout de siempre lo cortaba con .main-content. */
 .mv-main { min-height: 100dvh; overflow-x: clip; }
 html.movil, html.movil body { overflow-x: hidden; }
-html.movil .page { padding-bottom: calc(120px + var(--mv-abajo)); }
+html.movil .page { padding-top: calc(16px + var(--mv-arriba)); padding-bottom: calc(120px + var(--mv-abajo)); }
 html.movil .page-header { background: transparent; }
 
 .mv-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--mv-t3); }
 .mv-ic {
-  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none;
   background: var(--mv-vidrio); border: 1px solid var(--mv-b2) !important;
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
 }
 .mv-ic svg { width: 18px; height: 18px; }
 .mv-pill {
-  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 14px;
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 13px;
   background: var(--mv-vidrio); border: 1px solid var(--mv-b2); font-size: 12px; white-space: nowrap;
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
 }
@@ -163,7 +169,7 @@ html.movil .page-header { background: transparent; }
 
 /* -- Toasts: arriba al centro ---------------------------- */
 html.movil .toast-container {
-  top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; right: auto; transform: translateX(-50%);
+  top: calc(10px + var(--mv-arriba)); left: 50%; right: auto; transform: translateX(-50%);
   align-items: center; width: max-content; max-width: calc(100vw - 32px);
 }
 html.movil .toast {
@@ -199,16 +205,26 @@ html.movil .toast-error { background: #3a1b1d; color: var(--mv-crema); border: 1
 
 /* -- Calificar -------------------------------------------- */
 .mv-cal {
-  --carta: clamp(200px, min(78vw, calc(100dvh - 520px)), 340px);
+  /* Lo fijo de la pantalla (cabecera, pildora, nombre, controles, notas y la
+     barra de abajo) suma ~500 px; la portada toma lo que sobra, sin pasar del
+     82 % del ancho. Medido en el S24 (384x832): ~297 px. */
+  --carta: clamp(190px, min(82vw, calc(100dvh - 500px - var(--mv-arriba) - var(--mv-abajo))), 340px);
   height: 100dvh; display: flex; flex-direction: column;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) 20px calc(104px + var(--mv-abajo));
+  padding: calc(12px + var(--mv-arriba)) 20px calc(104px + var(--mv-abajo));
   overflow: hidden;
 }
-.mv-cal-cab { display: flex; justify-content: space-between; align-items: center; height: 48px; margin-bottom: 6px; flex: none; }
-.mv-cal-tit { font-size: 22px; font-weight: 600; letter-spacing: -.03em; line-height: 1.05; margin-top: 4px; }
+.mv-cal-cab { display: flex; justify-content: space-between; align-items: center; height: 44px; flex: none; }
+.mv-cal-cab .mv-eyebrow { font-size: 10px; }
+.mv-cal-tit { font-size: 20px; font-weight: 600; letter-spacing: -.03em; line-height: 1.05; margin-top: 3px; }
+/* La pildora de lo que suena va en su propio renglon: encimada sobre la pila
+   se veia todo amontonado arriba (Angel, 2026-09-25). */
+.mv-sonando-fila { height: 38px; margin-top: 12px; display: flex; justify-content: center; flex: none; }
 .mv-cal-cab-d { display: flex; gap: 8px; align-items: center; }
-.mv-pila-zona { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-.mv-pila { position: relative; width: var(--carta); height: var(--carta); touch-action: pan-y; margin-top: 62px; }
+/* Portada y nombre son un solo bloque centrado en lo que sobra: antes la
+   portada se centraba sola y quedaban 57 px vacios entre ella y el nombre. */
+.mv-pila-zona { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.mv-pila-caja { position: relative; display: grid; place-items: center; margin-top: 26px; }
+.mv-pila { position: relative; width: var(--carta); height: var(--carta); touch-action: pan-y; }
 .mv-carta {
   position: absolute; inset: 0; border-radius: 24px; overflow: hidden; background: #222; will-change: transform;
   transition: transform .55s var(--mv-resorte), opacity .45s var(--mv-ease), filter .45s var(--mv-ease);
@@ -219,7 +235,7 @@ html.movil .toast-error { background: #3a1b1d; color: var(--mv-crema); border: 1
 .mv-carta.arrastre { transition: none; }
 .mv-carta-brillo { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(255,255,255,.18), transparent 36%); pointer-events: none; }
 .mv-resplandor {
-  position: absolute; width: var(--carta); height: var(--carta); border-radius: 40px; background-size: cover; background-position: center;
+  position: absolute; left: 0; top: 0; width: var(--carta); height: var(--carta); border-radius: 40px; background-size: cover; background-position: center;
   filter: blur(38px) saturate(1.6); opacity: .55; transform: translateY(46px) scale(.9); z-index: -1; pointer-events: none;
 }
 .mv-velo {
@@ -233,13 +249,13 @@ html.movil .toast-error { background: #3a1b1d; color: var(--mv-crema); border: 1
 @keyframes mv-estampa { from { transform: scale(1.5); opacity: 0; } }
 
 .mv-sonando {
-  position: absolute !important; top: 8px; left: 50%; transform: translateX(-50%); z-index: 30;
+  position: relative; z-index: 30;
   display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 5px !important; border-radius: 19px; max-width: min(330px, 100%);
   background: rgba(20,18,16,.5) !important; border: 1px solid var(--mv-b2) !important;
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); font-size: 12.5px;
   animation: mv-baja .45s var(--mv-resorte) both;
 }
-@keyframes mv-baja { from { opacity: 0; transform: translate(-50%, -10px) scale(.95); } }
+@keyframes mv-baja { from { opacity: 0; transform: translateY(-8px) scale(.95); } }
 .mv-sonando img, .mv-sonando .mv-sin { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; animation: mv-gira 8s linear infinite; background: rgba(243,239,231,.1); }
 .mv-sonando-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mv-t2); min-width: 0; }
 .mv-sonando-txt b { color: var(--mv-crema); font-weight: 600; }
@@ -251,7 +267,7 @@ html.movil .toast-error { background: #3a1b1d; color: var(--mv-crema); border: 1
 .mv-eq.quieto i { animation: none; height: 4px; }
 @keyframes mv-eq { 0%, 100% { height: 3px; } 50% { height: 11px; } }
 
-.mv-info { margin-top: 22px; min-height: 66px; text-align: center; flex: none; }
+.mv-info { margin-top: 18px; min-height: 66px; width: 100%; text-align: center; flex: none; }
 .mv-info-pos { font-family: var(--font-mono); font-size: 11px; color: var(--mv-t3); letter-spacing: .08em; }
 .mv-info-nom {
   font-size: 24px; font-weight: 600; letter-spacing: -.025em; line-height: 1.12; text-wrap: balance;
@@ -299,6 +315,87 @@ html.movil .toast-error { background: #3a1b1d; color: var(--mv-crema); border: 1
 .mv-cargando { flex: 1; display: grid; place-items: center; }
 .mv-cargando div { width: var(--carta); height: var(--carta); border-radius: 24px; background: rgba(243,239,231,.06); animation: mv-late 1.4s ease-in-out infinite; }
 @keyframes mv-late { 50% { opacity: .5; } }
+
+/* -- Pantallas de lista (Recientes, Escuchas) ------------- */
+.mv-pag { padding: calc(14px + var(--mv-arriba)) 20px calc(124px + var(--mv-abajo)); }
+.mv-cab { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 6px 0 18px; }
+.mv-tit { font-size: 28px; font-weight: 600; letter-spacing: -.03em; line-height: 1.05; margin: 4px 0 0; }
+.mv-ic.on { background: var(--mv-crema) !important; color: var(--mv-tinta) !important; }
+.mv-buscar {
+  width: 100%; height: 44px; border-radius: 14px; padding: 0 14px; margin-bottom: 14px; font: inherit; font-size: 14.5px;
+  color: var(--mv-crema); background: var(--mv-vidrio); border: 1px solid var(--mv-b2); outline: none;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.mv-buscar::placeholder { color: var(--mv-t3); }
+.mv-seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 4px; border-radius: 14px; margin-bottom: 18px;
+  background: var(--mv-vidrio); border: 1px solid var(--mv-b1); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.mv-seg button { height: 34px; border-radius: 10px; font-size: 13px; color: var(--mv-t2); font-weight: 500; transition: background .3s, color .3s; }
+.mv-seg button.on { background: rgba(243,239,231,.14); color: var(--mv-crema); }
+.mv-chips { display: flex; gap: 7px; overflow-x: auto; margin: 0 -20px 20px; padding: 0 20px; scrollbar-width: none; }
+.mv-chips::-webkit-scrollbar { display: none; }
+.mv-chip { flex: none; height: 32px; padding: 0 13px !important; border-radius: 9px; border: 1px solid var(--mv-b2) !important; font-size: 13px; color: var(--mv-t2); background: rgba(13,12,11,.3) !important; }
+.mv-chip.on { background: var(--mv-crema) !important; color: var(--mv-tinta); border-color: var(--mv-crema) !important; font-weight: 600; }
+.mv-dia {
+  display: flex; justify-content: space-between; margin: 22px 0 10px; font: 500 10.5px/1 var(--font-mono);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--mv-t3);
+}
+section:first-child > .mv-dia { margin-top: 2px; }
+.mv-fila {
+  display: flex; align-items: center; gap: 4px; padding: 8px 10px 8px 8px; border-radius: 14px; margin-bottom: 7px;
+  background: rgba(13,12,11,.34); border: 1px solid var(--mv-b1);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); animation: mv-entra .5s var(--mv-ease) both;
+}
+.mv-fila.suena { border-color: rgba(243,239,231,.22); background: rgba(243,239,231,.07); }
+.mv-fila-hueco { height: 66px; background: rgba(243,239,231,.05); animation: mv-late 1.4s ease-in-out infinite; }
+.mv-fila-play { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; }
+.mv-fila-play img, .mv-fila-play .mv-sin { width: 48px; height: 48px; border-radius: 9px; object-fit: cover; flex: none; background: rgba(243,239,231,.08); }
+.mv-fila-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mv-fila-n { font-weight: 600; font-size: 14.5px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-fila-a { color: var(--mv-t2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 6px; align-items: center; }
+.mv-fila-h { font-family: var(--font-mono); font-size: 11px; color: var(--mv-t3); flex: none; }
+.mv-fila-nota { flex: none; padding: 8px 2px 8px 8px !important; display: grid; place-items: center; }
+@keyframes mv-entra { from { opacity: 0; transform: translateY(8px); } }
+.mv-vacio { color: var(--mv-t3); font-size: 13.5px; text-align: center; padding: 30px 0; display: grid; gap: 12px; justify-items: center; }
+.mv-recargando { opacity: .55; transition: opacity .3s; }
+
+/* Escuchas: la #1 grande con el "01" en serifa (lo unico en serifa). */
+.mv-heroe { position: relative; margin: 2px 0 26px; }
+.mv-heroe-img {
+  display: block; width: min(210px, 56vw); aspect-ratio: 1; margin-left: auto; border-radius: 20px; overflow: hidden; position: relative;
+  box-shadow: 0 26px 50px rgba(0,0,0,.5); background: rgba(243,239,231,.06);
+}
+.mv-heroe-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mv-heroe-play {
+  position: absolute; right: 10px; bottom: 10px; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(13,12,11,.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.mv-heroe-play svg { width: 16px; height: 16px; }
+.mv-hueco { animation: mv-late 1.4s ease-in-out infinite; }
+.mv-heroe-uno {
+  position: absolute; left: -6px; top: calc(min(210px, 56vw) - 128px); font-family: "Instrument Serif", Georgia, serif; font-style: italic;
+  font-size: 170px; line-height: .8; letter-spacing: -.04em; text-shadow: 0 10px 40px rgba(0,0,0,.4); pointer-events: none;
+}
+.mv-heroe-n { font-size: 27px; font-weight: 600; letter-spacing: -.03em; line-height: 1.08; margin-top: 18px; text-wrap: balance; }
+.mv-heroe-a { color: var(--mv-t2); margin-top: 3px; display: flex; gap: 6px; align-items: center; min-width: 0; }
+.mv-heroe-a > span:not(.mv-eq) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv-heroe-m { display: flex; gap: 18px; margin-top: 12px; }
+.mv-heroe-m div { font-size: 11px; color: var(--mv-t3); font-family: var(--font-mono); letter-spacing: .04em; }
+.mv-heroe-m b { display: block; font-family: var(--font-body); font-size: 20px; color: var(--mv-crema); font-weight: 600; letter-spacing: -.02em; }
+.mv-lista-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.mv-pill-btn svg { width: 11px; height: 11px; }
+.mv-pill-btn:disabled { opacity: .5; }
+.mv-num { font-family: var(--font-mono); font-size: 12px; color: var(--mv-t3); width: 20px; flex: none; }
+.mv-fila-play .mv-num + img, .mv-fila-play .mv-num + .mv-sin { width: 44px; height: 44px; }
+.mv-plays { font-family: var(--font-mono); font-size: 12px; color: var(--mv-t2); text-align: right; flex: none; display: flex; flex-direction: column; }
+.mv-plays small { color: var(--mv-t3); font-size: 9.5px; letter-spacing: .04em; }
+.mv-totales {
+  margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--mv-b1); display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 11px; color: var(--mv-t3);
+}
+.mv-totales div:last-child { text-align: right; }
+.mv-totales b { color: var(--mv-crema); font-family: var(--font-body); font-size: 17px; display: block; font-weight: 600; }
 
 @media (prefers-reduced-motion: reduce) {
   .mv *, .mv *::before, .mv *::after, .mv-fondo-img { animation: none !important; transition-duration: .01ms !important; }

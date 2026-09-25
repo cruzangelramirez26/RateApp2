@@ -6,8 +6,7 @@ import { useCalificar } from '../../hooks/useCalificar';
 import { useToast } from '../../hooks/useToast';
 import { usePortadaDeFondo } from '../escritorio/FondoPortada';
 import { useSonando } from '../escritorio/sonando';
-import Hoja from './Hoja';
-import { FilaNotas, NotaMv } from './Notas';
+import { FilaNotas, NotaMv, HojaNota } from './Notas';
 import {
   IcoRecargar, IcoPlay, IcoPausa, IcoAnterior, IcoSiguiente, IcoCorazon,
 } from './Iconos';
@@ -299,18 +298,9 @@ export default function Calificar() {
   );
 
   const hoja = (
-    <Hoja abierta={hojaSonando} onCerrar={cerrarHoja} etiqueta="Calificar lo que suena">
-      {sonando?.track && (
-        <>
-          <div className="mv-hoja-t">
-            {sonando.track.image ? <img src={sonando.track.image} alt="" /> : <span className="mv-sin" />}
-            <div><b>{sonando.track.name}</b><span>{sonando.track.artist}</span></div>
-          </div>
-          <FilaNotas actual={notaDeSonando} onNota={calificarSonando} />
-          <div className="mv-hoja-aviso">No está en &lt;3333&gt;. Se reparte a tus playlists como siempre.</div>
-        </>
-      )}
-    </Hoja>
+    <HojaNota abierta={hojaSonando} onCerrar={cerrarHoja} track={sonando?.track}
+      actual={notaDeSonando} onNota={calificarSonando}
+      aviso="No está en <3333>. Se reparte a tus playlists como siempre." />
   );
 
   if (loading) {
@@ -326,7 +316,7 @@ export default function Calificar() {
     return (
       <div className="mv-cal">
         {cabecera}
-        <div className="mv-pila-zona" style={{ flex: 'none', height: 50 }}>{pildora}</div>
+        {pildora && <div className="mv-sonando-fila">{pildora}</div>}
         <div className="mv-aldia">
           <div className="mv-eyebrow">Cola vacía</div>
           <h1>Al día.</h1>
@@ -348,9 +338,10 @@ export default function Calificar() {
   return (
     <div className="mv-cal">
       {cabecera}
+      {pildora && <div className="mv-sonando-fila">{pildora}</div>}
 
       <div className="mv-pila-zona">
-        {pildora}
+        <div className="mv-pila-caja">
         <div className="mv-resplandor" style={actual.image ? { backgroundImage: `url("${actual.image}")` } : undefined} />
         <div className="mv-pila" ref={pilaRef}
              onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
@@ -369,14 +360,15 @@ export default function Calificar() {
             </div>
           )}
         </div>
-      </div>
+        </div>
 
-      <div className="mv-info" key={actual.id}>
-        <div className="mv-info-pos">{pad(posicion)} / {pad(total)}</div>
-        <div className="mv-info-nom">{actual.name}</div>
-        <div className="mv-info-art">
-          <span>{actual.artist}{actual.featuring?.length ? <small> con {conFeat(actual.featuring)}</small> : null}</span>
-          <NotaMv rating={notaActual} />
+        <div className="mv-info" key={actual.id}>
+          <div className="mv-info-pos">{pad(posicion)} / {pad(total)}</div>
+          <div className="mv-info-nom">{actual.name}</div>
+          <div className="mv-info-art">
+            <span>{actual.artist}{actual.featuring?.length ? <small> con {conFeat(actual.featuring)}</small> : null}</span>
+            <NotaMv rating={notaActual} />
+          </div>
         </div>
       </div>
 

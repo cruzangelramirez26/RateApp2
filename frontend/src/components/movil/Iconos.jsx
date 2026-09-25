@@ -25,6 +25,9 @@ export const IcoResumen = () => (
 export const IcoHerramientas = () => (
   <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2.2" /><circle cx="8" cy="17" r="2.2" /></svg>
 );
+export const IcoBuscar = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>
+);
 export const IcoRecargar = () => (
   <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" /></svg>
 );

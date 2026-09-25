@@ -8,6 +8,8 @@ import { ThemeProvider } from './hooks/useTheme';
 import { useEscritorio } from './hooks/useEscritorio';
 import Movil from './components/movil/Movil';
 import CalificarMovil from './components/movil/Calificar';
+import RecientesMovil from './components/movil/Recientes';
+import EscuchasMovil from './components/movil/Escuchas';
 import BarraVentana from './components/BarraVentana';
 import Shell from './components/escritorio/Shell';
 import CalificarEscritorio from './components/escritorio/Calificar';
@@ -18,12 +20,10 @@ import HerramientasEscritorio from './components/escritorio/Herramientas';
 import RecientesEscritorio from './components/escritorio/Recientes';
 import LoginPage from './pages/LoginPage';
 import LibraryPage from './pages/LibraryPage';
-import RecentPage from './pages/RecentPage';
 import StatsPage from './pages/StatsPage';
 import ToolsPage from './pages/ToolsPage';
 import BackfillPage from './pages/BackfillPage';
 import CleanupPage from './pages/CleanupPage';
-import WindowPage from './pages/WindowPage';
 import PlayerPage from './pages/PlayerPage';
 
 export default function App() {
@@ -108,12 +108,12 @@ export default function App() {
     <Routes>
       <Route path="/" element={escritorio ? <CalificarEscritorio /> : <CalificarMovil />} />
       <Route path="/library" element={escritorio ? <BibliotecaEscritorio /> : <LibraryPage />} />
-      <Route path="/recent" element={escritorio ? <RecientesEscritorio /> : <RecentPage />} />
+      <Route path="/recent" element={escritorio ? <RecientesEscritorio /> : <RecientesMovil />} />
       <Route path="/tools" element={escritorio ? <HerramientasEscritorio /> : <ToolsPage />} />
       {/* Sin tab propia: la barra movil ya tiene 5 items. Se entra
           desde Herramientas. */}
       <Route path="/backfill" element={<BackfillPage />} />
-      <Route path="/window" element={escritorio ? <EscuchasEscritorio /> : <WindowPage />} />
+      <Route path="/window" element={escritorio ? <EscuchasEscritorio /> : <EscuchasMovil />} />
       <Route path="/abandoned" element={<CleanupPage />} />
       <Route path="/dashboard" element={escritorio ? <ResumenEscritorio /> : <StatsPage />} />
     </Routes>
