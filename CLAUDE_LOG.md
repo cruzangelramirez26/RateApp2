@@ -2,6 +2,81 @@
 
 ---
 
+## 2026-09-25 (sesion: rediseño de escritorio, fase 6 — Herramientas y Recientes)
+
+**Maquina: PC `AngelPC`.** Angel: *"sigue con el rediseño de herramientas y
+recientes"*.
+
+**Decisiones de Angel, preguntadas antes de tocar codigo:**
+
+- **Abrir una herramienta:** ni panel lateral ni pantalla aparte (se le
+  ofrecieron las dos). *"Algo mas dinamico... un label asi grande en medio...
+  con animacion, no pantalla de carga"*. Quedo: **la tarjeta misma sale de su
+  lugar y crece hasta una ventana en medio**; el tablero se difumina detras.
+  Esc, clic afuera o la X la regresan a su tarjeta.
+- **Apariencia fuera** en escritorio (es solo oscuro). Sigue en el movil.
+- **Recientes: una columna con pestañas** (se le recomendaron dos columnas).
+- **Alcance:** tablero + Recientes. Backfill y Limpieza al estilo nuevo, en
+  otra sesion; sus tarjetas abren las pantallas de siempre.
+
+**Como quedo:**
+
+- `hooks/useHerramientas.js` y `hooks/useRecientes.js` tienen la logica de
+  `ToolsPage` y `RecentPage` (que no cambian de aspecto; se verifico a 800 px
+  que sus botones sigan mandando lo mismo).
+- `components/escritorio/Herramientas.jsx`: el tablero del lienzo. La ventana
+  se anima con Web Animations de la caja de la tarjeta a la final (medido:
+  nace en 124,519 300x300 y termina centrada en 1240x788). Lo que pide cada
+  herramienta sale **mientras crece**, sin pantalla de carga. Reordenador en
+  **seis columnas** (una por nota, cada una con su scroll) para arrastrar de
+  lado; Modo virtual y A+ en una ventana mas chica (980x640), porque en la
+  grande se veian vacias. Orden de playlists no abre nada: sus botones van en
+  la tarjeta, y "Reconstruir" por cuatrimestre quedo como texto chico abajo
+  (el lienzo solo traia el de la Galeria).
+- `components/escritorio/Recientes.jsx`: tarjetas horizontales agrupadas por
+  dia ("Hoy", "Ayer", "Lunes, 21 de septiembre"), con la hora de cada escucha.
+  En Calificadas el dia es el de la **primera** nota (asi ordena la base).
+  Califica con el **flujo completo**, como la pantalla de siempre.
+
+**Tres cosas que salieron probando:**
+
+- **La ventana podia quedarse abierta.** Cerrar esperaba al `onfinish` de la
+  animacion, que llega con el siguiente cuadro: con la pestaña en segundo plano
+  no habria cuadros. Temporizador de respaldo.
+- **Recientes podia dejar vacio el cache.** Calificar pintaba la nota en las
+  dos listas y la escribia al cache; una lista aun no cargada es `[]` y habria
+  quedado asi para siempre. Ahora solo se escribe si tiene algo, y
+  "Calificadas" se vuelve a pedir tras una nota nueva.
+- A 2560 px el tablero dejaba media pantalla vacia: el arte escala con el
+  ancho y la fila de abajo toma el alto que sobra, como en el lienzo.
+
+**Verificado en navegador** contra el backend de mentiras con datos reales de
+produccion (solo lectura: `recently-played`, `recent`, la playlist de PT.-3,
+las candidatas de migracion y los Me Gusta): arrastrar Japon de A+ a A manda
+`/virtual/reorder` con Japon en A al frente de su bloque; Modo virtual inicia,
+simula y finaliza; Migracion trae 246 + 68 ya en PT.-3; A+ aplica las 6
+marcadas; "Ordenar PT.-3" pega a la playlist correcta; en Recientes la tecla 3
+califica B+ **sin** `soft` y con nombre/artista/album. 1440x900 (sin scroll,
+como el lienzo), 1024x700 y 2560x1392 sin desborde. `npm run build` OK.
+
+**NO VERIFICADO:** la animacion en movimiento. El panel de pruebas no produce
+cuadros (0 en 1 s, la trampa de siempre), asi que se midio el origen y el
+destino de la animacion en el DOM, no se vio correr.
+
+Commit `7dcc64d`.
+
+**PENDIENTES:**
+
+- [ ] **Que Angel vea en produccion la animacion de la tarjeta** (abrir y
+      cerrar) y diga si la quiere mas rapida, mas lenta o distinta.
+- [ ] Siguiente sesion: **Backfill y Limpieza** al estilo nuevo (hoy abren las
+      pantallas de siempre dentro del marco oscuro).
+- [ ] Los toasts de arriba a la derecha tapan la X de la ventana un momento
+      (el mismo detalle de la fase 1).
+- [ ] Despues: fase 7, Reproductor. Y el rediseño movil, en otra sesion.
+
+---
+
 ## 2026-09-25 (sesion: rediseño de escritorio, fase 5 — Resumen)
 
 **Maquina: PC `AngelPC`.** Angel: *"sigue con la fase 5, resumen"*. Se paso a
