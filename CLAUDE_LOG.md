@@ -2,6 +2,83 @@
 
 ---
 
+## 2026-09-25 (sesion: rediseño movil — lienzo aprobado, fases 1 y 2)
+
+**Maquina: PC `AngelPC`.** Angel pidio rediseñar el movil *"con la esencia de
+la web pero mas funcional de movil"*, con notificaciones y widgets.
+
+**1) EL LIENZO.** El tipo Design sigue sin estar disponible en la cuenta, asi
+que se trabajo sobre el artifact normal de la sesion anterior:
+https://claude.ai/artifact/QqD3Qi5ZZPi4gW2NnMqJGS (privado, version 4).
+Tres rondas y quedo *"asi dejalo"*:
+
+- **Notas en una fila (opcion A)** y **sin relleno**: con A+/A/B+ rellenas
+  *"parece que las 3 estan seleccionadas"*. Ahora borde claro fino para las
+  que entran a playlists, contorno casi invisible para B/C+/C, punteada D, y
+  solo se rellena la que ya tiene la cancion. Pidio dos veces bajarles el tono.
+- **Notificaciones con muy poco texto**: una linea y un boton. Fuera el "A+ ->
+  Playlists" (*"eso ya lo se"*).
+- La cola, **cada 3 dias a las 10 am**; el aviso de sin nota, **5 escuchas en un
+  mes**; "Mas" se queda.
+- La portada de Calificar mas grande y con aire bajo la cabecera.
+
+**2) EL PLAN**, documentado antes de tocar codigo: `REDISENO_MOVIL.md` (6 fases:
+marco, Calificar, Recientes+Escuchas, Biblioteca+Resumen+Herramientas,
+notificaciones en Java, widgets en Java).
+
+**Decision que cambia la arquitectura:** el diseño se elige **por dispositivo,
+no por ancho** (*"no me gusta que no sepa si esta en la app escritorio o en un
+movil"*). `useEscritorio()`: Tauri o navegador con mouse = escritorio, aunque la
+ventana sea angosta; Android, telefono o tablet = movil, centrado en pantallas
+anchas. Antes era `min-width: 1024px` y debajo salia la app vieja.
+
+**3) FASES 1 Y 2, HECHAS** (`components/movil/`, `styles/movil.css`):
+
+- `Movil.jsx`: el marco. Fondo con la portada difuminada (el mismo
+  `FondoProvider` del escritorio, ahora con `prefijo="mv"`), barra flotante de
+  4 con el numero de pendientes, hoja de "Mas", toasts arriba al centro, y lo
+  que suena por `SonandoCtx` (un solo sondeo). Reemplaza a `NavBar` en el movil.
+- `Calificar.jsx`: pila de portadas que se desliza **solo para navegar**, velo
+  al calificar y avance solo, controles (seek, anterior, play/pausa, siguiente
+  pendiente, corazon) solo si la del frente es la que suena, "Escuchar" y
+  "Saltar" si no. La pildora de lo que suena lleva a la cancion si es de
+  `<3333>`; si no, abre sus notas en una hoja (flujo completo, con nombre,
+  artista principal y album). Usa `useCalificar`, el mismo hook del escritorio.
+- `Hoja.jsx` (se cierra tocando afuera o jalando hacia abajo), `Notas.jsx`,
+  `Iconos.jsx` (los del lienzo).
+- Las pantallas que aun no tienen version movil se ven dentro del marco oscuro.
+
+**Verificado en navegador** contra el backend de mentiras (datos reales de
+produccion, solo lectura): a 375x812, 360x740 y 412x915 las notas quedan arriba
+de la barra (360x740: la portada baja a 220 px); deslizar a la derecha regresa
+una; calificar B manda `/tracks/rate` **sin** `soft` y con nombre, artista y
+album, avanza y baja los contadores 9 -> 8; la pildora lleva a la que suena y
+salen los controles; la hoja de Mas abre Biblioteca. Escritorio a 900x700 sigue
+en su diseño. `npm run build` OK.
+
+**Bug que salio probando:** la Biblioteca vieja ensanchaba la vista a 480 px y
+la barra de abajo se salia. El layout viejo lo tapaba con `.main-content`;
+ahora `overflow-x: hidden` en `html.movil` y `body` (solo en `body` no bastaba).
+
+**NO VERIFICADO:** las animaciones en movimiento (el panel de pruebas no da
+cuadros, la trampa de siempre: el velo y la hoja se midieron en el DOM), una
+tablet tactil (el panel no emula tactil a 768+), y la app de Android real.
+`/abandoned` truena en el backend de mentiras porque no trae datos de limpieza;
+esa pantalla no se toco.
+
+Commit `ac40e1b`.
+
+**PENDIENTES:**
+
+- [ ] Que Angel lo vea en el celular (la app de Android lo toma sola, sin
+      reinstalar) y en el navegador del telefono.
+- [ ] En escritorio a 900 px la pildora de lo que suena roza el chip del
+      cuatrimestre. Quiza ponerle ancho minimo a la ventana de Tauri
+      (pide reinstalar).
+- [ ] Fase 3: Recientes y Escuchas moviles.
+
+---
+
 ## 2026-09-25 (sesion: rediseño de escritorio, fase 6 — Herramientas y Recientes)
 
 **Maquina: PC `AngelPC`.** Angel: *"sigue con el rediseño de herramientas y

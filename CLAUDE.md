@@ -4,6 +4,8 @@
 
 Arquitectura completa: [`ARQUITECTURA.md`](ARQUITECTURA.md) — stack, modelo de dominio, esquema de DB, flujos, mapa de la API y deuda técnica.
 
+Rediseño móvil en curso: [`REDISENO_MOVIL.md`](REDISENO_MOVIL.md) — decisiones de Angel, fases y qué falta. El diseño (escritorio o móvil) se elige por **tipo de dispositivo**, no por ancho (`hooks/useEscritorio.js`).
+
 ## Reglas de trabajo
 
 - Nunca hacer nada sin explicar primero qué entendí y qué voy a hacer
