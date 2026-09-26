@@ -184,12 +184,23 @@ Deshacer y que se vaya sola (escribiria una calificacion real); como se ven
 las notificaciones a ojo (el celular estaba bloqueado); la alarma real a
 su hora.
 
+**"NO VEO LAS NOTIFICACIONES" (Angel, esa noche).** Medido con el log de
+eventos (`logcat -b events`, `notification_cancel`): a las 22:37 la de
+calificar SI salio ("QUE SE HAGA TARDE · WOS"), junto con la de "sin nota"
+de las 20:00 (que salio de verdad: el backend ya la marco). Pero **Android 16
+/ One UI las junto en un grupo "RateApp" contraido**, que no enseña las notas,
+y a las 22:50 se deslizo el grupo (motivo 2) y se llevo las dos (motivo 12).
+La del servicio ya no estaba. **El diseño de dos notificaciones era el
+error.** Ahora es UNA, la del servicio, con estados: notas -> "Calificada B+
+· Deshacer" -> "✓ B+ · cancion" hasta la siguiente. No se "va sola" (una app
+no puede quitar la de su servicio), pero se desliza y regresa con la
+siguiente cancion. Los avisos caducan a las 12 h para no agruparse con ella.
+Verificado por `dumpsys`: una sola notificacion (id 6, canal calificar), sin
+resumen de grupo, y el canal "servicio" borrado.
+
 **PENDIENTES:**
 
-- [ ] Angel: calificar desde la notificacion, probar Deshacer, y ver los
-      avisos a ojo. En el celular quedaron los tres de prueba (datos reales).
-- [ ] Si la notificacion "Atento a Spotify" estorba, se puede ocultar desde
-      los ajustes del canal sin apagar nada.
+- [ ] Angel: calificar desde la notificacion, probar Deshacer, y verla a ojo.
 - [ ] Fase 6: widgets.
 
 ---

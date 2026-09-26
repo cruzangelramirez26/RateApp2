@@ -209,7 +209,10 @@ final class Avisos {
     private static NotificationCompat.Builder base(Context ctx, String canal) {
         return new NotificationCompat.Builder(ctx, canal)
             .setSmallIcon(R.drawable.ic_stat_rateapp)
-            .setGroup(canal)   // cada aviso en su grupo: nada de grupos automaticos
+            .setGroup(canal)
+            // Caducan solos: si se quedan en el panel, Android los junta con la
+            // de calificar en un grupo que esconde las notas.
+            .setTimeoutAfter(12 * 60 * 60 * 1000L)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT);
     }

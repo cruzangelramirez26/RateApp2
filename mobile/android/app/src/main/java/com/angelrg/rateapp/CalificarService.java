@@ -36,15 +36,18 @@ import java.util.concurrent.Executors;
  * receptor registrado en tiempo de ejecucion (Android 8+), o sea a algo vivo:
  * por eso un servicio en primer plano.
  *
- * DOS NOTIFICACIONES, y la razon importa: el diseño pide que la de calificar
- * salga con cada cancion, se pueda deslizar y SE VAYA SOLA al calificar. Una
- * app no puede quitar la notificacion de su propio servicio (Android ignora el
- * cancel), asi que:
- *   - la del servicio es minima ("Atento a Spotify", canal de prioridad
- *     minima, con "Apagar"); en Android 14+ tambien se puede deslizar y el
- *     servicio sigue;
- *   - la de calificar es una notificacion NORMAL: una linea y las 7 notas.
- *     Deslizarla la esconde hasta la siguiente cancion.
+ UNA SOLA NOTIFICACION, la del servicio, que cambia de estado:
+ *   - con cada cancion: una linea y las 7 notas;
+ *   - al tocar una: "Calificada B+ · Deshacer" (4 s);
+ *   - despues: una linea "✓ B+ · cancion" hasta la siguiente cancion.
+ * Se probo con DOS (la del servicio minima y la de calificar normal, para que
+ * esta pudiera irse sola) y NO SIRVIO: Android 16 / One UI junta las
+ * notificaciones de una app en un grupo "RateApp" contraido, que esconde las
+ * notas, y al deslizarlo se van todas (medido en el S24 el 2026-09-26, con los
+ * eventos de notification_cancel). Una app no puede quitar la notificacion de
+ * su servicio, asi que "se va sola" quedo en "se vuelve una linea". Sin
+ * setOngoing: en Android 14+ se desliza, el servicio sigue, y la siguiente
+ * cancion la trae de vuelta.
  *
  * DESHACER sin endpoint nuevo: la nota NO se manda al tocarla. Sale
  * "Calificada B+ · Deshacer" y se manda a los 4 s; Deshacer antes de eso la
@@ -56,10 +59,9 @@ import java.util.concurrent.Executors;
 public class CalificarService extends Service {
 
     private static final String TAG = "RateAppCalificar";
-    private static final String CANAL_SERVICIO = "servicio";
     private static final String CANAL = "calificar";
-    private static final int SERVICIO_ID = 6;
-    private static final int NOTIF_ID = 7;
+    private static final int NOTIF_ID = 6;
+    private static final int NOTIF_VIEJA = 7;   // la de calificar cuando eran dos
     private static final long VENTANA_DESHACER_MS = 4000;
 
     static final String ACCION_CALIFICAR = "com.angelrg.rateapp.CALIFICAR";
@@ -87,6 +89,7 @@ public class CalificarService extends Service {
     private String album = "";
     private String rating;      // la que ya tiene (null = sin nota o no se sabe)
     private String aviso = "";  // un error que mostrar en la linea de arriba
+    private String hecha;       // la nota recien mandada: la notificacion queda en una linea
 
     // La nota tocada que todavia no se manda (ventana de deshacer).
     private Pendiente pendiente;
@@ -122,8 +125,11 @@ public class CalificarService extends Service {
         super.onCreate();
         crearCanales();
 
-        ServiceCompat.startForeground(this, SERVICIO_ID, notifServicio(),
+        ServiceCompat.startForeground(this, NOTIF_ID, notifReposo(),
             Build.VERSION.SDK_INT >= 34 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0);
+        // Limpieza de la version de dos notificaciones.
+        NotificationManagerCompat.from(this).cancel(NOTIF_VIEJA);
+        getSystemService(NotificationManager.class).deleteNotificationChannel("servicio");
 
         IntentFilter f = new IntentFilter("com.spotify.music.metadatachanged");
         // EXPORTED a proposito: el que lo manda es otra app (Spotify).
@@ -139,7 +145,6 @@ public class CalificarService extends Service {
         String accion = intent != null ? intent.getAction() : null;
         if (ACCION_CERRAR.equals(accion)) {
             confirmar();
-            NotificationManagerCompat.from(this).cancel(NOTIF_ID);
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
@@ -171,6 +176,7 @@ public class CalificarService extends Service {
         album = al;
         rating = null;
         aviso = "";
+        hecha = null;
         publicar();
     }
 
@@ -208,7 +214,7 @@ public class CalificarService extends Service {
                         return; // ya cambio otra vez
                     }
                     rating = rat;
-                    if (pendiente == null) publicar();
+                    if (pendiente == null && hecha == null) publicar();
                 });
             } catch (Exception e) {
                 Log.w(TAG, "leer la nota fallo", e);
@@ -260,7 +266,8 @@ public class CalificarService extends Service {
                 if (!p.tid.equals(trackId)) return; // ya suena otra: su notificacion manda
                 if (exito) {
                     rating = p.nota;
-                    NotificationManagerCompat.from(this).cancel(NOTIF_ID);
+                    hecha = p.nota;
+                    publicar();
                 } else {
                     aviso = "No se califico, sin conexion";
                     publicar();
@@ -272,7 +279,12 @@ public class CalificarService extends Service {
     // ---------------------------------------------------------- notificaciones
 
     private void publicar() {
-        if (trackId == null) return; // nada sonando: no hay que calificar
+        if (trackId == null) { notificar(NOTIF_ID, notifReposo()); return; }
+        if (hecha != null) {
+            Log.d(TAG, "lista: " + hecha + " · " + nombre);
+            notificar(NOTIF_ID, notifLista());
+            return;
+        }
         Log.d(TAG, "calificar: " + nombre + " · " + artista + " nota=" + rating + (aviso.isEmpty() ? "" : " aviso=" + aviso));
         notificar(NOTIF_ID, notifCalificar());
     }
@@ -320,8 +332,6 @@ public class CalificarService extends Service {
             .setCustomContentView(v)
             .setCustomBigContentView(v)
             .setContentIntent(Avisos.abrirApp(this, "/", 1))
-            // Grupo propio: sin el, Android la junta con la del servicio en un
-            // grupo automatico que hereda lo de "fija" y ya no se desliza.
             .setGroup("calificar")
             .setOnlyAlertOnce(true)
             .setSilent(true)
@@ -330,39 +340,41 @@ public class CalificarService extends Service {
             .setPriority(NotificationCompat.PRIORITY_LOW);
     }
 
-    private Notification notifServicio() {
+    /** Nada sonando todavia: una linea, con "Apagar". */
+    private Notification notifReposo() {
+        return linea("Atento a Spotify", "Pon algo y aparecen las notas").build();
+    }
+
+    /** Ya calificada: una linea hasta la siguiente cancion. */
+    private Notification notifLista() {
+        return linea("✓ " + hecha + " · " + nombre, artista).build();
+    }
+
+    private NotificationCompat.Builder linea(String titulo, String texto) {
         PendingIntent apagar = PendingIntent.getService(this, 2,
             new Intent(this, CalificarService.class).setAction(ACCION_CERRAR),
             PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        return new NotificationCompat.Builder(this, CANAL_SERVICIO)
+        return new NotificationCompat.Builder(this, CANAL)
             .setSmallIcon(R.drawable.ic_stat_rateapp)
-            .setContentTitle("Atento a Spotify")
-            .setContentText("Cada canción nueva trae sus notas")
+            .setContentTitle(titulo)
+            .setContentText(texto)
             .setContentIntent(Avisos.abrirApp(this, "/", 1))
             .addAction(0, "Apagar", apagar)
-            .setGroup("servicio")
-            // Sin setOngoing: en Android 14+ asi se puede deslizar, y el grupo
-            // que arma Android con esta y la de calificar no hereda lo de "fija".
+            .setGroup("calificar")
+            .setOnlyAlertOnce(true)
             .setSilent(true)
             .setShowWhen(false)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .build();
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setPriority(NotificationCompat.PRIORITY_LOW);
     }
 
     private void crearCanales() {
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        NotificationChannel s = new NotificationChannel(CANAL_SERVICIO, "Atento a Spotify",
-            NotificationManager.IMPORTANCE_MIN);
-        s.setDescription("Necesaria para que salga la de calificar. Se puede ocultar.");
-        s.setShowBadge(false);
-        nm.createNotificationChannel(s);
-
         NotificationChannel c = new NotificationChannel(CANAL, "Calificar lo que suena",
             NotificationManager.IMPORTANCE_LOW);
         c.setDescription("Una línea y las siete notas, con cada canción");
         c.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         c.setShowBadge(false);
-        nm.createNotificationChannel(c);
+        getSystemService(NotificationManager.class).createNotificationChannel(c);
     }
 
     private static String texto(String s) { return s != null ? s : ""; }
