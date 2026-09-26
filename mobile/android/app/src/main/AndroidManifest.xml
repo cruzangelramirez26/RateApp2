@@ -50,6 +50,20 @@
              dispara el AlarmManager de esta app. -->
         <receiver android:name=".AvisosReceiver" android:exported="false" />
 
+        <!-- Los widgets (Widgets.java): 4x2 lo que suena, 4x1 notas, 2x2 cola. -->
+        <receiver android:name=".WidgetSonando" android:exported="true" android:label="Sonando">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_sonando_info" />
+        </receiver>
+        <receiver android:name=".WidgetNotas" android:exported="true" android:label="Notas">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_notas_info" />
+        </receiver>
+        <receiver android:name=".WidgetCola" android:exported="true" android:label="Tu cola">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_cola_info" />
+        </receiver>
+
         <!-- Reprogramar las alarmas al reiniciar o actualizar: Android las
              borra. Las dos acciones son protegidas (solo las manda el sistema). -->
         <receiver android:name=".ArranqueReceiver" android:exported="true">

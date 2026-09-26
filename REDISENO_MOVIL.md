@@ -131,6 +131,13 @@ reinstalar el APK**. Las fases 5 y 6 son Java y sí piden reinstalar
 - RemoteViews: fondo = portada difuminada generada como bitmap.
 - Califican con el flujo completo (como la notificación): **no sirven para la
   cola de `/backfill`**.
+- **Hecha 2026-09-25** (`Widgets.java`, `WidgetSonando/Notas/Cola.java`).
+  Decisiones de Angel: al tocar una nota, lo mismo que la notificación
+  ("Calificada B+ · Deshacer" 4 s y luego se manda); con el servicio apagado
+  el widget muestra **la última canción** ("Lo último que sonó") y tocar una
+  nota **lo prende** y califica esa canción. Lo que suena lo decide
+  `CalificarService` y se lo copia al widget: los dos dicen siempre lo mismo.
+  La cola se refresca al ponerla, cada 30 min, al abrir la app y al calificar.
 
 ---
 

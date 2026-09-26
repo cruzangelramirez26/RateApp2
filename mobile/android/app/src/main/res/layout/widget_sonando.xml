@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget 4x2, lo que suena (lienzo movil, seccion 04): portada, cancion,
+     estado y las 7 notas. El fondo es la portada difuminada (Widgets.java). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/wg_fondo" android:clipToOutline="true">
+    <ImageView android:id="@+id/wg_fondo_img" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="centerCrop" android:importantForAccessibility="no" />
+    <ImageView android:layout_width="match_parent" android:layout_height="match_parent"
+        android:src="@drawable/wg_borde" android:scaleType="fitXY" android:importantForAccessibility="no" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:padding="14dp">
+        <LinearLayout android:id="@+id/wg_cuerpo" android:layout_width="match_parent" android:layout_height="0dp"
+            android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical">
+            <ImageView android:id="@+id/wg_portada" android:layout_width="84dp" android:layout_height="84dp"
+                android:scaleType="centerCrop" android:src="@drawable/wg_portada_vacia" android:contentDescription="Portada" />
+            <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:layout_marginStart="14dp" android:orientation="vertical">
+                <TextView android:id="@+id/wg_cab" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:fontFamily="monospace" android:textAllCaps="true" android:letterSpacing="0.14"
+                    android:textSize="9.5sp" android:textColor="@color/wg_t3" android:text="Sonando" />
+                <TextView android:id="@+id/wg_nombre" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:singleLine="true" android:ellipsize="end"
+                    android:textSize="18sp" android:textStyle="bold" android:letterSpacing="-0.02" android:textColor="@color/wg_t1"
+                    android:text="Nada sonando todavía" />
+                <TextView android:id="@+id/wg_artista" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:singleLine="true" android:ellipsize="end" android:textSize="13sp" android:textColor="@color/wg_t2"
+                    android:text="Pon algo en Spotify" />
+                <TextView android:id="@+id/wg_estado" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp" android:singleLine="true" android:ellipsize="end"
+                    android:textSize="12sp" android:textColor="@color/wg_t3" />
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:id="@+id/wg_notas" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:orientation="horizontal">
+            <TextView android:id="@+id/wn_ap" android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:gravity="center" android:text="A+" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/wg_t1" android:background="@drawable/wg_nota_top" />
+            <TextView android:id="@+id/wn_a" android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:gravity="center" android:text="A" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/wg_t1" android:background="@drawable/wg_nota_top" />
+            <TextView android:id="@+id/wn_bp" android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:gravity="center" android:text="B+" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/wg_t1" android:background="@drawable/wg_nota_top" />
+            <TextView android:id="@+id/wn_b" android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:gravity="center" android:text="B" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/wg_t2" android:background="@drawable/wg_nota_mid" />
+            <TextView android:id="@+id/wn_cp" android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:gravity="center" android:text="C+" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/wg_t2" android:background="@drawable/wg_nota_mid" />
+            <TextView android:id="@+id/wn_c" android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:gravity="center" android:text="C" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/wg_t2" android:background="@drawable/wg_nota_mid" />
+            <TextView android:id="@+id/wn_d" android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1" android:gravity="center" android:text="D" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/wg_t3" android:background="@drawable/wg_nota_d" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

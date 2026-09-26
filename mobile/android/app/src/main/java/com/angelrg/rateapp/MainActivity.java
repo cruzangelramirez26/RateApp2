@@ -113,6 +113,8 @@ public class MainActivity extends BridgeActivity {
         // vuelve al frente, la notificacion regresa si se habia deslizado.
         // Arrancar un servicio que ya corre no hace nada.
         arrancarNotificacion();
+        // El widget de la cola: lo que se califico dentro de la app (solo si hay uno puesto).
+        Widgets.refrescarColaAparte(this);
     }
 
     private void arrancarNotificacion() {

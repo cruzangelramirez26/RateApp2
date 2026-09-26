@@ -55,6 +55,10 @@ import java.util.concurrent.Executors;
  *
  * Califica con el flujo COMPLETO de rate_track (como Calificar), mandando
  * nombre/artista/album. Por eso NO sirve para la cola de /backfill.
+ *
+ * WIDGETS (fase 6): cada cambio de estado se copia a Widgets.java, asi el
+ * widget y la notificacion dicen lo mismo. Las notas del widget llegan aqui
+ * con la cancion en el intent, y lo prenden si estaba apagado.
  */
 public class CalificarService extends Service {
 
@@ -87,12 +91,17 @@ public class CalificarService extends Service {
     private String nombre = "";
     private String artista = "";
     private String album = "";
+    private String imagen;      // url de la portada (sale de /tracks/info, llega despues)
     private String rating;      // la que ya tiene (null = sin nota o no se sabe)
     private String aviso = "";  // un error que mostrar en la linea de arriba
     private String hecha;       // la nota recien mandada: la notificacion queda en una linea
 
     // La nota tocada que todavia no se manda (ventana de deshacer).
     private Pendiente pendiente;
+
+    // Tras onDestroy, una respuesta de red atrasada no debe volver a pintar
+    // la notificacion (el servicio ya no existe) ni marcar el widget como vivo.
+    private boolean destruido;
 
     private static final class Pendiente {
         final String tid, n, a, al, nota;
@@ -143,13 +152,22 @@ public class CalificarService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String accion = intent != null ? intent.getAction() : null;
+        if (!ACCION_CERRAR.equals(accion)) {
+            // Un widget lo prende con startForegroundService, que exige
+            // startForeground en cada arranque aunque ya estuviera prendido.
+            ServiceCompat.startForeground(this, NOTIF_ID, actual(),
+                Build.VERSION.SDK_INT >= 34 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE : 0);
+        }
         if (ACCION_CERRAR.equals(accion)) {
             confirmar();
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
             stopSelf();
             return START_NOT_STICKY;
         }
-        if (ACCION_CALIFICAR.equals(accion)) tocar(intent.getStringExtra("rating"));
+        if (ACCION_CALIFICAR.equals(accion)) {
+            adoptarDelWidget(intent);
+            tocar(intent.getStringExtra("rating"));
+        }
         if (ACCION_DESHACER.equals(accion)) deshacer();
         return START_NOT_STICKY;
     }
@@ -158,6 +176,8 @@ public class CalificarService extends Service {
     public void onDestroy() {
         principal.removeCallbacks(alTerminarVentana);
         confirmar();  // una nota tocada no se pierde porque se apague el servicio
+        destruido = true;
+        Widgets.servicioApagado(this);
         try { unregisterReceiver(spotify); } catch (IllegalArgumentException ignored) { }
         red.shutdown(); // shutdown y no shutdownNow: que termine de mandarla
         super.onDestroy();
@@ -174,10 +194,31 @@ public class CalificarService extends Service {
         nombre = n;
         artista = a;
         album = al;
+        imagen = null;
         rating = null;
         aviso = "";
         hecha = null;
         publicar();
+    }
+
+    /**
+     * Una nota tocada en el widget trae la cancion que el widget ensena. Si
+     * no es la que tiene el servicio (estaba apagado, o Spotify cambio sin
+     * avisar), se adopta: se califica lo que Angel estaba viendo.
+     */
+    private void adoptarDelWidget(Intent i) {
+        String tid = i.getStringExtra("track_id");
+        if (tid == null || tid.equals(trackId)) return;
+        confirmar();
+        trackId = tid;
+        nombre = texto(i.getStringExtra("name"));
+        artista = texto(i.getStringExtra("artist"));
+        album = texto(i.getStringExtra("album"));
+        imagen = i.getStringExtra("imagen");
+        rating = null;
+        aviso = "";
+        hecha = null;
+        leerNota(tid); // la nota que ya tenia, para Deshacer
     }
 
     /**
@@ -201,6 +242,7 @@ public class CalificarService extends Service {
                 if (idBackend == null) return;
                 String rat = t.isNull("rating") ? null : t.optString("rating", null);
                 String n = t.optString("name", ""), a = t.optString("artist", ""), al = t.optString("album", "");
+                String img = t.isNull("image") ? null : t.optString("image", null);
                 principal.post(() -> {
                     if (tid == null) {
                         // Arranque: solo si mientras tanto no llego un broadcast.
@@ -214,8 +256,13 @@ public class CalificarService extends Service {
                         return; // ya cambio otra vez
                     }
                     rating = rat;
+                    imagen = img;
                     if (pendiente == null && hecha == null) publicar();
+                    else aWidgets();
                 });
+                // Aqui mismo, que ya es el hilo de red. Si mientras tanto cambio
+                // la cancion, el widget no la usa (compara el id).
+                Widgets.bajarPortada(this, idBackend, img);
             } catch (Exception e) {
                 Log.w(TAG, "leer la nota fallo", e);
             }
@@ -263,7 +310,8 @@ public class CalificarService extends Service {
             }
             final boolean exito = ok;
             principal.post(() -> {
-                if (!p.tid.equals(trackId)) return; // ya suena otra: su notificacion manda
+                if (exito) Widgets.refrescarColaAparte(this); // pudo ser de <3333>
+                if (destruido || !p.tid.equals(trackId)) return; // ya suena otra: su notificacion manda
                 if (exito) {
                     rating = p.nota;
                     hecha = p.nota;
@@ -279,7 +327,9 @@ public class CalificarService extends Service {
     // ---------------------------------------------------------- notificaciones
 
     private void publicar() {
+        if (destruido) return;
         if (trackId == null) { notificar(NOTIF_ID, notifReposo()); return; }
+        aWidgets();
         if (hecha != null) {
             Log.d(TAG, "lista: " + hecha + " · " + nombre);
             notificar(NOTIF_ID, notifLista());
@@ -291,7 +341,38 @@ public class CalificarService extends Service {
 
     private void publicarHecha() {
         Log.d(TAG, "hecha: " + pendiente.nota + " · " + pendiente.n);
+        aWidgets();
         notificar(NOTIF_ID, notifHecha());
+    }
+
+    /** La notificacion que toca ahora (para volver a llamar startForeground). */
+    private Notification actual() {
+        if (trackId == null) return notifReposo();
+        if (pendiente != null) return notifHecha();
+        if (hecha != null) return notifLista();
+        return notifCalificar();
+    }
+
+    /** El mismo estado, en palabras del widget. */
+    private void aWidgets() {
+        if (destruido || trackId == null) return;
+        String nota, estado;
+        boolean deshacer = false;
+        if (pendiente != null) {
+            nota = pendiente.nota;
+            estado = "Calificada " + pendiente.nota + " · Deshacer";
+            deshacer = true;
+        } else if (hecha != null) {
+            nota = hecha;
+            estado = "✓ Calificada " + hecha;
+        } else if (!aviso.isEmpty()) {
+            nota = rating;
+            estado = aviso;
+        } else {
+            nota = rating;
+            estado = rating == null ? "Sin calificar" : "Tiene " + rating;
+        }
+        Widgets.guardarSonando(this, trackId, nombre, artista, album, imagen, nota, estado, deshacer);
     }
 
     private void notificar(int id, Notification n) {

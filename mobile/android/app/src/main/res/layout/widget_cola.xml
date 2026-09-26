@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget 2x2, tu cola (lienzo movil, seccion 04): cuantas sin nota en
+     la cola y tres portadas encimadas. Tocarlo abre Calificar. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/wg_fondo" android:clipToOutline="true">
+    <ImageView android:id="@+id/wg_fondo_img" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:scaleType="centerCrop" android:importantForAccessibility="no" />
+    <ImageView android:layout_width="match_parent" android:layout_height="match_parent"
+        android:src="@drawable/wg_borde" android:scaleType="fitXY" android:importantForAccessibility="no" />
+    <FrameLayout android:id="@+id/wg_cuerpo" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:padding="14dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:fontFamily="monospace" android:textAllCaps="true" android:letterSpacing="0.14"
+            android:textSize="9.5sp" android:textColor="@color/wg_t3" android:text="Tu cola" />
+        <!-- Las tres portadas encimadas: las de atras giradas y tenues. -->
+        <FrameLayout android:layout_width="76dp" android:layout_height="64dp" android:layout_gravity="end|top"
+            android:layout_marginTop="14dp">
+            <ImageView android:id="@+id/wg_cola_2" android:layout_width="54dp" android:layout_height="54dp"
+                android:layout_gravity="end|top" android:translationX="-16dp"
+                android:rotation="-8" android:scaleX="0.86" android:scaleY="0.86" android:alpha="0.55"
+                android:scaleType="centerCrop" android:importantForAccessibility="no" />
+            <ImageView android:id="@+id/wg_cola_1" android:layout_width="54dp" android:layout_height="54dp"
+                android:layout_gravity="end|top" android:translationX="-8dp" android:translationY="2dp"
+                android:rotation="-4" android:scaleX="0.93" android:scaleY="0.93" android:alpha="0.8"
+                android:scaleType="centerCrop" android:importantForAccessibility="no" />
+            <ImageView android:id="@+id/wg_cola_0" android:layout_width="54dp" android:layout_height="54dp"
+                android:layout_gravity="end|top" android:layout_marginTop="6dp"
+                android:scaleType="centerCrop" android:importantForAccessibility="no" />
+        </FrameLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_gravity="bottom" android:orientation="vertical">
+            <TextView android:id="@+id/wg_numero" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:singleLine="true" android:ellipsize="end" android:includeFontPadding="false"
+                android:textSize="44sp" android:textStyle="bold" android:letterSpacing="-0.05" android:textColor="@color/wg_t1"
+                android:text="·" />
+            <TextView android:id="@+id/wg_pie" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:singleLine="true" android:ellipsize="end"
+                android:textSize="13sp" android:textColor="@color/wg_t2" android:text="sin nota en &lt;3333&gt;" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

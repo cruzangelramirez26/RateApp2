@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Los widgets van siempre sobre la portada oscurecida, asi que no cambian
+     con el tema: crema sobre oscuro, como el lienzo. -->
+<resources>
+    <color name="wg_t1">#f3efe7</color>
+    <color name="wg_t2">#a3f3efe7</color>
+    <color name="wg_t3">#66f3efe7</color>
+    <color name="wg_tinta">#141210</color>
+    <color name="wg_vidrio">#99141210</color>
+    <color name="wg_borde">#1af3efe7</color>
+    <color name="wg_borde_top">#4df3efe7</color>
+    <color name="wg_borde_mid">#24f3efe7</color>
+    <color name="wg_borde_d">#1ff3efe7</color>
+    <color name="wg_hueco">#24f3efe7</color>
+
+    <string name="widget_sonando">Lo que suena, con las siete notas</string>
+    <string name="widget_notas">Solo las notas de lo que suena</string>
+    <string name="widget_cola">Cuántas te faltan por calificar en &lt;3333&gt;</string>
+</resources>
