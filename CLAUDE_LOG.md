@@ -2,6 +2,62 @@
 
 ---
 
+## 2026-09-25 (sesion: rediseño movil, fase 6 — widgets)
+
+**Maquina: PC `AngelPC`.** Angel: *"creo que faltan los widgets no?"*. Si:
+era lo ultimo del plan. Decidio: al tocar una nota, **igual que la
+notificacion** (Deshacer 4 s); con el servicio apagado, **la ultima cancion**,
+y tocar una nota **lo prende**; los **tres** widgets.
+
+**Como quedo** (`Widgets.java`, `WidgetSonando/Notas/Cola.java`, layouts
+`widget_*.xml`):
+
+- 4x2 lo que suena (portada, "Sonando", cancion, artista, estado y las 7
+  notas), 4x1 portada chica + notas, 2x2 tu cola (numero de sin nota en
+  `<3333>` y tres portadas encimadas, como el lienzo).
+- **El widget no averigua que suena.** `CalificarService` le copia cada cambio
+  de estado (SharedPreferences + portadas en archivos), asi que dice lo mismo
+  que la notificacion. Estados: "Sin calificar" / "Tiene A", "Calificada B+ ·
+  Deshacer" (el texto es el boton), "✓ Calificada B+", y con el servicio
+  apagado "Lo ultimo que sono".
+- Las notas del widget mandan la cancion en el intent y usan
+  `getForegroundService`: si el servicio estaba apagado lo prenden y califican
+  **la que se ve**, no la que suene ahora. Por eso el servicio vuelve a llamar
+  `startForeground` en cada `onStartCommand`.
+- Fondo = portada difuminada y oscurecida generada como bitmap (reducir,
+  blur de caja, agrandar, brillo .5, saturacion 1.4: el CSS del lienzo). Solo
+  se baja si hay un widget de lo que suena puesto.
+- La cola se refresca al poner el widget, cada 30 min, al abrir la app y tras
+  cada nota que salga bien.
+- De paso: tras `onDestroy`, una respuesta de red atrasada ya no vuelve a
+  pintar la notificacion del servicio apagado.
+
+**Verificado en el S24** (bloqueado, sin tocar la pantalla ni picar notas):
+APK instalado, los tres widgets registrados en `dumpsys appwidget`; al abrir,
+el estado del widget adopto lo que sonaba ("QUE SE HAGA TARDE", "Tiene A",
+con url de portada); un broadcast simulado lo cambio a otra cancion con su B+.
+Luego se regreso el servicio a la cancion real.
+
+**TRAMPA DE LA PRUEBA:** `adb shell am broadcast ... --es track "LUCES DE
+COLORES"` parte el texto en los espacios (el intent salio con `pkg=DE`) y el
+broadcast no llega. Va todo dentro de un solo `adb shell "..."` con comillas
+simples. Y un nombre de prueba se queda en el servicio: si Angel califica
+desde la notificacion, se mandaria a MySQL. Siempre regresar la cancion real.
+
+**NO VERIFICADO (necesita a Angel):** como se ven (el celular estaba
+bloqueado y un widget solo se pone a mano), el fondo difuminado, las portadas
+de la cola, y tocar una nota con el servicio apagado.
+
+Commit `89e5813`.
+
+**PENDIENTES:**
+
+- [ ] Angel: poner los tres widgets y verlos; calificar desde uno (y desde la
+      notificacion, que sigue pendiente).
+- [x] Fase 6. El plan del rediseño movil queda completo.
+
+---
+
 ## 2026-09-26 (sesion: rediseño movil — modo "sonando" en Calificar)
 
 **Maquina: PC `AngelPC`.** Angel confirmo que **ya jala el scroll** en
