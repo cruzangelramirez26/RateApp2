@@ -2,6 +2,78 @@
 
 ---
 
+## 2026-09-27 (sesion: el mix entre dos personas)
+
+**Maquina: laptop del trabajo (`MMTY2608251645`).** Angel: *"quiero seguir con
+lo del mix entre 2 personas"* (Mejoras.txt §7, el persistente). Se le explico
+el muro (un solo token en `config`: si su novia entraba a `/auth/login`, lo
+sacaba de su propia app) y el plan, y eligio: **estilo Blend**, **ultimo
+mes**, **50 canciones**, **tarjeta en Herramientas**.
+
+**La cirugia de auth, minima:**
+
+- El invitado entra con un **link de un solo uso** (72 h) a `/mix/unirme`, que
+  lo manda a Spotify con `state=inv:<token>` y `show_dialog`. Comparte el
+  `/callback` de siempre (el unico redirect registrado) y ahi se desvia por el
+  `state`. Su token va a la tabla nueva `personas`, con scopes de **solo
+  lectura** (`user-top-read user-library-read`). Ve una pagina de "Listo", no
+  la app.
+- **El candado, que era un hoyo desde siempre:** el login normal canjea el
+  `code` en memoria (`MemoryCacheHandler`), mira de quien es la cuenta y solo
+  guarda si es la de `spotify_owner_id`. El id se siembra solo en
+  `/auth/status` con el token que ya esta adentro.
+- Casos cubiertos con paginas en espanol: el link reusado o vencido (410), la
+  novia sin alta en el dashboard de Spotify (403: la app esta en development
+  mode), y abrir el link con la sesion de Angel puesta (409, sin gastar la
+  invitacion ni tocar su token).
+- **A Angel no se le pidio `user-top-read`**: su lado sale de
+  `listening_events` (30 dias reales), asi que no tuvo que re-loguearse.
+
+**El mix** (`routes/mix.py`, `armar_mix` es pura): 1) lo que los dos escuchan,
+por suma de rangos; 2) lo que uno escucha y el otro tiene en Me Gusta;
+3) el resto, una y una, empezando por quien lleve menos. Cruza por
+`match_key`. Ids: el de la API para el invitado, el del Me Gusta de Angel antes
+que el de su historial (que puede ser de un export de 2019). Playlist
+**privada** en la cuenta de Angel, reutilizada (`mix_pl:<id>`), resumen en
+`mix_ult:<id>`. Cron: `.github/workflows/mix-semanal.yml`, lunes 8:23 am
+(Actions: el atraso aqui no cuesta nada). En esta laptop **no hay `gcloud`**,
+otra razon para no usar Cloud Scheduler.
+
+**UI:** `components/MixPanel.jsx` + `hooks/useMix.js`, dentro de la Ventana
+del escritorio (la fila de arriba pasa a 4 tarjetas: "Colas y mixes") y de
+Crece en el movil (tarjeta ancha al final). Link con Copiar / Compartir
+(`navigator.share` en el celular), cifras de los dos / tuyas / suyas,
+Rehacer, Escuchar, Abrir en Spotify y Desconectar (con confirmacion).
+
+**Verificado sin red ni MySQL: 59 comprobaciones** (44 del algoritmo, las
+rutas y el callback con un Spotify de mentiras; 15 de `rehacer` y del cliente
+de invitado con el `validate_token` real de spotipy). Las que importan: una
+cuenta ajena en el login normal da 403 **y no guarda token**; el invitado no
+toca el token del dueño; la invitacion es de un solo uso; el nombre se escapa
+en el HTML; un token al que le falta un scope se rechaza. En navegador contra
+un backend de mentiras: 1440x900 y 375x812 sin desborde, y los botones mandan
+`/mix/rehacer?persona=`, `/mix/reproducir?persona=` y `/mix/invitacion`.
+`npm run build` OK.
+
+Nota de maquina: FastAPI 0.115 en Python 3.14 lanza un DeprecationWarning
+propio (`asyncio.iscoroutinefunction`); no es del codigo nuevo.
+
+**NO VERIFICADO:** nada contra el Spotify real. Ni el login de un invitado,
+ni `/me/top/tracks` de verdad, ni la playlist real.
+
+Commit `9688719`.
+
+**PENDIENTES:**
+
+- [ ] **Angel:** dar de alta a su novia en developer.spotify.com -> la app ->
+      User Management (nombre + correo de su Spotify). Luego Herramientas ->
+      Mix -> Crear link, mandarselo, que lo abra en SU celular, y "Armar el mix".
+- [ ] Decidir si la playlist del mix es publica o colaborativa: hoy es privada
+      en la cuenta de Angel, asi que ella quiza no la pueda abrir desde el link.
+- [ ] El modo desechable (road trip, N personas, sin guardar tokens).
+
+---
+
 ## 2026-09-25 (sesion: rediseño movil, fase 6 — widgets)
 
 **Maquina: PC `AngelPC`.** Angel: *"creo que faltan los widgets no?"*. Si:
