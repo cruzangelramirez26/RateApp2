@@ -68,9 +68,33 @@ Commit `9688719`.
 - [ ] **Angel:** dar de alta a su novia en developer.spotify.com -> la app ->
       User Management (nombre + correo de su Spotify). Luego Herramientas ->
       Mix -> Crear link, mandarselo, que lo abra en SU celular, y "Armar el mix".
-- [ ] Decidir si la playlist del mix es publica o colaborativa: hoy es privada
-      en la cuenta de Angel, asi que ella quiza no la pueda abrir desde el link.
+- [x] Colaborativa (abajo).
 - [ ] El modo desechable (road trip, N personas, sin guardar tokens).
+
+**SEGUNDA TANDA: el primer mix real.** Angel conecto a Alison y armaron el
+primero: *"me gusto pero por ejemplo puso mias unas que pusimos ayer que solo
+habia escuchado una vez JAJAJA de taylor"*. Medido contra
+`/listening/window?dias=30` antes de tocar nada: de las 200 canciones de su
+lado, **41 tenian 1 escucha y 82 tenian 2**. Las 5 de Taylor's Version
+(posiciones 20-24) tenian **1** cada una y entraron por el paso 2 ("tuya, y en
+sus Me Gusta"), por encima de Hombre De Bien (15) y PAPARAZZI (12). Tambien
+Patient Zero (1) en "los dos".
+
+- Decision de Angel: **3 escuchas en el mes, 2 para "los dos"** (asi se quedan
+  las de Olivia que ponen juntos). `MIN_PLAYS_A` / `MIN_PLAYS_A_COMUN`.
+  Una que no llega sigue pudiendo entrar como **suya** si esta en el top de
+  ella (Patient Zero): es lo correcto.
+- **Colaborativa**, pedido suyo. La nueva nace asi y la que ya existe
+  (`3gXkkXzkximcWgMdxggzcW`, la misma que ya reutilizaba) se convierte en el
+  siguiente Rehacer con `playlist_change_details`.
+- Simulado con su lado real y el de ella reconstruido del mix de hoy: 0 de
+  Taylor como tuyas, reparto 12 / 19 / 19, y sus primeras son Hombre De Bien,
+  tuffluv y PAPARAZZI. 66 comprobaciones.
+
+**NO SE HIZO a proposito:** darle Rehacer desde aqui (escribe en su playlist
+real). Lo hace Angel desde Herramientas.
+
+Commit `3741226`.
 
 ---
 
