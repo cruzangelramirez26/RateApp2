@@ -8,6 +8,8 @@ import { anioActual, cuatriActual, cuatriInfo, SLOTS } from '../../utils/cuatrim
 import { useHerramientas, REORDER_RATINGS } from '../../hooks/useHerramientas';
 import { usePortadaDeFondo } from './FondoPortada';
 import Nota from './Nota';
+import MixPanel from '../MixPanel';
+import { useMix } from '../../hooks/useMix';
 
 /**
  * Herramientas, versión de escritorio (fase 6 del rediseño, 2026-09-25). Sale
@@ -386,6 +388,7 @@ function Migracion({ h, escaneado }) {
 export default function HerramientasEscritorio() {
   const navigate = useNavigate();
   const h = useHerramientas();
+  const mix = useMix();
   const anio = anioActual();
   const actual = cuatriActual();
   const prev = actual ? PREV[actual] : null;
@@ -500,6 +503,15 @@ export default function HerramientasEscritorio() {
       boton: virtualActivo ? 'Continuar' : 'Abrir',
       cuerpo: <Virtual h={h} />,
     },
+    mix: {
+      arte: <div className="mix-arte"><span>Tú</span><span>+1</span></div>,
+      titulo: 'Mix',
+      chica: true,
+      texto: 'Una playlist con lo que tú y alguien más escuchan este mes. Se rehace cada semana.',
+      boton: mix.estado?.personas?.length ? 'Abrir' : 'Invitar',
+      estado: mix.estado?.personas?.length ? mix.estado.personas.map((p) => p.nombre).join(', ') : null,
+      cuerpo: <MixPanel m={mix} />,
+    },
     migrar: {
       arte: prev ? (
         <div className="esc-her-migra">
@@ -548,8 +560,8 @@ export default function HerramientasEscritorio() {
         </div>
       </header>
 
-      <div className="esc-rotulo esc-her-seccion">Colas · ponerte al día con tus Me Gusta</div>
-      <div className="esc-her-fila3">
+      <div className="esc-rotulo esc-her-seccion">Colas y mixes · tus Me Gusta, y lo que escuchas con alguien más</div>
+      <div className="esc-her-fila3 con-mix">
         <section className="esc-her-card" style={{ animationDelay: '50ms' }}>
           <Cabeza arte={<Pila imgs={sinNota} />} titulo="Califica lo que sí escuchas"
             texto="Tus Me Gusta que nunca pasaron por RateApp, ordenados por lo que de verdad pones. Aquí calificar solo cataloga." />
@@ -561,6 +573,7 @@ export default function HerramientasEscritorio() {
           <button type="button" className="esc-fantasma esc-her-boton" onClick={() => navigate('/abandoned')}>Ordenar por escuchas</button>
         </section>
         {tarjeta('aplus', 190)}
+        {tarjeta('mix', 230)}
       </div>
 
       <div className="esc-rotulo esc-her-seccion">Playlists · orden y mantenimiento</div>

@@ -1,0 +1,35 @@
+# Rehace el mix con cada persona conectada (Mejoras.txt seccion 7), una vez por
+# semana. Va en Actions y no en Cloud Scheduler a proposito: el atraso de horas
+# del cron de Actions (el que obligo a mover la captura de escuchas) aqui no
+# cuesta nada, porque rehacer un lunes a las 3 pm o a las 7 pm da lo mismo.
+#
+# Rehacer es seguro de repetir: reemplaza el contenido de la misma playlist.
+
+name: mix-semanal
+
+on:
+  schedule:
+    - cron: '23 14 * * 1'   # lunes 14:23 UTC = 8:23 am en Mexico centro
+  workflow_dispatch:
+
+concurrency:
+  group: mix-semanal
+  cancel-in-progress: false
+
+jobs:
+  rehacer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Rehacer los mixes
+        run: |
+          # --data '' manda Content-Length: 0 (sin eso Cloud Run contesta 411).
+          # --max-time alto: lee los Me Gusta de las dos cuentas (~50 llamadas
+          # a Spotify cada una) y puede caer en un arranque frio.
+          # --fail: el endpoint da 502 si TODOS los mixes fallaron.
+          curl --fail --silent --show-error \
+               --request POST --data '' \
+               --max-time 240 \
+               --retry 2 --retry-delay 30 --retry-all-errors \
+               --write-out '\nstatus=%{http_code} tiempo=%{time_total}s\n' \
+               https://rateapp-1043427819721.us-east4.run.app/mix/rehacer

@@ -140,6 +140,14 @@ export const api = {
       body: JSON.stringify({ track_ids: trackIds }),
     }),
 
+  // Mix entre dos personas (Mejoras.txt §7). El invitado entra con un link de
+  // un solo uso; su token es de solo lectura y la playlist vive en tu cuenta.
+  mixEstado: () => request('/mix/estado'),
+  mixInvitacion: () => request('/mix/invitacion', { method: 'POST' }),
+  mixRehacer: (persona) => request(`/mix/rehacer?persona=${encodeURIComponent(persona)}`, { method: 'POST' }),
+  mixReproducir: (persona) => request(`/mix/reproducir?persona=${encodeURIComponent(persona)}`, { method: 'POST' }),
+  mixDesconectar: (persona) => request(`/mix/personas/${encodeURIComponent(persona)}`, { method: 'DELETE' }),
+
   // Migración de cuatrimestre
   getMigrationCandidates: () => request('/tracks/migrate/candidates'),
   migrateTracks: (trackIds, toCuatrimestre) => request('/tracks/migrate', {

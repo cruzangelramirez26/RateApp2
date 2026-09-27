@@ -1362,6 +1362,7 @@ html.escritorio .card { backdrop-filter: blur(18px); -webkit-backdrop-filter: bl
 .esc-her-seccion { margin-top: clamp(24px, 2.2vw, 44px); }
 .esc-her-fila3, .esc-her-fila4 { display: grid; gap: clamp(16px, 1.4vw, 28px); margin-top: 12px; }
 .esc-her-fila3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.esc-her-fila3.con-mix { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .esc-her-fila4 { grid-template-columns: repeat(4, minmax(0, 1fr)); flex: 1; }
 
 .esc-her-card {

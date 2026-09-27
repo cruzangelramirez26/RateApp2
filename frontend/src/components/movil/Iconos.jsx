@@ -72,3 +72,6 @@ export const IcoLimpiar = () => (
 export const IcoAsa = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" /><circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" /><circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" /></svg>
 );
+export const IcoMix = () => (
+  <svg viewBox="0 0 24 24" {...trazo} aria-hidden="true"><circle cx="9" cy="12" r="5.5" /><circle cx="15" cy="12" r="5.5" /></svg>
+);

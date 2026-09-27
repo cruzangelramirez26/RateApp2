@@ -1110,3 +1110,91 @@ def marcar_avisados(filas: list):
         )
         conn.commit()
         cur.close()
+
+
+# ─── Personas: los invitados del mix ─────────────────────────────────────────
+#
+# RateApp era de UN solo usuario: un token en `config` bajo `spotify_token`, y
+# si alguien mas entraba a /auth/login le PISABA el token a Angel. Los
+# invitados del mix viven aqui, una fila por cabeza, y el token de Angel sigue
+# donde siempre. Nunca se mezclan: el token de un invitado solo trae scopes de
+# LECTURA (`user-top-read user-library-read`), asi que aunque algo lo usara por
+# error no podria tocar ninguna playlist.
+
+def ensure_personas_table():
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS personas (
+                spotify_id     VARCHAR(64)  NOT NULL PRIMARY KEY,
+                nombre         VARCHAR(255) NULL,
+                token          TEXT         NULL,
+                creado_at      DATETIME     NOT NULL,
+                actualizado_at DATETIME     NOT NULL
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+        """)
+        conn.commit()
+        cur.close()
+
+
+def _ahora_naive():
+    from datetime import datetime, timezone
+    # Naive a proposito: la columna es DATETIME sin zona (ver _corte).
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def get_personas() -> list:
+    """Todas las personas, SIN el token (no tiene por que salir de aqui)."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT spotify_id, nombre, creado_at, actualizado_at FROM personas ORDER BY creado_at")
+        filas = cur.fetchall()
+        cur.close()
+    return [{
+        "id": f[0], "nombre": f[1],
+        "creado_at": f[2].isoformat() if f[2] else None,
+        "actualizado_at": f[3].isoformat() if f[3] else None,
+    } for f in filas]
+
+
+def get_persona_token(spotify_id: str) -> Optional[str]:
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT token FROM personas WHERE spotify_id = %s", (spotify_id,))
+        row = cur.fetchone()
+        cur.close()
+    return row[0] if row else None
+
+
+def upsert_persona(spotify_id: str, nombre: str, token_json: str):
+    """Alta o reconexion. `creado_at` solo se escribe al nacer."""
+    ahora = _ahora_naive()
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO personas (spotify_id, nombre, token, creado_at, actualizado_at) "
+            "VALUES (%s, %s, %s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE nombre = VALUES(nombre), token = VALUES(token), "
+            "actualizado_at = VALUES(actualizado_at)",
+            (spotify_id, nombre, token_json, ahora, ahora),
+        )
+        conn.commit()
+        cur.close()
+
+
+def set_persona_token(spotify_id: str, token_json: Optional[str]):
+    """Lo usa el refresh del token. Si la persona ya no existe no hace nada."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE personas SET token = %s, actualizado_at = %s WHERE spotify_id = %s",
+                    (token_json, _ahora_naive(), spotify_id))
+        conn.commit()
+        cur.close()
+
+
+def delete_persona(spotify_id: str):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM personas WHERE spotify_id = %s", (spotify_id,))
+        conn.commit()
+        cur.close()

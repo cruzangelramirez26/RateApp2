@@ -31,7 +31,7 @@ Rediseño móvil en curso: [`REDISENO_MOVIL.md`](REDISENO_MOVIL.md) — decision
 
 ## Base de datos MySQL
 
-Cinco tablas:
+Seis tablas:
 
 **`tracks`** — track_id, name, artist, album, added_at, rating, manual_order, cuatrimestre_override
 - `added_at`: fecha de primera calificación. **Nunca se pisa al re-calificar** (upsert solo la escribe en INSERT, no en UPDATE).
@@ -59,6 +59,17 @@ Cinco tablas:
 - **Ventanas que NO existen del lado de Spotify:** `/me/top/tracks` solo da `short_term` (~4 semanas), `medium_term` (~6 meses) y `long_term`. **No hay ventana de 12 meses**, así que "el último año" solo se puede calcular para Angel, con esta tabla.
 
 **`avisos_sin_nota`** — match_key (PK), track_id, avisado_at. Las canciones que ya recibieron el aviso de "5 escuchas y sin nota" del celular, para que salga **una sola vez por cancion** aunque se reinstale la app. Por `match_key`, como todo lo de escuchas. La llena `POST /tracks/avisos/sin-nota` (con `marcar=false` solo consulta).
+
+**`personas`** — spotify_id (PK), nombre, token, creado_at, actualizado_at. Los **invitados del mix** (`routes/mix.py`), un token por cabeza y **solo con scopes de lectura** (`user-top-read user-library-read`). El token de Angel **no** vive aqui: sigue en `config` (`spotify_token`).
+
+## Mix entre dos personas (`routes/mix.py`)
+
+- El invitado entra con un **link de un solo uso** (`POST /mix/invitacion`, vale 72 h) que abre `/mix/unirme`. Usa el **mismo** `/callback` que Angel (el unico redirect registrado en Spotify) y se distingue por el `state` de OAuth (`inv:<token>`). Le sale una pagina de "Listo", **no la app**.
+- **Candado del login normal:** `/callback` solo guarda el token si la cuenta es la de `spotify_owner_id` (config). Antes cualquiera que abriera `/auth/login` le pisaba el token a Angel. El id se siembra solo en `/auth/status`.
+- Hay que **dar de alta a cada invitado en el dashboard de Spotify** (User Management): la app esta en development mode. Sin eso, Spotify contesta 403 y la pagina lo explica.
+- Estilo Blend: lo que los dos escuchan -> lo que uno escucha y el otro tiene en Me Gusta -> el resto, una y una. 50 canciones. Cruza por `match_key`, nunca por `track_id`.
+- Las ventanas no son iguales: Angel = 30 dias reales de `listening_events`; el invitado = `/me/top/tracks` short_term (~4 semanas). A Angel **no** se le pidio `user-top-read` para no forzarle re-login.
+- Playlist privada en la cuenta de Angel (id en `config` `mix_pl:<id>`, resumen en `mix_ult:<id>`). Se rehace los lunes con `.github/workflows/mix-semanal.yml` (`POST /mix/rehacer`).
 
 ## Constantes clave
 

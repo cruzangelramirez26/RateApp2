@@ -2154,3 +2154,56 @@ html.con-barra body {
   .rp-marq.on { -webkit-mask-image: none; mask-image: none; }
   .rp-marq.on > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; padding-right: 0; }
 }
+
+/* -- Mix entre dos personas (MixPanel.jsx) ---------------------------------
+   Vive dentro de la Ventana del escritorio y de Crece en el móvil; los dos
+   son oscuros, así que va en crema translúcida y no en tokens del tema. */
+.mix { display: flex; flex-direction: column; gap: 18px; }
+.mix-p { margin: 0; font-size: 14px; line-height: 1.55; color: rgba(243, 239, 231, 0.78); }
+.mix-p.tenue { font-size: 12.5px; color: rgba(243, 239, 231, 0.5); }
+.mix-rotulo { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(243, 239, 231, 0.5); }
+.mix-invitacion { display: flex; flex-direction: column; gap: 10px; }
+.mix-link {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(243, 239, 231, 0.14); background: rgba(0, 0, 0, 0.25);
+  color: #f3efe7; font: 13px/1.3 ui-monospace, 'Space Mono', monospace;
+}
+.mix-acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mix-acciones a { text-decoration: none; display: inline-flex; align-items: center; }
+.mix-persona { display: flex; flex-direction: column; gap: 14px; }
+.mix-persona-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.mix-persona-cab b { display: block; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; color: #f3efe7; }
+.mix-persona-cab span { display: block; font-size: 12.5px; margin-top: 3px; color: rgba(243, 239, 231, 0.55); }
+.mix-quitar {
+  background: none; border: 0; padding: 4px 0; cursor: pointer;
+  font-size: 12px; color: rgba(243, 239, 231, 0.45); text-decoration: underline; text-underline-offset: 3px;
+}
+.mix-quitar:hover { color: rgba(243, 239, 231, 0.8); }
+.mix-cifras { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mix-cifras > div { padding: 10px 12px; border-radius: 12px; background: rgba(243, 239, 231, 0.05); border: 1px solid rgba(243, 239, 231, 0.08); }
+.mix-cifras b { display: block; font-size: 22px; font-weight: 650; color: #f3efe7; font-variant-numeric: tabular-nums; }
+.mix-cifras span { font-size: 11.5px; color: rgba(243, 239, 231, 0.55); }
+.mix-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.mix-lista li {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 8px 2px; border-top: 1px solid rgba(243, 239, 231, 0.06);
+}
+.mix-n { font: 12px ui-monospace, 'Space Mono', monospace; color: rgba(243, 239, 231, 0.35); }
+.mix-cancion { min-width: 0; }
+.mix-cancion b, .mix-cancion span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mix-cancion b { font-size: 13.5px; font-weight: 550; color: #f3efe7; }
+.mix-cancion span { font-size: 12px; color: rgba(243, 239, 231, 0.5); }
+.mix-de {
+  font-size: 11px; padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+  border: 1px solid rgba(243, 239, 231, 0.16); color: rgba(243, 239, 231, 0.6);
+}
+.mix-de.ambos { background: rgba(243, 239, 231, 0.9); border-color: transparent; color: #141210; }
+
+/* El arte de la tarjeta: dos círculos que se enciman. */
+.mix-arte { display: flex; align-items: center; }
+.mix-arte span {
+  width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px solid rgba(243, 239, 231, 0.55); font-weight: 650; font-size: 17px; color: #f3efe7;
+  background: rgba(13, 12, 11, 0.4);
+}
+.mix-arte span + span { margin-left: -14px; background: rgba(243, 239, 231, 0.9); color: #141210; border-color: transparent; }

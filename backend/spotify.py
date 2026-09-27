@@ -6,7 +6,7 @@ filesystem is ephemeral and a file cache dies on every redeploy.
 import json
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from spotipy.cache_handler import CacheHandler
+from spotipy.cache_handler import CacheHandler, MemoryCacheHandler
 import pandas as pd
 import config
 import database
@@ -118,6 +118,117 @@ def is_authenticated() -> bool:
         return True
     except Exception:
         return False
+
+
+# ─── El dueño y los invitados del mix ───────────────────────────────────────
+#
+# Hasta el 2026-09-27 cualquiera que abriera /auth/login con SU cuenta le
+# pisaba el token a Angel y lo sacaba de su propia app. Ahora hay dos caminos:
+#   - el del dueño (el de siempre), que solo guarda el token si la cuenta es
+#     la de Angel;
+#   - el de los invitados, con otro auth manager, otros scopes (solo lectura)
+#     y un token por persona en la tabla `personas`.
+# Los dos comparten el MISMO redirect URI (/callback, el unico registrado en
+# el dashboard de Spotify) y se distinguen por el `state` de OAuth.
+
+OWNER_KEY = "spotify_owner_id"
+GUEST_SCOPE = "user-top-read user-library-read"
+GUEST_STATE_PREFIX = "inv:"
+
+
+def get_owner_id() -> str | None:
+    """El id de Spotify de Angel. Si nunca se guardo, se aprende del token
+    que ya esta en la base (que por definicion es el suyo: es el que la app
+    usa desde agosto)."""
+    try:
+        owner = database.get_config(OWNER_KEY)
+    except Exception:
+        owner = None
+    if owner:
+        return owner
+    try:
+        owner = get_client().current_user()["id"]
+        database.set_config(OWNER_KEY, owner)
+        return owner
+    except Exception:
+        return None
+
+
+def _oauth_temporal(scope: str, show_dialog: bool = False) -> SpotifyOAuth:
+    """Un auth manager que guarda el token SOLO en memoria. Sirve para
+    canjear el `code` y mirar de quien es la cuenta antes de guardar nada."""
+    return SpotifyOAuth(
+        client_id=config.SPOTIPY_CLIENT_ID,
+        client_secret=config.SPOTIPY_CLIENT_SECRET,
+        redirect_uri=config.SPOTIPY_REDIRECT_URI,
+        scope=scope,
+        cache_handler=MemoryCacheHandler(),
+        open_browser=False,
+        show_dialog=show_dialog,
+    )
+
+
+def canjear_code(code: str, scope: str) -> dict:
+    """Cambia el `code` del callback por un token, sin guardarlo en ningun
+    lado. Devuelve el token_info."""
+    am = _oauth_temporal(scope)
+    am.get_access_token(code, check_cache=False)
+    token = am.cache_handler.get_cached_token()
+    if not token:
+        raise RuntimeError("Spotify no devolvio token")
+    return token
+
+
+def guardar_token_dueno(token_info: dict):
+    global _client
+    get_auth_manager().cache_handler.save_token_to_cache(token_info)
+    _client = None
+
+
+def url_login_invitado(invitacion: str) -> str:
+    # show_dialog: si el navegador ya tiene una sesion de Spotify abierta,
+    # Spotify enseña la pantalla de permisos con "¿No eres tu?" en vez de
+    # aceptar callado con la cuenta que este puesta.
+    return _oauth_temporal(GUEST_SCOPE, show_dialog=True).get_authorize_url(
+        state=GUEST_STATE_PREFIX + invitacion)
+
+
+class PersonaCacheHandler(CacheHandler):
+    """El token de un invitado, en su fila de `personas`."""
+
+    def __init__(self, spotify_id: str):
+        self.spotify_id = spotify_id
+
+    def get_cached_token(self):
+        raw = database.get_persona_token(self.spotify_id)
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return None
+
+    def save_token_to_cache(self, token_info):
+        try:
+            database.set_persona_token(self.spotify_id, json.dumps(token_info))
+        except Exception as e:
+            print(f"[spotify] no se pudo guardar el token de {self.spotify_id}: {e}")
+
+
+def get_guest_client(spotify_id: str) -> spotipy.Spotify:
+    """Cliente de un invitado. Refresca su token si expiro (y lo guarda)."""
+    am = SpotifyOAuth(
+        client_id=config.SPOTIPY_CLIENT_ID,
+        client_secret=config.SPOTIPY_CLIENT_SECRET,
+        redirect_uri=config.SPOTIPY_REDIRECT_URI,
+        scope=GUEST_SCOPE,
+        cache_handler=PersonaCacheHandler(spotify_id),
+        open_browser=False,
+    )
+    token_info = am.validate_token(am.cache_handler.get_cached_token())
+    if not token_info:
+        raise RuntimeError("El token del invitado ya no sirve: que vuelva a conectarse")
+    return spotipy.Spotify(auth=token_info["access_token"])
 
 
 # ─── Playlist operations ──────────────────────────────────────────

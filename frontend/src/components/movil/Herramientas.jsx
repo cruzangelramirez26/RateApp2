@@ -7,9 +7,11 @@ import { anioActual, cuatriActual, cuatriInfo, SLOTS } from '../../utils/cuatrim
 import { useHerramientas, REORDER_RATINGS } from '../../hooks/useHerramientas';
 import { usePortadaDeFondo } from '../escritorio/FondoPortada';
 import Hoja from './Hoja';
+import MixPanel from '../MixPanel';
+import { useMix } from '../../hooks/useMix';
 import { NotaMv, claseNota } from './Notas';
 import {
-  IcoCerrar, IcoOrdenar, IcoVirtual, IcoMigrar, IcoEstrella, IcoArchivo, IcoLimpiar, IcoAsa, IcoBiblioteca,
+  IcoCerrar, IcoOrdenar, IcoVirtual, IcoMigrar, IcoEstrella, IcoArchivo, IcoLimpiar, IcoAsa, IcoBiblioteca, IcoMix,
 } from './Iconos';
 
 /**
@@ -365,6 +367,7 @@ function Orden({ h, anio }) {
 export default function HerramientasMovil() {
   const navigate = useNavigate();
   const h = useHerramientas();
+  const mix = useMix();
   const anio = anioActual();
   const actual = cuatriActual();
   const prev = actual ? PREV[actual] : null;
@@ -448,6 +451,13 @@ export default function HerramientasMovil() {
     orden: {
       ico: <IcoBiblioteca />, titulo: 'Orden de playlists', texto: 'Ordenar y reconstruir',
       cuerpo: <Orden h={h} anio={anio} />,
+    },
+    mix: {
+      ico: <IcoMix />, titulo: 'Mix', ancha: true,
+      texto: mix.estado?.personas?.length
+        ? `Tú + ${mix.estado.personas.map((p) => p.nombre.split(' ')[0]).join(', ')} · lo que escuchan este mes`
+        : 'Una playlist con lo que tú y alguien más escuchan',
+      cuerpo: <MixPanel m={mix} movil />,
     },
   };
 

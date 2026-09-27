@@ -312,7 +312,7 @@ le planteo a Angel el 2026-08-25 el costo de las tres opciones y descarto
 recalificar — sobre 167 A+ de perla 2026 no hay forma de distinguir cuales
 fueron el workaround y cuales sinceras, esa distincion solo vive en su cabeza.
 
-## 7. Mixes entre varias personas  [EN CURSO 2026-09-06 - la serie temporal ya esta]
+## 7. Mixes entre varias personas  [PERSISTENTE HECHO 2026-09-27 - falta probarlo con la novia; desechable sin empezar]
 Planteado por Angel el 2026-09-01: "poder hacer merge con alguien mas", tipo
 Blend de Spotify pero mas alla de las canciones en comun — que cruce los Me
 Gusta Y las mas escuchadas de los ultimos 30 dias de cada quien.
@@ -398,6 +398,25 @@ las ventanas de Angel y las de los demas NO son las mismas.
 ACTUALIZACION SEMANAL: la infraestructura ya existe. El cron de GitHub Actions
 (.github/workflows/keep-awake.yml) ya corre cada 10 min; un workflow semanal que
 pegue a un endpoint de rebuild es trivial al lado del resto.
+
+HECHO 2026-09-27: EL MIX PERSISTENTE (de dos personas).
+Decisiones de Angel: estilo Blend, ultimo mes, 50 canciones, tarjeta en
+Herramientas. Codigo: backend/routes/mix.py, components/MixPanel.jsx,
+hooks/useMix.js, .github/workflows/mix-semanal.yml.
+  - La cirugia de auth quedo asi: el invitado entra por un link de UN SOLO USO
+    (72 h) a /mix/unirme; comparte el redirect /callback y se distingue por el
+    `state` ("inv:..."). Su token va a la tabla `personas` con scopes de SOLO
+    LECTURA (user-top-read user-library-read). El de Angel no se toca.
+  - El login normal ya no deja que otra cuenta pise a Angel (`spotify_owner_id`
+    en config). Era un hoyo abierto desde siempre.
+  - A Angel NO se le pidio user-top-read: su lado sale de listening_events,
+    asi que no tuvo que re-loguearse.
+  - Orden: 1) lo que los dos escuchan (suma de rangos), 2) lo que uno escucha
+    y el otro tiene en Me Gusta, 3) el resto, una y una. Cruza por match_key.
+  - Playlist PRIVADA en la cuenta de Angel. Se rehace los lunes (Actions).
+PENDIENTE: el modo desechable (road trip, N personas, sin guardar tokens), y
+decidir si la playlist del mix debe ser publica o colaborativa para que ella
+la tenga en su biblioteca.
 
 ## 8. Limpiar los Me Gusta  [INFRA HECHA 2026-09-02, faltan las vistas]
 # Estado: el historial ya esta en la app (tabla `listening_stats`, endpoints,

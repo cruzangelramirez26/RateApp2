@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     database.ensure_listening_table()
     database.ensure_listening_events_table()
     database.ensure_avisos_table()
+    database.ensure_personas_table()
     yield
 
 
@@ -39,11 +40,13 @@ from routes.auth import router as auth_router
 from routes.tracks import router as tracks_router
 from routes.playlists import router as playlists_router
 from routes.virtual import router as virtual_router
+from routes.mix import router as mix_router
 
 app.include_router(auth_router)
 app.include_router(tracks_router)
 app.include_router(playlists_router)
 app.include_router(virtual_router)
+app.include_router(mix_router)
 
 
 @app.get("/callback")
