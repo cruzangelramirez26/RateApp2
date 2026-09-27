@@ -69,7 +69,8 @@ Seis tablas:
 - Hay que **dar de alta a cada invitado en el dashboard de Spotify** (User Management): la app esta en development mode. Sin eso, Spotify contesta 403 y la pagina lo explica.
 - Estilo Blend: lo que los dos escuchan -> lo que uno escucha y el otro tiene en Me Gusta -> el resto, una y una. 50 canciones. Cruza por `match_key`, nunca por `track_id`.
 - Las ventanas no son iguales: Angel = 30 dias reales de `listening_events`; el invitado = `/me/top/tracks` short_term (~4 semanas). A Angel **no** se le pidio `user-top-read` para no forzarle re-login.
-- Playlist privada en la cuenta de Angel (id en `config` `mix_pl:<id>`, resumen en `mix_ult:<id>`). Se rehace los lunes con `.github/workflows/mix-semanal.yml` (`POST /mix/rehacer`).
+- **Minimo de escuchas del lado de Angel** (en la ventana): 3, y 2 para contar como "los dos" (`MIN_PLAYS_A*`). Sin eso el primer mix metio como suyas cinco de Taylor que oyo UNA vez con ella: su top de 30 dias es mayormente de 1-2 escuchas.
+- Playlist **privada y colaborativa**, siempre la misma, en la cuenta de Angel (id en `config` `mix_pl:<id>`, resumen en `mix_ult:<id>`). Rehacer **reemplaza** el contenido, asi que lo que alguien agregue a mano se borra el lunes. Se rehace los lunes con `.github/workflows/mix-semanal.yml` (`POST /mix/rehacer`).
 
 ## Constantes clave
 

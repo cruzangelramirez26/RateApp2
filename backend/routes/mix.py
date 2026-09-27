@@ -40,6 +40,16 @@ INVITACION_KEY = "mix_invitacion"
 INVITACION_HORAS = 72
 LIKES_TOPE = 3000
 
+# MINIMO DE ESCUCHAS DEL LADO DE ANGEL, en la ventana. El primer mix real
+# (2026-09-27) metio como "tuyas" cinco de Taylor Swift que Angel oyo UNA vez
+# con ella el dia anterior: estaban en los Me Gusta de ella y el paso 2 las
+# subio por encima de sus favoritas de verdad (15 y 12 escuchas). Su top de 30
+# dias eran 200 canciones y 123 tenian 1 o 2 escuchas: ruido, no gusto.
+# Decision de Angel: 3 en general, 2 en "los dos la escuchan" (para que se
+# queden las que ponen juntos).
+MIN_PLAYS_A = 3
+MIN_PLAYS_A_COMUN = 2
+
 
 def _pl_key(pid: str) -> str:
     return f"mix_pl:{pid}"
@@ -63,7 +73,8 @@ def _dedup(top: list) -> list:
     return salida
 
 
-def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = TAMANO) -> list:
+def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = TAMANO,
+              min_a: int = MIN_PLAYS_A, min_a_comun: int = MIN_PLAYS_A_COMUN) -> list:
     """Arma el mix de A (Angel) y B (el invitado).
 
     `a_top` / `b_top`: lo mas escuchado de cada quien, EN ORDEN, como dicts
@@ -74,8 +85,14 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
     `a_likes` / `b_likes`: los Me Gusta de cada quien, clave -> track_id.
 
     Cada cancion sale con `de` = "ambos" | "a" | "b" y el `motivo`.
+
+    Las de A traen `plays` (escuchas en la ventana): piden `min_a_comun` para
+    contar como "de los dos" y `min_a` para todo lo demas. Sin `plays` no se
+    filtra (las de B no lo traen: Spotify solo da el orden).
     """
     a_top, b_top = _dedup(a_top), _dedup(b_top)
+    plays = lambda t: t.get("plays", min_a)
+    a_top = [t for t in a_top if plays(t) >= min(min_a, min_a_comun)]
     rank_a = {t["key"]: i for i, t in enumerate(a_top)}
     rank_b = {t["key"]: i for i, t in enumerate(b_top)}
     por_b = {t["key"]: t for t in b_top}
@@ -94,7 +111,7 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
                        "de": de, "motivo": motivo})
 
     # 1) Lo que los dos escuchan: primero lo que a los dos les queda mas arriba.
-    comun = sorted((t for t in a_top if t["key"] in rank_b),
+    comun = sorted((t for t in a_top if t["key"] in rank_b and plays(t) >= min_a_comun),
                    key=lambda t: rank_a[t["key"]] + rank_b[t["key"]])
     for t in comun:
         # El id de B viene fresco de la API; el de A puede ser el de un
@@ -118,6 +135,9 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
     # si no el de su historial.
     id_a = lambda t: a_likes.get(t["key"]) or t["track_id"]
 
+    # De aqui en adelante lo de A pide el minimo general.
+    a_top = [t for t in a_top if plays(t) >= min_a]
+
     # 2) Lo que uno escucha y el otro tiene guardado.
     cruce_a = [t for t in a_top if t["key"] not in rank_b and t["key"] in b_likes]
     cruce_b = [t for t in b_top if t["key"] not in rank_a and t["key"] in a_likes]
@@ -132,7 +152,8 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
 
 def _top_dueno() -> list:
     filas = database.get_top_window(VENTANA_DIAS, 200)
-    return [{"key": f["match_key"], "track_id": f["track_id"], "name": f["name"], "artist": f["artist"]}
+    return [{"key": f["match_key"], "track_id": f["track_id"], "name": f["name"], "artist": f["artist"],
+             "plays": f.get("plays", 0)}
             for f in filas if f.get("match_key") and f.get("track_id")]
 
 
@@ -198,11 +219,19 @@ def rehacer(pid: str, nombre: str) -> dict:
             spotify.replace_playlist(sp, pl_id, ids)
         except Exception:
             pl_id = None
+    if pl_id:
+        # COLABORATIVA (Angel, 2026-09-27), y se asegura en cada vuelta: asi
+        # la que ya existia se convierte sola. Spotify exige privada para
+        # poder ser colaborativa.
+        try:
+            sp.playlist_change_details(pl_id, public=False, collaborative=True)
+        except Exception as e:
+            print(f"[mix] no se pudo hacer colaborativa {pl_id}: {e}")
     if not pl_id:
         me = sp.current_user()
         yo = (me.get("display_name") or "Yo").split(" ")[0]
         nueva = sp.user_playlist_create(
-            me["id"], f"{yo} + {nombre}", public=False,
+            me["id"], f"{yo} + {nombre}", public=False, collaborative=True,
             description="Mix de RateApp: lo que los dos escuchan este mes. Se rehace cada semana.")
         pl_id = nueva["id"]
         spotify.replace_playlist(sp, pl_id, ids)
