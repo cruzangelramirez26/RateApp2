@@ -2,6 +2,42 @@
 
 ---
 
+## 2026-09-28 (sesion: clasicos en el mix)
+
+**Maquina: laptop del trabajo.** Angel, con el mix ya en uso: *"quisiera que
+tambien meta mis canciones mas escuchadas pero solo una porcion y al azar...
+yo se que me gusta mucho duki y si me gustaria que de vez en cuando toque"*,
+y lo mismo con los artistas de ella.
+
+**Medido antes de proponer:** en el historico Duki tiene uNO dOS y RoCKSTAR
+2.0 con **81** cada una, y en el ultimo anio **nada** (solo un type beat). O
+sea el mix del mes nunca lo iba a meter. tuffluv (12 este mes) ya entraba solo.
+
+**Decisiones de Angel:** **10 de 50** (5 y 5), **por artista**, y **sin marca
+distinta** en la UI.
+
+- `elegir_clasicos` (pura): sortea el artista pesado por la suma de escuchas
+  de sus canciones, luego una cancion pesada igual; un artista por sorteo;
+  excluye lo que ya trae el mix y, si se puede, las de la semana pasada
+  (`clasicos` en `mix_ult:<id>`). `intercalar`: una cada 5 posiciones.
+- Angel: `get_top_window(None, 400)`. Ella: `/me/top/tracks` long_term +
+  medium_term, peso = lugar al reves (Spotify no da escuchas). Mismo scope, no
+  tiene que reconectarse.
+- De paso: el `RuntimeError` del invitado ahora encadena la causa (`from e`);
+  sin eso el mensaje salia vacio y no se sabia que fallo.
+
+**Verificado:** 85 comprobaciones (14 nuevas de sorteo e intercalado, 5 de
+`rehacer` de punta a punta). Simulado con su historial real: tres semanas
+distintas (C. Tangana, HUMBE, Kinder Malo... / LATIN MAFIA, Nsqk... / Gera MX,
+Dillom...), y en un anio Duki sale **6 de 52 semanas**.
+
+**NO VERIFICADO:** con el Spotify real de ella (long_term / medium_term).
+Entra en el proximo Rehacer.
+
+Commit `ac18631`.
+
+---
+
 ## 2026-09-27 (sesion: el mix entre dos personas)
 
 **Maquina: laptop del trabajo (`MMTY2608251645`).** Angel: *"quiero seguir con
