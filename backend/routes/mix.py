@@ -60,6 +60,9 @@ MIN_PLAYS_A_COMUN = 2
 # distinta en la UI, decision suya: salen como "tuya" / "suya".
 CLASICOS_POR_LADO = 5
 CLASICOS_CADA = 5   # una clasica cada 5 posiciones, no amontonadas al final
+# "De siempre" = los ultimos 3 anios, no desde 2018. Angel: "mis gustos han
+# cambiado mucho". Lo de 2018-2023 (Gera MX, C. Tangana...) ya no lo pone.
+CLASICOS_DIAS = 3 * 365
 
 
 def _pl_key(pid: str) -> str:
@@ -207,8 +210,8 @@ def _top_dueno() -> list:
 
 
 def _clasicos_dueno() -> list:
-    """Lo mas escuchado de siempre (serie completa desde 2018), peso = escuchas."""
-    filas = database.get_top_window(None, 400)
+    """Lo mas escuchado de los ultimos 3 anios (CLASICOS_DIAS), peso = escuchas."""
+    filas = database.get_top_window(CLASICOS_DIAS, 400)
     return [{"key": f["match_key"], "track_id": f["track_id"], "name": f["name"], "artist": f["artist"],
              "peso": f.get("plays", 0)}
             for f in filas if f.get("match_key") and f.get("track_id")]

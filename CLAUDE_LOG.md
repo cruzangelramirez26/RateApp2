@@ -36,6 +36,13 @@ Entra en el proximo Rehacer.
 
 Commit `ac18631`.
 
+**AJUSTE, mismo dia.** Angel: *"no me gusta que desde el 2018, maybe 3 años
+para aca, mis gustos han cambiado mucho"*. `CLASICOS_DIAS = 3 * 365`.
+Simulado con sus datos: en un anio salen Nsqk 29, Alvaro Diaz 28, Easykid 19,
+FaceBrooklyn 16, LATIN MAFIA 15...; Duki 8 (antes 6), Gera MX 1 (antes 16),
+C. Tangana 0 (antes 10). Lo de ella ya era corto: el long_term de Spotify es
+de ~1 anio.
+
 ---
 
 ## 2026-09-27 (sesion: el mix entre dos personas)
