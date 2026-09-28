@@ -417,6 +417,10 @@ hooks/useMix.js, .github/workflows/mix-semanal.yml.
   - Primer mix real (2026-09-27, con Alison): gusto, pero metio como de Angel
     cinco de Taylor que oyo UNA vez con ella. Ahora el lado de Angel pide 3
     escuchas en el mes (2 para "los dos"). La playlist es colaborativa.
+  - Clasicos (2026-09-28): 10 de las 50 son favoritas de siempre, 5 y 5, al
+    azar por artista cada semana. Salio de "me gusta mucho duki y si me
+    gustaria que de vez en cuando toque": Duki tiene 81 escuchas en uNO dOS y
+    casi nada en el ultimo anio, asi que el mix del mes nunca lo metia.
 PENDIENTE: el modo desechable (road trip, N personas, sin guardar tokens).
 
 ## 8. Limpiar los Me Gusta  [INFRA HECHA 2026-09-02, faltan las vistas]

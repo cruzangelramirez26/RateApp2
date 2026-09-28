@@ -19,6 +19,7 @@ La playlist del mix vive en la cuenta de Angel.
 """
 import html
 import json
+import random
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -49,6 +50,16 @@ LIKES_TOPE = 3000
 # queden las que ponen juntos).
 MIN_PLAYS_A = 3
 MIN_PLAYS_A_COMUN = 2
+
+# CLASICOS (Angel, 2026-09-28): "yo se que me gusta mucho duki y si me
+# gustaria que de vez en cuando toque mis canciones favoritas de duki". El mix
+# del mes nunca las mete: Duki tiene uNO dOS con 81 escuchas de siempre y casi
+# nada en el ultimo anio. Asi que de las 50, 10 son favoritas DE SIEMPRE, 5 de
+# cada quien, sorteadas cada semana POR ARTISTA (primero el artista, pesado
+# por lo que se le ha escuchado, luego una de sus canciones). Sin marca
+# distinta en la UI, decision suya: salen como "tuya" / "suya".
+CLASICOS_POR_LADO = 5
+CLASICOS_CADA = 5   # una clasica cada 5 posiciones, no amontonadas al final
 
 
 def _pl_key(pid: str) -> str:
@@ -148,6 +159,44 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
     return salida
 
 
+def elegir_clasicos(pool: list, n: int, excluir: set, previas: set = frozenset(),
+                    rng: Optional[random.Random] = None) -> list:
+    """Sortea `n` clasicas de `pool` ({key, track_id, name, artist, peso}).
+
+    Primero el ARTISTA, al azar pero pesado por la suma de pesos de sus
+    canciones (Duki con cinco canciones de ~80 sale mas que alguien con una de
+    20); luego una de sus canciones, pesada igual. Un artista por sorteo, para
+    que no salgan cinco de Nsqk. `excluir` = lo que ya esta en el mix;
+    `previas` = las clasicas de la semana pasada, que solo se repiten si no
+    queda otra.
+    """
+    rng = rng or random.Random()
+    for evitar in (excluir | set(previas), excluir):
+        por_artista = {}
+        for t in pool:
+            if not t.get("key") or not t.get("track_id") or t["key"] in evitar or t.get("peso", 0) <= 0:
+                continue
+            por_artista.setdefault(utils.norm_text(t.get("artist") or ""), []).append(t)
+        if por_artista:
+            break
+    salida = []
+    while len(salida) < n and por_artista:
+        artistas = list(por_artista)
+        pesos = [sum(t["peso"] for t in por_artista[a]) for a in artistas]
+        a = rng.choices(artistas, weights=pesos)[0]
+        canciones = por_artista.pop(a)
+        salida.append(rng.choices(canciones, weights=[t["peso"] for t in canciones])[0])
+    return salida
+
+
+def intercalar(base: list, clasicas: list, cada: int = CLASICOS_CADA, n: int = TAMANO) -> list:
+    """Mete una clasica cada `cada` posiciones (la 5, la 10...) y corta en `n`."""
+    base = list(base[: max(0, n - len(clasicas))])
+    for i, c in enumerate(clasicas):
+        base.insert(min(len(base), (i + 1) * cada - 1), c)
+    return base[:n]
+
+
 # ─── Los datos de cada quien ────────────────────────────────────────────────
 
 def _top_dueno() -> list:
@@ -157,12 +206,36 @@ def _top_dueno() -> list:
             for f in filas if f.get("match_key") and f.get("track_id")]
 
 
-def _top_invitado(sp) -> list:
-    """/me/top/tracks short_term. Spotify da hasta ~99 en dos paginas."""
+def _clasicos_dueno() -> list:
+    """Lo mas escuchado de siempre (serie completa desde 2018), peso = escuchas."""
+    filas = database.get_top_window(None, 400)
+    return [{"key": f["match_key"], "track_id": f["track_id"], "name": f["name"], "artist": f["artist"],
+             "peso": f.get("plays", 0)}
+            for f in filas if f.get("match_key") and f.get("track_id")]
+
+
+def _clasicos_invitado(sp) -> list:
+    """Sus favoritas de siempre y de ~6 meses (mismo permiso user-top-read).
+    Spotify no da escuchas, solo el orden: el peso es el lugar al reves."""
+    vistas = {}
+    for rango in ("long_term", "medium_term"):
+        try:
+            top = _top_invitado(sp, rango)
+        except spotipy.SpotifyException:
+            continue
+        for i, t in enumerate(top):
+            peso = len(top) - i
+            if t["key"] not in vistas or vistas[t["key"]]["peso"] < peso:
+                vistas[t["key"]] = {**t, "peso": peso}
+    return list(vistas.values())
+
+
+def _top_invitado(sp, rango: str = "short_term") -> list:
+    """/me/top/tracks. Spotify da hasta ~99 en dos paginas."""
     salida = []
     for offset in (0, 49):
         try:
-            r = sp.current_user_top_tracks(limit=50, offset=offset, time_range="short_term")
+            r = sp.current_user_top_tracks(limit=50, offset=offset, time_range=rango)
         except spotipy.SpotifyException:
             if offset == 0:
                 raise
@@ -202,12 +275,40 @@ def rehacer(pid: str, nombre: str) -> dict:
         sp_b = spotify.get_guest_client(pid)
         b_top = _top_invitado(sp_b)
         b_likes = _likes(sp_b)
+        b_clasicos = _clasicos_invitado(sp_b)
     except Exception as e:
-        raise RuntimeError(_mensaje_spotify(e, nombre))
+        raise RuntimeError(_mensaje_spotify(e, nombre)) from e
 
     a_top = _top_dueno()
     a_likes = _likes(sp)
     items = armar_mix(a_top, b_top, a_likes, b_likes)
+
+    # Los clasicos: 5 y 5, sin repetir lo que ya trae el mix ni (si se puede)
+    # los de la semana pasada.
+    try:
+        previas = set((json.loads(database.get_config(_ult_key(pid)) or "{}") or {}).get("clasicos") or [])
+    except ValueError:
+        previas = set()
+    en_mix = {utils.listening_key(t.get("name") or "", t.get("artist") or "") for t in items}
+    rng = random.Random()
+    mias = elegir_clasicos(_clasicos_dueno(), CLASICOS_POR_LADO, en_mix, previas, rng)
+    en_mix |= {t["key"] for t in mias}
+    suyas = elegir_clasicos(b_clasicos, CLASICOS_POR_LADO, en_mix, previas, rng)
+    clasicas = []
+    for i in range(max(len(mias), len(suyas))):
+        for t, de in ((mias[i] if i < len(mias) else None, "a"), (suyas[i] if i < len(suyas) else None, "b")):
+            if t:
+                tid = (a_likes.get(t["key"]) or t["track_id"]) if de == "a" else t["track_id"]
+                clasicas.append({"track_id": tid, "name": t.get("name"), "artist": t.get("artist"),
+                                 "de": de, "motivo": "De sus favoritas de siempre" if de == "b"
+                                 else "De tus favoritas de siempre", "key": t["key"]})
+    items = intercalar(items, clasicas)
+    # Dos ids iguales (reedicion) no deben entrar dos veces.
+    vistos, limpio = set(), []
+    for t in items:
+        if t["track_id"] not in vistos:
+            vistos.add(t["track_id"]); limpio.append(t)
+    items = limpio
     if not items:
         raise RuntimeError("No salió ninguna canción: ¿alguno de los dos no ha escuchado nada este mes?")
 
@@ -245,6 +346,7 @@ def rehacer(pid: str, nombre: str) -> dict:
         "ambos": sum(1 for t in items if t["de"] == "ambos"),
         "tuyas": sum(1 for t in items if t["de"] == "a"),
         "suyas": sum(1 for t in items if t["de"] == "b"),
+        "clasicos": [t.pop("key") for t in items if "key" in t],
         "fuente": {"tu_top": len(a_top), "su_top": len(b_top),
                    "tus_likes": len(a_likes), "sus_likes": len(b_likes)},
         "items": items,
