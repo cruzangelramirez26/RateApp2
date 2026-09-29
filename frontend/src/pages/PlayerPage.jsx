@@ -4,7 +4,7 @@ import {
   ChevronsRight, RefreshCw, Check, Headphones,
 } from 'lucide-react';
 import { api } from '../utils/api';
-import { ratingColor, ratingDim, ratingSoft } from '../utils/theme';
+import { claseNota } from '../components/movil/Notas';
 import { RATINGS_ORDEN, ratingDeTecla, teclaDeRating, esEscritura } from '../utils/ratings';
 import { anunciarCalificada, escucharCalificadas } from '../utils/reproductor';
 import { tieneBarraPropia } from '../utils/ventana';
@@ -486,7 +486,6 @@ function Portada({ track, destello }) {
         <div
           key={destello.n}
           className="rp-destello"
-          style={{ '--c': ratingColor(destello.r) }}
         >
           <Check />
           <span>{destello.r}</span>
@@ -509,7 +508,7 @@ function Info({ titulo, subtitulo, children }) {
 function ChipRating({ r }) {
   if (!r) return <span className="rp-chip rp-chip-vacio">sin calificar</span>;
   return (
-    <span className="rp-chip rp-chip-rating" style={{ color: ratingColor(r), background: ratingDim(r), borderColor: ratingSoft(r) }}>
+    <span className={`rp-chip rp-chip-rating ${claseNota(r)}`}>
       {r}
     </span>
   );
@@ -627,12 +626,7 @@ function Notas({ actual, mostrarTeclas, onRate }) {
         return (
           <button
             key={r}
-            className={`rp-nota${activo ? ' activa' : ''}`}
-            style={{
-              '--c': ratingColor(r),
-              '--c-dim': ratingDim(r),
-              '--c-soft': ratingSoft(r),
-            }}
+            className={`rp-nota ${claseNota(r)}${activo ? ' activa' : ''}`}
             onClick={() => onRate(r)}
             title={`${r} (tecla ${teclaDeRating(r)})`}
           >
