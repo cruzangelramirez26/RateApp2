@@ -2,6 +2,27 @@
 
 ---
 
+## 2026-09-29 (sesion: el reproductor flotante sin colores)
+
+**Maquina: laptop del trabajo.** Angel, con captura del PiP: *"siento que ya
+desentonan esas letras con colores, ya no queda con la estetica de la app"*.
+`/player` era lo unico que seguia con `ratingColor`/`ratingDim`/`ratingSoft`.
+
+Decision de Angel: **el estilo del movil**, y solo oscuro (como la app de PC).
+- Las 7 notas (`rp-nota`): A+/A/B+ borde claro fino, B/C+/C casi invisible, D
+  punteada; **solo se rellena de crema la que ya tiene**. Usa `claseNota` de
+  `components/movil/Notas.jsx`.
+- El chip de la nota bajo el artista, la misma cajita crema.
+- El velo de "calificada" sobre la portada, crema en vez del color de la nota.
+- Sin cambios de logica. No hay que reinstalar: la ventana carga de Cloud Run.
+
+`npm run build` OK. **NO VERIFICADO a ojo:** en el PiP de Chrome ni en la
+flotante de Tauri.
+
+Commit `13f0679`.
+
+---
+
 ## 2026-09-28 (sesion: clasicos en el mix)
 
 **Maquina: laptop del trabajo.** Angel, con el mix ya en uso: *"quisiera que
