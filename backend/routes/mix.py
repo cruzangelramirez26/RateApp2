@@ -336,7 +336,7 @@ def rehacer(pid: str, nombre: str) -> dict:
         yo = (me.get("display_name") or "Yo").split(" ")[0]
         nueva = sp.user_playlist_create(
             me["id"], f"{yo} + {nombre}", public=False, collaborative=True,
-            description="Mix de RateApp: lo que los dos escuchan este mes. Se rehace cada semana.")
+            description="Mix de Rated: lo que los dos escuchan este mes. Se rehace cada semana.")
         pl_id = nueva["id"]
         spotify.replace_playlist(sp, pl_id, ids)
         database.set_config(_pl_key(pid), pl_id)
@@ -382,11 +382,11 @@ def _pagina(titulo: str, texto: str, status: int = 200) -> HTMLResponse:
     hacer dentro de la biblioteca de Angel."""
     return HTMLResponse(
         "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-        "<title>RateApp · mix</title>"
+        "<title>Rated · mix</title>"
         "<body style=\"margin:0;min-height:100vh;display:grid;place-items:center;"
         "background:#121110;color:#f0ede6;font-family:system-ui,sans-serif\">"
         "<main style='max-width:420px;padding:32px 24px'>"
-        "<div style='font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.55'>RateApp · mix</div>"
+        "<div style='font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.55'>Rated · mix</div>"
         f"<h1 style='font-weight:600;font-size:28px;margin:12px 0'>{html.escape(titulo)}</h1>"
         f"<p style='line-height:1.55;opacity:.8'>{html.escape(texto)}</p></main></body>",
         status_code=status)

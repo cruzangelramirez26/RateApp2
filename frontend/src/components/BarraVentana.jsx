@@ -44,7 +44,7 @@ export default function BarraVentana({ variante = 'principal' }) {
       {principal && (
         <div className="barra-ventana-titulo" data-tauri-drag-region>
           <span className="barra-ventana-badge" data-tauri-drag-region>A+</span>
-          <span data-tauri-drag-region>RateApp</span>
+          <span data-tauri-drag-region>Rated</span>
         </div>
       )}
       <div className="barra-ventana-hueco" data-tauri-drag-region />

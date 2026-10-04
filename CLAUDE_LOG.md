@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-10-04 (sesion: la app se llama Rated + propuestas de logo)
+
+**Maquina: sesion en la nube.** Angel: *"la app oficialmente se llamara Rated.
+renombra en donde sea necesario y necesito propuestas de logo"*.
+
+**Renombre, solo lo que se ve** (decision de Angel: *"lo interno igual"*):
+titulo de la pestaña y del PWA, barras de titulo, login, Herramientas, el
+texto de compartir el mix, la app de Android (nombre, widget) y la de
+escritorio (titulo de las ventanas, bandeja, avisos, menu), las paginas del
+mix y del login con cuenta ajena, el titulo de la API y el nombre/descripcion
+de las playlists que arma la app.
+
+**Lo que NO se toco, a proposito:** `com.angelrg.rateapp`, la URL de Cloud
+Run, las claves de `localStorage`, el repo, `instalador/RateApp.apk` y el
+`productName`/`mainBinaryName` de Tauri (de ahi sale la carpeta de
+instalacion `AppData\Local\RateApp` y la ruta que guarda el autostart en el
+registro: cambiarlos instalaria otra app y romperia "Iniciar con Windows").
+O sea el acceso directo de Windows sigue diciendo RateApp. Las playlists que
+ya existen conservan su nombre: el nuevo entra solo al crearse.
+
+En Android y escritorio el nombre nuevo pide reinstalar; la web, no.
+
+**Logo:** lienzo https://claude.ai/artifact/GomBKZETCihpuLpiJBu2Vd (privado).
+Seis direcciones (la nota A+, las siete barras, R+, portada calificada,
+palomita en la nota, la R serif). Angel pidio version mas profesional de 1,
+3, 4 y 5: trazadas a mano en una reticula de 100, sin depender de la fuente
+en el icono, con grosor que sube por debajo de 24 px, version de una tinta y
+sobre crema. **Pendiente: que elija**, y entonces cambiar favicon (🎵), el
+badge A+ de la barra, el 🎵 del login y los iconos de Tauri y Android.
+
+`npm run build` OK.
+
+---
+
 ## 2026-09-29 (sesion: el reproductor flotante sin colores)
 
 **Maquina: laptop del trabajo.** Angel, con captura del PiP: *"siento que ya

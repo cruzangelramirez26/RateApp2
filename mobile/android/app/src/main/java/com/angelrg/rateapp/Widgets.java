@@ -132,7 +132,7 @@ final class Widgets {
 
         v.setOnClickPendingIntent(R.id.wg_cuerpo, Avisos.abrirApp(ctx, "/", 40));
         if (tid == null) {
-            v.setTextViewText(R.id.wg_cab, "RateApp");
+            v.setTextViewText(R.id.wg_cab, "Rated");
             v.setTextViewText(R.id.wg_nombre, "Nada sonando todavía");
             v.setTextViewText(R.id.wg_artista, "Pon algo en Spotify");
             v.setTextViewText(R.id.wg_estado, "");

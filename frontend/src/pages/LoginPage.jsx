@@ -43,7 +43,7 @@ export default function LoginPage() {
           letterSpacing: '-0.03em',
           marginBottom: '6px',
         }}>
-          RateApp
+          Rated
         </h1>
 
         <p style={{

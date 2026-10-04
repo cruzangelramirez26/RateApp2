@@ -564,7 +564,7 @@ export default function HerramientasEscritorio() {
       <div className="esc-her-fila3 con-mix">
         <section className="esc-her-card" style={{ animationDelay: '50ms' }}>
           <Cabeza arte={<Pila imgs={sinNota} />} titulo="Califica lo que sí escuchas"
-            texto="Tus Me Gusta que nunca pasaron por RateApp, ordenados por lo que de verdad pones. Aquí calificar solo cataloga." />
+            texto="Tus Me Gusta que nunca pasaron por Rated, ordenados por lo que de verdad pones. Aquí calificar solo cataloga." />
           <button type="button" className="esc-fantasma esc-her-boton" onClick={() => navigate('/backfill')}>Abrir la cola</button>
         </section>
         <section className="esc-her-card" style={{ animationDelay: '120ms' }}>

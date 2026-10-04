@@ -1,4 +1,4 @@
-# 🎵 RateApp — Song Rating System
+# 🎵 Rated — Song Rating System
 
 A modern web app to rate your Spotify songs, distribute them across playlists by "cuatrimestre" (4-month periods), and keep everything organized automatically.
 

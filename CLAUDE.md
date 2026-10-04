@@ -1,4 +1,6 @@
-# RateApp — Contexto para Claude
+# Rated — Contexto para Claude
+
+**La app se llama Rated** (desde el 2026-10-04; antes RateApp). Solo cambió lo que se ve. Lo interno conserva `rateapp` **a propósito**, por decisión de Angel: `com.angelrg.rateapp` (si cambia, Android y Windows la tratan como otra app), la URL de Cloud Run (redirect de Spotify, Scheduler, workflows y las dos apps), las claves de `localStorage` (`rateapp_theme`...), el repo, `instalador/RateApp.apk` y el `productName`/`mainBinaryName` de Tauri (de ahí salen la carpeta de instalación y la ruta del autostart en el registro). Las playlists que ya existían conservan su nombre: el nuevo solo entra cuando se crean.
 
 @README.md
 

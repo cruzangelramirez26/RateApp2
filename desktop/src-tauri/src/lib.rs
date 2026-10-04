@@ -88,7 +88,7 @@ fn abrir_player(app: &AppHandle, modo: Option<&str>) {
     Err(_) => return,
   };
   let r = WebviewWindowBuilder::new(app, VENTANA_PLAYER, destino)
-    .title("RateApp — Reproductor")
+    .title("Rated — Reproductor")
     // Sin la barra de Windows: /player pinta una tira propia de 24 px sobre su
     // fondo, para arrastrar y cerrar. Por eso el alto minimo sube 24 px, y el
     // area del reproductor sigue llegando a los 140 del modo "mini".
@@ -175,7 +175,7 @@ async fn calificar_lo_que_suena(app: AppHandle, rating: &'static str) {
   let track = match sonando {
     Ok(r) => r.json::<serde_json::Value>().await.ok(),
     Err(err) => {
-      avisar(&app, "RateApp", &format!("No se pudo consultar Spotify: {err}"));
+      avisar(&app, "Rated", &format!("No se pudo consultar Spotify: {err}"));
       return;
     }
   };
@@ -186,12 +186,12 @@ async fn calificar_lo_que_suena(app: AppHandle, rating: &'static str) {
     // Sin nada sonando NO se califica a ciegas: seria escribir una nota sobre
     // una cancion que el usuario no eligio.
     _ => {
-      avisar(&app, "RateApp", "No hay nada sonando en Spotify");
+      avisar(&app, "Rated", "No hay nada sonando en Spotify");
       return;
     }
   };
   if id.is_empty() {
-    avisar(&app, "RateApp", "No hay nada sonando en Spotify");
+    avisar(&app, "Rated", "No hay nada sonando en Spotify");
     return;
   }
 
@@ -345,7 +345,7 @@ pub fn run() {
         if !ocupados.is_empty() {
           avisar(
             app.handle(),
-            "Atajos de RateApp ocupados",
+            "Atajos de Rated ocupados",
             &format!("Otro programa ya usa: {}", ocupados.join(", ")),
           );
         }
@@ -357,7 +357,7 @@ pub fn run() {
       let inicio_activo = app.autolaunch().is_enabled().unwrap_or(false);
 
       let item_mostrar =
-        MenuItem::with_id(app, "mostrar", "Mostrar RateApp  (Ctrl+Alt+A)", true, None::<&str>)?;
+        MenuItem::with_id(app, "mostrar", "Mostrar Rated  (Ctrl+Alt+A)", true, None::<&str>)?;
       let item_player = MenuItem::with_id(
         app,
         "player",
@@ -393,7 +393,7 @@ pub fn run() {
 
       TrayIconBuilder::with_id("main")
         .icon(icono)
-        .tooltip("RateApp")
+        .tooltip("Rated")
         .menu(&menu)
         // El clic izquierdo abre la ventana; el menu sale con el derecho.
         .show_menu_on_left_click(false)

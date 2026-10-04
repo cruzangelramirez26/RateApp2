@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="RateApp",
+    title="Rated",
     description="Spotify song rating system",
     version="2.0.0",
     lifespan=lifespan,

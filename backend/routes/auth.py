@@ -48,8 +48,8 @@ def callback(request: Request):
         return HTMLResponse(
             "<meta name=viewport content='width=device-width'>"
             "<body style='font-family:system-ui;background:#121110;color:#f0ede6;padding:32px'>"
-            "<h2>Esta no es la cuenta de RateApp</h2>"
-            "<p>RateApp es de una sola cuenta de Spotify. Si te invitaron a un mix, "
+            "<h2>Esta no es la cuenta de Rated</h2>"
+            "<p>Rated es de una sola cuenta de Spotify. Si te invitaron a un mix, "
             "usa el link de invitación que te mandaron.</p></body>",
             status_code=403)
 

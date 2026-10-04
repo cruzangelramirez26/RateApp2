@@ -1,4 +1,4 @@
-# RateApp — Arquitectura
+# Rated — Arquitectura
 
 > Documento de referencia técnica. Última revisión: **2026-08-20**, contra el código en `main` (commit `cd1d37d`).
 > El *changelog* de sesiones vive en [`CLAUDE_LOG.md`](CLAUDE_LOG.md); el backlog en [`Mejoras.txt`](Mejoras.txt).

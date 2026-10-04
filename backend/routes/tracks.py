@@ -927,10 +927,10 @@ def backfill_playlist(
         "abandoned": "Abandonadas — revisar",
         "cleanup": "Limpiar Me Gusta — revisar",
         "backfill": "Por calificar — lo que más escuchas",
-        "window": "Mis más escuchadas — RateApp",
+        "window": "Mis más escuchadas — Rated",
     }
     nombre = NOMBRES.get(source, NOMBRES["backfill"])
-    desc = ("Generada por RateApp. Se reemplaza cada vez que la pides, "
+    desc = ("Generada por Rated. Se reemplaza cada vez que la pides, "
             "así que no la edites a mano.")
 
     # Una playlist por fuente: si compartieran clave, abrir una vista

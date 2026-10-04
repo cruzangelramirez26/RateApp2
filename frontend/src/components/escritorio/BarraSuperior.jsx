@@ -29,7 +29,7 @@ export default function BarraSuperior() {
     <header className="esc-barra" data-tauri-drag-region>
       <div className="esc-marca" data-tauri-drag-region>
         <span className="esc-marca-badge" data-tauri-drag-region>A+</span>
-        <span data-tauri-drag-region>RateApp</span>
+        <span data-tauri-drag-region>Rated</span>
       </div>
       <div className="esc-barra-centro" data-tauri-drag-region>
         <Buscador />

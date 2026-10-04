@@ -36,7 +36,7 @@ export function useMix() {
     // En el celular, la hoja de compartir del sistema (WhatsApp, etc.); si no
     // hay, al portapapeles.
     if (navigator.share) {
-      try { await navigator.share({ title: 'Mix en RateApp', text: 'Conéctate con tu Spotify para armar nuestro mix:', url }); return; }
+      try { await navigator.share({ title: 'Mix en Rated', text: 'Conéctate con tu Spotify para armar nuestro mix:', url }); return; }
       catch (e) { if (e?.name === 'AbortError') return; }
     }
     try { await navigator.clipboard.writeText(url); toast('Link copiado', 'success'); }
