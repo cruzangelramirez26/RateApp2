@@ -69,6 +69,15 @@ bandeja, el adaptativo en el S24 y la notificacion, a ojo de Angel.
 
 Commit `b464ebd`.
 
+**AJUSTE, mismo dia.** Angel, con el favicon visto en grande: *"pq tiene una
+linea como desalineada? y el mas asi de gordo no me gusta"*. Dos errores del
+engrosado de los tamanos chicos: el asta seguia arrancando en 26 aunque la
+barra de arriba ya empezara en 25 (escalon visible), y el + subia de 6.5 a 9,
+mas que la R. Ahora el asta arranca en `30.5 - w/2` y lo chico va a **11 / 8**
+(la proporcion del original). En el generador, `LogoRated`, el favicon y
+`ic_stat_rateapp`. Instaladores rehechos. El lienzo (`MarcaR`, `Icono03`)
+conserva el 11 / 9 viejo: son bocetos.
+
 ---
 
 ## 2026-10-04 (sesion: la app se llama Rated + propuestas de logo)

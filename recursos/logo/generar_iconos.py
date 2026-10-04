@@ -3,7 +3,8 @@
 La geometria es la del lienzo (MarcaR.dc.html): reticula de 100, R de trazo
 unico (9) y el + a la altura del arco. Se dibuja con poligonos, no con una
 fuente, para que salga igual en todos lados. Abajo de 24 px el trazo engorda
-(11 / 9), como en el lienzo, para que no se pierda.
+a 11 / 8: la misma proporcion R:+ del original (9 / 6.5), porque con un + de
+9 se veia gordo (Angel).
 
 Dos estilos:
   - "tile": la R+ crema sobre el cuadro oscuro. Programa de Windows, favicon,
@@ -36,7 +37,9 @@ def _glifo(draw, T, w, wp):
         draw.polygon([T(x, y) for x, y in pts], fill=255)
 
     h = w / 2
-    poly([(30 - h, 26), (30 + h, 26), (30 + h, 74), (30 - h, 74)])          # asta
+    # El asta arranca a ras del borde de arriba de la barra (30.5 - h): con
+    # 26 fijo, al engrosar el trazo quedaba un escalon.
+    poly([(30 - h, 30.5 - h), (30 + h, 30.5 - h), (30 + h, 74), (30 - h, 74)])  # asta
     poly([(30, 30.5 - h), (46, 30.5 - h), (46, 30.5 + h), (30, 30.5 + h)])   # arriba
     poly([(30, 53.5 - h), (46, 53.5 - h), (46, 53.5 + h), (30, 53.5 + h)])   # abajo
     # Arco: media corona de radio 11.5 centrada en (46, 42).
@@ -65,7 +68,7 @@ def render(size, estilo='tile', tinta=None, grueso=None, forma='cuadro'):
     ss = 16 if size <= 64 else 4
     S = size * ss
     grueso = size <= 24 if grueso is None else grueso
-    w, wp = (11, 9) if grueso else (9, 6.5)
+    w, wp = (11, 8) if grueso else (9, 6.5)
 
     if estilo == 'solo':
         # Igual que Icono03 del lienzo: escala 1.3 alrededor del centro.

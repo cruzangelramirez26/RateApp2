@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Icono de la barra de estado: Android lo pinta monocromo, asi que solo
      importa la silueta. La R+ de Rated sin fondo, con el trazo grueso de los
-     tamanos chicos (11 / 9), como en recursos/logo/generar_iconos.py. -->
+     tamanos chicos (11 / 8), como en recursos/logo/generar_iconos.py. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="100" android:viewportHeight="100">
@@ -10,9 +10,9 @@
             <group>
                 <clip-path android:pathData="M0,0H100V74H0Z" />
                 <path android:strokeColor="#FFFFFFFF" android:strokeWidth="11"
-                    android:pathData="M30,26V74 M30,30.5H46A11.5,11.5 0,0 1,46 53.5H30 M44,53.5L57,76" />
+                    android:pathData="M30,25V74 M30,30.5H46A11.5,11.5 0,0 1,46 53.5H30 M44,53.5L57,76" />
             </group>
-            <path android:strokeColor="#FFFFFFFF" android:strokeWidth="9"
+            <path android:strokeColor="#FFFFFFFF" android:strokeWidth="8"
                 android:pathData="M73,24V38 M66,31H80" />
         </group>
     </group>
