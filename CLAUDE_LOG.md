@@ -67,6 +67,8 @@ bandeja, el adaptativo en el S24 y la notificacion, a ojo de Angel.
 - [ ] El splash de Android (`drawable/splash.png`) sigue siendo el de
       Capacitor.
 
+Commit `b464ebd`.
+
 ---
 
 ## 2026-10-04 (sesion: la app se llama Rated + propuestas de logo)
