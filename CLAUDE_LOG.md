@@ -29,8 +29,31 @@ Seis direcciones (la nota A+, las siete barras, R+, portada calificada,
 palomita en la nota, la R serif). Angel pidio version mas profesional de 1,
 3, 4 y 5: trazadas a mano en una reticula de 100, sin depender de la fuente
 en el icono, con grosor que sube por debajo de 24 px, version de una tinta y
-sobre crema. **Pendiente: que elija**, y entonces cambiar favicon (🎵), el
-badge A+ de la barra, el 🎵 del login y los iconos de Tauri y Android.
+sobre crema.
+
+**SEGUNDA RONDA.** Angel: la 01 v2 y la 05 v2 *"muy basicas, parece icono
+xs"*, la 04 v2 no le gusto; **se quedan la 03 v2 (R+) y la 06 (R serif)** y
+pidio nuevas *"asi de modernas o brandeables"*. Se quitaron del lienzo las
+demas y se agregaron cinco, todas derivadas de esas dos:
+
+- 07 R serif + — la R itálica del "01" con el + geometrico de la 03.
+- 08 R play — la R de la 03 con un triangulo de play en lugar de pierna.
+- 09 Sello — "RATED · RATED ·" en circulo con la R+ al centro.
+- 10 r+ minuscula — "rated⁺" en minusculas.
+- 11 R+ difuminada — la 03 sobre portada difuminada (la firma de la app).
+
+Cada marca es un componente (`Marca*.dc.html`, props `size`/`fg`/`tile`)
+con grosor que sube por debajo de 24 px. Recomendadas: 07 y 11.
+
+**PENDIENTES:**
+
+- [ ] **Angel elige logo** (o combinacion). Luego: favicon (🎵), badge A+ de
+      la barra (`BarraSuperior.jsx`), 🎵 del login, iconos de Tauri
+      (`desktop/src-tauri/icons`) y Android (mipmap), y el `manifest.json`.
+- [ ] **Mezclar `ccr-55e6b765-ah8dda` a `main`**: el renombre a Rated esta en
+      esa rama y NO en produccion hasta que se mezcle (la sesion en la nube
+      no podia empujar a `main`).
+- [ ] Reinstalar el APK y el instalador de escritorio para ver el nombre nuevo.
 
 `npm run build` OK.
 
