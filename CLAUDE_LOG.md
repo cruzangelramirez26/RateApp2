@@ -34,6 +34,8 @@ badge A+ de la barra, el 🎵 del login y los iconos de Tauri y Android.
 
 `npm run build` OK.
 
+Commit `dbf4e36`.
+
 ---
 
 ## 2026-09-29 (sesion: el reproductor flotante sin colores)
