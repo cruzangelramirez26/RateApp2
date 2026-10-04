@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- La R+ de Rated (la 03) para el icono adaptativo. Misma geometria que
+     recursos/logo/generar_iconos.py, a 0.8 para que quepa en la zona segura
+     (66 de 108): Android recorta el icono en circulo o en la forma del tema. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="14" android:translateY="14" android:scaleX="0.8" android:scaleY="0.8">
+        <group android:translateX="-3">
+            <group>
+                <clip-path android:pathData="M0,0H100V74H0Z" />
+                <path android:strokeColor="#F3EFE7" android:strokeWidth="9"
+                    android:pathData="M30,26V74 M30,30.5H46A11.5,11.5 0,0 1,46 53.5H30 M44,53.5L57,76" />
+            </group>
+            <path android:strokeColor="#F3EFE7" android:strokeWidth="6.5"
+                android:pathData="M73,24V38 M66,31H80" />
+        </group>
+    </group>
+</vector>

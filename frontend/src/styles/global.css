@@ -239,12 +239,6 @@ html.con-barra body {
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-family: var(--font-mono);
-  font-size: 0.5rem;
-  font-weight: 700;
 }
 .barra-ventana-hueco { flex: 1; }
 .barra-ventana-btn {

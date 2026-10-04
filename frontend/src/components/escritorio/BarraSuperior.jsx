@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Minus, Square, Copy, X } from 'lucide-react';
 import { tieneBarraPropia, minimizar, alternarMaximizar, cerrar, estaMaximizada } from '../../utils/ventana';
 import Buscador from './Buscador';
+import LogoRated from '../LogoRated';
 
 /**
  * La barra de arriba del diseño de escritorio: marca, buscador y —solo dentro
@@ -28,7 +29,7 @@ export default function BarraSuperior() {
   return (
     <header className="esc-barra" data-tauri-drag-region>
       <div className="esc-marca" data-tauri-drag-region>
-        <span className="esc-marca-badge" data-tauri-drag-region>A+</span>
+        <span className="esc-marca-badge" data-tauri-drag-region><LogoRated size={20} /></span>
         <span data-tauri-drag-region>Rated</span>
       </div>
       <div className="esc-barra-centro" data-tauri-drag-region>

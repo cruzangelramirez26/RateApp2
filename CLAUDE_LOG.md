@@ -2,6 +2,73 @@
 
 ---
 
+## 2026-10-04 (sesion: el logo de Rated en la app)
+
+**Maquina: PC `AngelPC`.** Continuacion de la sesion en la nube de abajo.
+
+**La rama del renombre, a `main`.** `ccr-55e6b765-ah8dda` entro por
+fast-forward (`3005a16`). El `frontend/package-lock.json` local sin versionar
+era distinto del que traia la rama; se movio al scratchpad de la sesion antes
+de mezclar, asi que el pendiente de "package-lock sin versionar" queda cerrado
+con el de la rama.
+
+**El logo, en el lienzo** (https://claude.ai/artifact/GomBKZETCihpuLpiJBu2Vd).
+Dos rondas mas: fuera sello, R play, R+ ligada y las difuminadas (*"solo es
+una variante"*); la r+ minuscula le gusto mucho; las nuevas no debian
+depender de la R mayuscula (*"parece Rated R"*). Quedo entre 03 y 10, se
+hicieron nueve variaciones de cada una, y eligio **la 03 original**. **Los
+bocetos se quedan en el lienzo** por si cambia de opinion.
+
+**Un icono por lugar** (hoja "03 · Un icono para cada lugar"). Decisiones de
+Angel:
+
+- **Programa de Windows** (menu Inicio, acceso directo, instalador, y la barra
+  cuando la app esta **anclada**): **con cuadro**. Windows usa el icono del
+  exe en todos esos, no se pueden separar; se le pregunto y eligio esto sobre
+  "R+ sola en todo Windows".
+- **Ventana abierta y flotante** (`.icon()` / `set_icon`) y **bandeja**: la
+  **R+ sola, blanca** (*"igual lo dejare el tema oscuro"*). OJO: anclada a la
+  barra, Windows enseña el cuadro del exe, no este.
+- Favicon, PWA, barras de la app, login y carga: con cuadro. Android: fondo
+  `#141210` + R+ crema en vector (el sistema lo recorta). Notificacion: la R+
+  sola (era una estrella provisional).
+
+**Como quedo:**
+
+- `recursos/logo/generar_iconos.py` dibuja todo con PIL desde la geometria
+  del lienzo (poligonos, no fuente), con trazo grueso abajo de 24 px. Deja el
+  maestro de 1024 para `npx tauri icon` y despues **reescribe `icon.ico` con
+  un render por tamano** (el de Tauri reduce el de 1024 y a 16 px el trazo
+  quedaba de 1.4 px). Tambien `ventana.png`, `bandeja.png`, `icon-192/512`,
+  `apple-touch-icon` y los mipmap de legado de Android.
+- `lib.rs`: `icono_ventana()` / `icono_bandeja()` con `include_bytes!`;
+  feature `image-png` de tauri.
+- `components/LogoRated.jsx` reemplaza el badge "A+" de `BarraSuperior` y
+  `BarraVentana` y el 🎵 del login y de la carga. Lleva
+  `pointer-events: none` para que el arrastre de Tauri siga cayendo en el
+  `data-tauri-drag-region`.
+- Android: `ic_launcher_foreground_rated.xml` (vector, a 0.8 dentro de la
+  zona segura), `ic_stat_rateapp.xml` nuevo, y fuera los
+  `ic_launcher_foreground.png` que ya nadie usa.
+
+**Verificado:** `cargo check`, `npm run build` (web), APK (`BUILD
+SUCCESSFUL`, o sea los vectores pasan) e instalador NSIS nuevos en
+`instalador/`. Los PNG generados, revisados a ojo en una tira de prueba.
+
+**NO VERIFICADO:** nada instalado. El icono en la barra de tareas y la
+bandeja, el adaptativo en el S24 y la notificacion, a ojo de Angel.
+
+**PENDIENTES:**
+
+- [ ] Angel: reinstalar escritorio (`instalador/RateApp_0.1.0_x64-setup.exe`)
+      y el APK (`adb install -r --user 0 instalador/RateApp.apk`). Si el
+      icono viejo se queda en la barra o el escritorio, es la cache de iconos
+      de Windows: desanclar y volver a anclar.
+- [ ] El splash de Android (`drawable/splash.png`) sigue siendo el de
+      Capacitor.
+
+---
+
 ## 2026-10-04 (sesion: la app se llama Rated + propuestas de logo)
 
 **Maquina: sesion en la nube.** Angel: *"la app oficialmente se llamara Rated.

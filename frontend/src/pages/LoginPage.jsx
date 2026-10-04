@@ -2,6 +2,7 @@
  * LoginPage — Shown when Spotify auth is needed.
  */
 import { api } from '../utils/api';
+import LogoRated from '../components/LogoRated';
 
 export default function LoginPage() {
   return (
@@ -30,11 +31,11 @@ export default function LoginPage() {
 
       <div className="fade-in" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{
-          fontSize: '3.5rem',
-          marginBottom: '8px',
-          filter: 'drop-shadow(0 0 20px rgba(29,185,84,0.3))',
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: '14px',
         }}>
-          🎵
+          <LogoRated size={64} />
         </div>
 
         <h1 style={{

@@ -1,4 +1,5 @@
 use tauri::{
+  image::Image,
   menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
   tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
   AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
@@ -6,6 +7,20 @@ use tauri::{
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_notification::NotificationExt;
+
+/// La R+ sola, en blanco, para la ventana abierta en la barra de tareas
+/// (decision de Angel: el programa conserva el icono con cuadro, que es el que
+/// usan el menu Inicio, el acceso directo y la barra cuando la app esta
+/// anclada; la ventana suelta lleva la R+ sin fondo). Salen de
+/// `recursos/logo/generar_iconos.py`.
+fn icono_ventana() -> Image<'static> {
+  Image::from_bytes(include_bytes!("../icons/ventana.png")).expect("icons/ventana.png ilegible")
+}
+
+/// La misma R+, mas gruesa, para la bandeja (16 px).
+fn icono_bandeja() -> Image<'static> {
+  Image::from_bytes(include_bytes!("../icons/bandeja.png")).expect("icons/bandeja.png ilegible")
+}
 
 /// Marca que el arranque vino de Windows y no de un doble clic. El plugin de
 /// autostart lo agrega a la linea de comandos que registra, asi que es la unica
@@ -100,8 +115,11 @@ fn abrir_player(app: &AppHandle, modo: Option<&str>) {
     .skip_taskbar(true)
     .resizable(true)
     .build();
-  if let Err(err) = r {
-    log::error!("no se pudo abrir el reproductor flotante: {err}");
+  match r {
+    Ok(win) => {
+      let _ = win.set_icon(icono_ventana());
+    }
+    Err(err) => log::error!("no se pudo abrir el reproductor flotante: {err}"),
   }
 }
 
@@ -315,6 +333,7 @@ pub fn run() {
       WebviewWindowBuilder::from_config(app.handle(), &config_main)?
         .initialization_script(SCRIPT_ESCRITORIO)
         .on_navigation(move |url| al_navegar(&handle, url))
+        .icon(icono_ventana())?
         .build()?;
 
       // La ventana NACE invisible (`"visible": false` en tauri.conf.json) y se
@@ -386,13 +405,8 @@ pub fn run() {
         ],
       )?;
 
-      let icono = app
-        .default_window_icon()
-        .cloned()
-        .expect("la app no trae icono por defecto");
-
       TrayIconBuilder::with_id("main")
-        .icon(icono)
+        .icon(icono_bandeja())
         .tooltip("Rated")
         .menu(&menu)
         // El clic izquierdo abre la ventana; el menu sale con el derecho.

@@ -157,12 +157,6 @@ html.escritorio body { background: var(--esc-negro); }
 .esc-marca-badge {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
-  background: var(--esc-crema);
-  color: var(--esc-negro);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
   display: grid;
   place-items: center;
 }

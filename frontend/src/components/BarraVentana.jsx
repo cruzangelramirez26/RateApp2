@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Minus, Square, Copy, X } from 'lucide-react';
 import { tieneBarraPropia, minimizar, alternarMaximizar, cerrar, estaMaximizada } from '../utils/ventana';
+import LogoRated from './LogoRated';
 
 /**
  * La barra de título de la app de escritorio. Fuera del escritorio no pinta
@@ -43,7 +44,7 @@ export default function BarraVentana({ variante = 'principal' }) {
     <div className={`barra-ventana barra-ventana-${variante}`} data-tauri-drag-region>
       {principal && (
         <div className="barra-ventana-titulo" data-tauri-drag-region>
-          <span className="barra-ventana-badge" data-tauri-drag-region>A+</span>
+          <span className="barra-ventana-badge" data-tauri-drag-region><LogoRated size={18} /></span>
           <span data-tauri-drag-region>Rated</span>
         </div>
       )}

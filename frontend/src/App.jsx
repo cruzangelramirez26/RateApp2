@@ -27,6 +27,7 @@ import BackfillEscritorio from './components/escritorio/Backfill';
 import LimpiezaEscritorio from './components/escritorio/Limpieza';
 import LoginPage from './pages/LoginPage';
 import PlayerPage from './pages/PlayerPage';
+import LogoRated from './components/LogoRated';
 
 export default function App() {
   const [auth, setAuth] = useState(null);
@@ -83,10 +84,9 @@ export default function App() {
           background: 'var(--bg-deep)',
         }}>
           <div style={{
-            fontSize: '2.5rem',
             animation: 'pulse-glow 1.5s ease-in-out infinite',
           }}>
-            🎵
+            <LogoRated size={48} />
           </div>
         </div>
       </ThemeProvider>
