@@ -15,6 +15,8 @@ sigue en 90. Simulado con la playlist real: la B+ de hoy pasa del 27 al 11.
 El orden nuevo entra con la siguiente calificacion o con "Ordenar" en
 Herramientas.
 
+Commit `e27b814`.
+
 ---
 
 ## 2026-10-04 (sesion: el logo de Rated en la app)
