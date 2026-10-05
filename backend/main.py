@@ -75,15 +75,28 @@ class SPAStaticFiles(StaticFiles):
 
     Solo se atrapa el 404: los 405 que StaticFiles levanta para metodos que no
     son GET/HEAD siguen saliendo tal cual.
+
+    Cache: sin Cache-Control, el navegador (y el WebView2 de la app de
+    escritorio) adivina cuanto guardar index.html y lo reusa sin preguntar.
+    Asi Angel siguio viendo "RateApp" horas despues del renombre a Rated. Todo
+    lo que no es `assets/` va con `no-cache` (se revalida con el ETag: un 304
+    si no cambio), y `assets/` lleva el hash de Vite en el nombre, asi que
+    puede guardarse para siempre.
     """
 
     async def get_response(self, path, scope):
         try:
-            return await super().get_response(path, scope)
+            resp = await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code == 404 and not os.path.splitext(path)[1]:
-                return await super().get_response("index.html", scope)
-            raise
+                resp = await super().get_response("index.html", scope)
+            else:
+                raise
+        if path.replace("\\", "/").startswith("assets/"):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
 
 
 # Va al final a proposito: los routers se registran antes, y Starlette resuelve

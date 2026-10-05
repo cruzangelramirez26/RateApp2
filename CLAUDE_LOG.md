@@ -78,6 +78,23 @@ mas que la R. Ahora el asta arranca en `30.5 - w/2` y lo chico va a **11 / 8**
 `ic_stat_rateapp`. Instaladores rehechos. El lienzo (`MarcaR`, `Icono03`)
 conserva el 11 / 9 viejo: son bocetos.
 
+**"SIGO VIENDO LA VERSION ANTERIOR" (Angel, ya instalado).** Su captura decia
+"RateApp" con el badge "A+": la pagina de ANTES del renombre, aunque el exe
+instalado era el nuevo (16:59) y produccion ya servia el bundle con el logo.
+**Causa:** `SPAStaticFiles` mandaba `index.html` sin `Cache-Control`, solo
+`ETag` y `Last-Modified`, asi que el WebView2 aplicaba cache heuristica y lo
+reusaba sin preguntar. Pasaba desde siempre; hasta hoy no se habia notado
+porque nadie comparo a la hora. Ahora todo lo que no es `assets/` va con
+`no-cache` (revalida: 304 si no cambio) y `assets/` con `immutable` (llevan
+el hash de Vite). Probado con el build real en `backend/static` y
+`TestClient`: `/`, `/recent`, favicon y manifest `no-cache`; el bundle
+`immutable`; un asset inexistente sigue en 404 y la API sin tocar; `/` con
+`If-None-Match` da 304.
+
+**Una sola vez:** la copia vieja que ya tiene el WebView no trae la cabecera
+nueva, asi que hay que forzar una recarga (Ctrl+Shift+R) o borrar su cache.
+El icono anclado en la barra es otra cache, la de Windows: desanclar y anclar.
+
 ---
 
 ## 2026-10-04 (sesion: la app se llama Rated + propuestas de logo)
