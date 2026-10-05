@@ -95,6 +95,8 @@ el hash de Vite). Probado con el build real en `backend/static` y
 nueva, asi que hay que forzar una recarga (Ctrl+Shift+R) o borrar su cache.
 El icono anclado en la barra es otra cache, la de Windows: desanclar y anclar.
 
+Commits `191b6d2` (grosor y asta) y `cdeceb7` (cache).
+
 ---
 
 ## 2026-10-04 (sesion: la app se llama Rated + propuestas de logo)
