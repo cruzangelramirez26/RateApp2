@@ -60,10 +60,9 @@ bandeja, el adaptativo en el S24 y la notificacion, a ojo de Angel.
 
 **PENDIENTES:**
 
-- [ ] Angel: reinstalar escritorio (`instalador/RateApp_0.1.0_x64-setup.exe`)
-      y el APK (`adb install -r --user 0 instalador/RateApp.apk`). Si el
-      icono viejo se queda en la barra o el escritorio, es la cache de iconos
-      de Windows: desanclar y volver a anclar.
+- [x] Escritorio reinstalado por Angel: *"ya jala"* (tras la recarga y el
+      re-anclado de abajo).
+- [x] APK instalado en el S24 (ver el cierre de abajo).
 - [ ] El splash de Android (`drawable/splash.png`) sigue siendo el de
       Capacitor.
 
@@ -96,6 +95,23 @@ nueva, asi que hay que forzar una recarga (Ctrl+Shift+R) o borrar su cache.
 El icono anclado en la barra es otra cache, la de Windows: desanclar y anclar.
 
 Commits `191b6d2` (grosor y asta) y `cdeceb7` (cache).
+
+**CIERRE: ANDROID.** Angel conecto el S24. APK instalado (`adb install -r
+--user 0`; adb vive en `AppData\Local\Android\Sdk\platform-tools`, no esta
+en el PATH de bash). Para no repetir lo de la PC se borro **solo** la cache
+HTTP de la WebView (`run-as ... rm -rf cache/WebView`, con la app detenida):
+cookies, Local Storage y la sesion viven en `app_webview/` y no se tocaron.
+Verificado por la depuracion de la WebView (solo lectura): titulo "Rated" y
+el mismo bundle que sirve produccion (`index-D4dsTxfV.js`). En el movil el
+logo solo sale en el icono y la notificacion: su marco no tiene barra de
+marca.
+
+**PENDIENTES:**
+
+- [ ] Angel, a ojo: el icono adaptativo en One UI (si se queda el viejo,
+      quitarlo de la pantalla de inicio y volver a ponerlo) y la R+ en la
+      notificacion cuando suene Spotify.
+- [ ] El splash de Android sigue siendo el de Capacitor.
 
 ---
 
