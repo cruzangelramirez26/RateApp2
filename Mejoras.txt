@@ -181,7 +181,7 @@ PASO 1 IMPLEMENTADO (2026-08-21). Bloque de novedades arriba.
 
 Reglas finales, decididas por Angel:
 - Ventana POR PLAYLIST, proporcional a lo que la playlist dura:
-      cuatrimestre actual (dura 4 meses) -> 45 dias (mes y medio)
+      cuatrimestre actual (dura 4 meses) -> 45 dias (mes y medio); 14 desde el 2026-10-04
       Galeria Anual       (dura 12 meses) -> 90 dias (tres meses)
   Razon textual: "por el simple hecho de que las playlists duran". Al ser
   ventana rodante y no el cuatrimestre, nunca se vacia de golpe el 1 de enero.

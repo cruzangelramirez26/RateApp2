@@ -90,7 +90,7 @@ CUATRI_NOMBRES = {
 #
 # Solo TOP_SET puede subir. Una C+ o una B recien calificada NO se trepa arriba
 # de una A+ vieja: eso seria peor que el problema original.
-NOVEDAD_DIAS_CUATRI = 45   # mes y medio
+NOVEDAD_DIAS_CUATRI = 14   # dos semanas (era 45; Angel, 2026-10-04: lo nuevo no destacaba)
 NOVEDAD_DIAS_ANUAL = 90    # tres meses
 
 # Rating system

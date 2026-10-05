@@ -2,6 +2,21 @@
 
 ---
 
+## 2026-10-04 (sesion: la ventana de novedades del cuatrimestre baja a 14 dias)
+
+**Maquina: PC `AngelPC`.** Angel: *"acabo de calificar algunas y no las veo
+arriba en 2026 pt3"*. Medido en la playlist real: el bloque SI funcionaba
+(sus A+ de hoy en 1, 2 y 3), pero con 45 dias y un cuatrimestre de un mes
+casi todo era novedad, asi que se veia igual que ordenar por nota: una B+ de
+hoy caia en el 27 debajo de 26 A+/A, y la B en el 82 (B nunca sube).
+
+Decision de Angel: **14 dias** (`NOVEDAD_DIAS_CUATRI`). La Galeria Anual
+sigue en 90. Simulado con la playlist real: la B+ de hoy pasa del 27 al 11.
+El orden nuevo entra con la siguiente calificacion o con "Ordenar" en
+Herramientas.
+
+---
+
 ## 2026-10-04 (sesion: el logo de Rated en la app)
 
 **Maquina: PC `AngelPC`.** Continuacion de la sesion en la nube de abajo.
