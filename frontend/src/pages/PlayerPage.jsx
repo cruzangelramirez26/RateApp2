@@ -1,13 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
   SkipBack, SkipForward, Play, Pause, Heart, Disc3, ListMusic,
-  ChevronsRight, RefreshCw, Check, Headphones,
+  ChevronsRight, RefreshCw, Check, Headphones, ListPlus, ListCheck,
 } from 'lucide-react';
 import { api } from '../utils/api';
 import { claseNota } from '../components/movil/Notas';
 import { RATINGS_ORDEN, ratingDeTecla, teclaDeRating, esEscritura } from '../utils/ratings';
 import { anunciarCalificada, escucharCalificadas } from '../utils/reproductor';
 import { tieneBarraPropia } from '../utils/ventana';
+import { useA3333 } from '../hooks/useA3333';
 import BarraVentana from '../components/BarraVentana';
 
 const POLL_MS = 4000;
@@ -317,6 +318,8 @@ export default function PlayerPage() {
     try { await api.playerSeek(ms); } catch { setError('No se pudo mover la canción'); }
   }, []);
 
+  const a3333 = useA3333(track);
+
   const alternarCorazon = useCallback(async () => {
     if (!track || saved == null) return;
     const previo = saved;
@@ -451,6 +454,7 @@ export default function PlayerPage() {
               onSaltar={saltarCancion}
               onSeek={buscar}
               onCorazon={alternarCorazon}
+              a3333={a3333}
             />}
 
         {actual && (
@@ -514,7 +518,7 @@ function ChipRating({ r }) {
   );
 }
 
-function Sonando({ track, rating, isPlaying, progreso, duracion, saved, layout, onPlay, onSaltar, onSeek, onCorazon }) {
+function Sonando({ track, rating, isPlaying, progreso, duracion, saved, layout, onPlay, onSaltar, onSeek, onCorazon, a3333 }) {
   if (!track) {
     return (
       <div className="rp-vacio">
@@ -539,6 +543,7 @@ function Sonando({ track, rating, isPlaying, progreso, duracion, saved, layout, 
             <Heart size={14} fill={saved ? 'currentColor' : 'none'} />
           </button>
         )}
+        {!mini && <BotonA3333 {...a3333} />}
       </Info>
       <div className="rp-medio">
         {!mini && <Barra progreso={progreso} duracion={duracion} onSeek={onSeek} />}
@@ -551,6 +556,25 @@ function Sonando({ track, rating, isPlaying, progreso, duracion, saved, layout, 
         </div>
       </div>
     </>
+  );
+}
+
+/** Mandar lo que suena a <3333>. Ya dentro, se queda bloqueado (no la quita). */
+function BotonA3333({ estado, agregar }) {
+  const dentro = estado === 'dentro';
+  const titulo = dentro ? 'Ya está en <3333>'
+    : estado === 'libre' ? 'Mandar a <3333> para calificarla después'
+    : 'Consultando <3333>…';
+  return (
+    <button
+      className={`rp-corazon${dentro ? ' activo' : ''}`}
+      onClick={() => agregar().catch(() => {})}
+      disabled={estado !== 'libre'}
+      title={titulo}
+      aria-label={titulo}
+    >
+      {dentro ? <ListCheck size={14} /> : <ListPlus size={14} />}
+    </button>
   );
 }
 

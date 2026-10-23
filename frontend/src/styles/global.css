@@ -1876,6 +1876,7 @@ html.con-barra body {
 .rp-corazon:active:not(:disabled) { transform: scale(0.9); }
 .rp-corazon.activo { color: var(--accent); border-color: var(--accent); }
 .rp-corazon:disabled { opacity: 0.45; cursor: default; }
+.rp-corazon.activo:disabled { opacity: 0.85; }   /* ya en <3333>: bloqueado, pero se lee */
 
 /* Marquesina: si el texto no cabe, va y viene despacio. */
 .rp-marq { overflow: hidden; white-space: nowrap; }

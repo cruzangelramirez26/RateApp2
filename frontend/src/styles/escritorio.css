@@ -161,7 +161,28 @@ html.escritorio body { background: var(--esc-negro); }
   place-items: center;
 }
 .esc-barra-centro { flex: 1; display: flex; justify-content: center; min-width: 0; }
-.esc-barra-der { width: 220px; height: 100%; display: flex; justify-content: flex-end; }
+.esc-barra-der { width: 220px; height: 100%; display: flex; align-items: center; justify-content: flex-end; }
+/* Mandar lo que suena a <3333>: portada chica + icono, sin color. */
+.esc-a3333 {
+  height: 26px;
+  margin-right: 10px;
+  padding: 0 9px 0 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(243, 239, 231, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(243, 239, 231, 0.72);
+  font: 500 11px var(--font-mono);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.esc-a3333.compacto { margin-right: 6px; }
+.esc-a3333 img { width: 18px; height: 18px; border-radius: 4px; object-fit: cover; }
+.esc-a3333:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); color: var(--esc-crema); }
+.esc-a3333:disabled { cursor: default; opacity: 0.55; }
+.esc-a3333.dentro { opacity: 0.8; border-color: rgba(243, 239, 231, 0.35); color: var(--esc-crema); }
 .esc-winbtn {
   width: 46px;
   height: 100%;

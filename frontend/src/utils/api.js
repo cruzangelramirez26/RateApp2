@@ -80,6 +80,12 @@ export const api = {
     body: JSON.stringify({ position_ms: Math.max(0, Math.round(positionMs)) }),
   }),
   isTrackSaved: (trackId) => request(`/tracks/saved/${trackId}`),
+  // Mandar lo que suena a <3333> para calificarlo después (al final, sin duplicar).
+  estaEnCalificar: (trackId) => request(`/tracks/calificar/${trackId}`),
+  agregarACalificar: (trackId) => request('/tracks/calificar/agregar', {
+    method: 'POST',
+    body: JSON.stringify({ track_ids: [trackId] }),
+  }),
   likeTracks: (trackIds) => request('/tracks/like', {
     method: 'POST',
     body: JSON.stringify({ track_ids: trackIds }),

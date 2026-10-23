@@ -2,6 +2,49 @@
 
 ---
 
+## 2026-10-22 (sesion: mandar lo que suena a <3333>)
+
+**Maquina: PC `AngelPC`.** Angel: *"necesito un boton en la app (web y
+android) y en el pip para mandar una cancion que estoy escuchando a la
+playlist <3333>, me hace falta cuando descubro musica nueva y no me quiero
+meter a spotify a meterla"*.
+
+**Decisiones de Angel:** visible **en todas las pantallas**; entra **al
+final** de `<3333>`; si ya esta, el boton **se bloquea** (no la quita); la
+notificacion y los widgets de Android, **por ahora no** (no hay que
+reinstalar el APK).
+
+**Backend:** `GET /tracks/calificar/{id}` (si ya esta) y `POST
+/tracks/calificar/agregar` (la agrega con `add_to_playlist`, o sea al final,
+y no la duplica). "Ya esta" se mira por id **y por nombre+artista**
+(`listening_key`): lo que suena puede traer otro id de la misma cancion.
+`sp.track` solo se paga si el id no casa. No escribe nada en MySQL.
+
+**Frontend:** `hooks/useA3333.js` (estado consultando/libre/enviando/dentro,
+recuerda por id) y el aviso `agregada` por el `BroadcastChannel` de siempre,
+asi el contador de Calificar sube y la cancion entra al final de la cola sin
+recargar (no mueve la carta que estas viendo), tambien si la mandas desde el
+PiP.
+
+- PiP (`/player`, Sonando): boton junto al corazon.
+- Escritorio: en la barra de arriba, portada chica + `<3333>` (en Tauri sin
+  el texto, por los botones de la ventana).
+- Movil y app de Android: una **quinta celda en la barra de abajo**, con la
+  portada de lo que suena. Va en la barra y no flotando porque en Calificar
+  las notas quedan a 20 px de ella; medido: notas hasta 708 px, barra desde
+  728. Solo sale con algo sonando.
+
+**Verificado:** 12 comprobaciones de backend con un Spotify de mentiras (por
+id, por otro id de la misma cancion con acentos y mayusculas, no duplica,
+agrega y no reemplaza, 400 y 502). En navegador contra un backend de
+mentiras: escritorio 1440x900, PiP 360x420 y movil 375x812 desde Recientes;
+los tres mandan `{"track_ids": ["N1"]}`, se bloquean, y el contador y la
+cola pasan de 1 a 2. Sin desborde. `npm run build` OK.
+
+**NO VERIFICADO:** contra el Spotify real, en el S24 y dentro de Tauri.
+
+---
+
 ## 2026-10-04 (sesion: la ventana de novedades del cuatrimestre baja a 14 dias)
 
 **Maquina: PC `AngelPC`.** Angel: *"acabo de calificar algunas y no las veo

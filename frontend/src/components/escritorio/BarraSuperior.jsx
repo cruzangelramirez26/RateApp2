@@ -3,6 +3,7 @@ import { Minus, Square, Copy, X } from 'lucide-react';
 import { tieneBarraPropia, minimizar, alternarMaximizar, cerrar, estaMaximizada } from '../../utils/ventana';
 import Buscador from './Buscador';
 import LogoRated from '../LogoRated';
+import A3333 from './A3333';
 
 /**
  * La barra de arriba del diseño de escritorio: marca, buscador y —solo dentro
@@ -36,6 +37,7 @@ export default function BarraSuperior() {
         <Buscador />
       </div>
       <div className="esc-barra-der" data-tauri-drag-region>
+        <A3333 compacto={ventanaPropia} />
         {ventanaPropia && (
           <>
             <button className="esc-winbtn" onClick={minimizar} title="Minimizar" aria-label="Minimizar">

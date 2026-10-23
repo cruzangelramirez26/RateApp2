@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
-import { escucharCalificadas } from '../../utils/reproductor';
+import { escucharCalificadas, escucharAgregadas } from '../../utils/reproductor';
 import { FondoProvider } from '../escritorio/FondoPortada';
 import { SonandoCtx } from '../escritorio/sonando';
 import Hoja from './Hoja';
+import { useA3333 } from '../../hooks/useA3333';
+import { useToast } from '../../hooks/useToast';
 import {
   IcoCalificar, IcoRecientes, IcoEscuchas, IcoMas, IcoBiblioteca, IcoResumen, IcoHerramientas,
 } from './Iconos';
@@ -82,6 +84,11 @@ export default function Movil({ children }) {
       return n;
     });
   }), []);
+  // Lo que se manda a <3333> desde el botón de lo que suena suma al número.
+  useEffect(() => escucharAgregadas((t, nueva) => {
+    if (!nueva || !t?.id || t.rating) return;
+    setSinCalificar((s) => (s.has(t.id) ? s : new Set(s).add(t.id)));
+  }), []);
 
   const cerrarMas = useCallback(() => setMas(false), []);
   const ir = (ruta) => { setMas(false); if (ruta !== pathname) navegar(ruta); };
@@ -96,7 +103,7 @@ export default function Movil({ children }) {
         <div className="mv">
           <main className="mv-main">{children}</main>
 
-          <nav className="mv-nav" aria-label="Navegación">
+          <nav className={`mv-nav${sonando?.track ? ' con-a3333' : ''}`} aria-label="Navegación">
             <button type="button" className={activo('/') ? 'on' : ''} onClick={() => ir('/')}>
               <span className="mv-nav-ico">
                 <IcoCalificar />
@@ -114,6 +121,7 @@ export default function Movil({ children }) {
                     aria-expanded={mas}>
               <span className="mv-nav-ico"><IcoMas /></span>Más
             </button>
+            {sonando?.track && <A3333 track={sonando.track} />}
           </nav>
 
           <Hoja abierta={mas} onCerrar={cerrarMas} etiqueta="Más">
@@ -132,5 +140,34 @@ export default function Movil({ children }) {
         </div>
       </FondoProvider>
     </SonandoCtx.Provider>
+  );
+}
+
+/**
+ * Al final de la barra de abajo: la portada de lo que suena, y tocarla la
+ * manda a <3333> (al final) para calificarla después. Va en la barra y no
+ * flotando para que se vea desde cualquier pantalla sin tapar nada (en
+ * Calificar las notas quedan a 20 px de la barra). Ya dentro, se bloquea.
+ */
+function A3333({ track }) {
+  const { estado, agregar } = useA3333(track);
+  const toast = useToast();
+  const dentro = estado === 'dentro';
+  const titulo = dentro ? `${track.name} ya está en <3333>` : `Mandar ${track.name} a <3333>`;
+  const onClick = async () => {
+    try {
+      const r = await agregar();
+      if (r) toast(r.ya_estaba ? 'Ya estaba en <3333>' : `${track.name} → <3333>`, 'success');
+    } catch (err) {
+      toast(`No se pudo mandar a <3333>: ${err?.message || err}`, 'error');
+    }
+  };
+  return (
+    <button type="button" className={`mv-a3333${dentro ? ' dentro' : ''}`} onClick={onClick}
+            disabled={estado !== 'libre'} aria-label={titulo} title={titulo}>
+      <span className="mv-a3333-portada" style={track.image ? { backgroundImage: `url("${track.image}")` } : undefined} />
+      <span className="mv-a3333-signo" aria-hidden="true">{dentro ? '✓' : '+'}</span>
+      &lt;3333&gt;
+    </button>
   );
 }

@@ -392,6 +392,63 @@ def is_track_saved(track_id: str):
     return {"track_id": track_id, "saved": bool(saved.get(track_id))}
 
 
+def _en_calificar(sp, track_id: str) -> bool:
+    """Si una cancion ya esta en <3333>, por id o por nombre+artista.
+
+    Por nombre+artista tambien porque Spotify le da ids distintos a la misma
+    cancion (reediciones, otro mercado): lo que suena puede traer un id que no
+    es el que ya esta en la playlist. Lo de `sp.track` solo se paga cuando el
+    id no casa.
+    """
+    items = spotify.get_playlist_tracks(sp, config.CALIFICAR_PLAYLIST_ID)
+    claves = set()
+    for it in items:
+        t = it.get("track") or {}
+        if t.get("id") == track_id:
+            return True
+        artistas = t.get("artists") or [{}]
+        claves.add(utils.listening_key(t.get("name", ""), artistas[0].get("name", "")))
+    t = sp.track(track_id)
+    artistas = t.get("artists") or [{}]
+    return utils.listening_key(t.get("name", ""), artistas[0].get("name", "")) in claves
+
+
+@router.get("/calificar/{track_id}")
+def esta_en_calificar(track_id: str):
+    """Dice si lo que suena ya esta en <3333>, para bloquear el boton.
+
+    Como `/saved`, va aparte de `now-playing`: se pregunta una vez por cancion,
+    no en cada vuelta del sondeo.
+    """
+    sp = spotify.get_client()
+    try:
+        return {"track_id": track_id, "en_calificar": _en_calificar(sp, track_id)}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify no contesto: {e}")
+
+
+@router.post("/calificar/agregar")
+def agregar_a_calificar(req: LikeRequest):
+    """Manda una cancion a <3333> (al final), para calificarla despues.
+
+    Es para cuando Angel descubre algo y no quiere abrir Spotify. No escribe
+    nada en MySQL: la cancion entra a la cola como cualquier otra. Si ya estaba,
+    no la duplica.
+    """
+    ids = [t for t in dict.fromkeys(req.track_ids) if t]
+    if len(ids) != 1:
+        raise HTTPException(status_code=400, detail="Manda una sola cancion")
+    tid = ids[0]
+    sp = spotify.get_client()
+    try:
+        if _en_calificar(sp, tid):
+            return {"ok": True, "track_id": tid, "ya_estaba": True}
+        spotify.add_to_playlist(sp, config.CALIFICAR_PLAYLIST_ID, [tid])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify no la agrego: {e}")
+    return {"ok": True, "track_id": tid, "ya_estaba": False}
+
+
 @router.get("/info/{track_id}")
 def track_info(track_id: str):
     """Calificacion y portada de UNA cancion, por su id exacto.

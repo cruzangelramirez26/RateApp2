@@ -179,3 +179,26 @@ export function escucharCalificadas(fn) {
   };
   return () => c.close();
 }
+
+/**
+ * Avisar que una canción entró a <3333> desde un botón de "mandar a <3333>".
+ * `nueva` es false si ya estaba (por id o por nombre+artista): entonces nadie
+ * tiene que sumarla a la cola, solo bloquear su botón.
+ */
+export function anunciarAgregada(track, nueva) {
+  try {
+    const c = new BroadcastChannel(CANAL);
+    c.postMessage({ tipo: 'agregada', track, nueva });
+    c.close();
+  } catch {}
+}
+
+/** Escuchar canciones mandadas a <3333> en esta u otra ventana. */
+export function escucharAgregadas(fn) {
+  let c;
+  try { c = new BroadcastChannel(CANAL); } catch { return () => {}; }
+  c.onmessage = (e) => {
+    if (e.data?.tipo === 'agregada') fn(e.data.track, e.data.nueva);
+  };
+  return () => c.close();
+}

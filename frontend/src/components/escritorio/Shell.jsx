@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { useToast } from '../../hooks/useToast';
-import { alternarReproductor, suscribirReproductor, modoParaRuta, escucharCalificadas } from '../../utils/reproductor';
+import { alternarReproductor, suscribirReproductor, modoParaRuta, escucharCalificadas, escucharAgregadas } from '../../utils/reproductor';
 import { FondoProvider } from './FondoPortada';
 import { SonandoCtx } from './sonando';
 import BarraSuperior from './BarraSuperior';
@@ -72,6 +72,11 @@ export default function Shell({ usuario, children }) {
       n.delete(id);
       return n;
     });
+  }), []);
+  // Lo que se manda a <3333> desde el botón de lo que suena suma al número.
+  useEffect(() => escucharAgregadas((t, nueva) => {
+    if (!nueva || !t?.id || t.rating) return;
+    setSinCalificar((s) => (s.has(t.id) ? s : new Set(s).add(t.id)));
   }), []);
 
   useEffect(() => suscribirReproductor(setReproductorAbierto), []);

@@ -137,6 +137,19 @@ html.movil .page-header { background: transparent; }
 .mv-nav button svg { width: 21px; height: 21px; }
 .mv-nav button.on { background: rgba(243,239,231,.12); color: var(--mv-crema); box-shadow: inset 0 0 0 1px var(--mv-b2); }
 .mv-nav-ico { position: relative; display: grid; place-items: center; }
+/* Con algo sonando, la barra gana una quinta celda: mandar a <3333>. */
+.mv-nav.con-a3333 { grid-template-columns: repeat(4, 1fr) 62px; }
+.mv-nav .mv-a3333 { position: relative; color: var(--mv-t3); font: 500 9.5px var(--font-mono); }
+.mv-a3333-portada {
+  position: relative; width: 26px; height: 26px; border-radius: 7px;
+  background: rgba(243,239,231,.12) center / cover no-repeat; box-shadow: inset 0 0 0 1px var(--mv-b2);
+}
+.mv-a3333-signo {
+  position: absolute; top: 6px; left: calc(50% + 7px); width: 15px; height: 15px; border-radius: 50%;
+  background: var(--mv-crema); color: var(--mv-tinta); font: 700 11px/15px var(--font-mono); text-align: center;
+}
+.mv-nav .mv-a3333:disabled { opacity: .5; }
+.mv-nav .mv-a3333.dentro { opacity: .85; color: var(--mv-crema); }
 .mv-badge {
   position: absolute; top: -7px; left: 13px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   background: var(--mv-crema); color: var(--mv-tinta); font: 700 9.5px/16px var(--font-mono); text-align: center;

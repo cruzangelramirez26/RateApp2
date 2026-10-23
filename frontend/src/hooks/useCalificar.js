@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../utils/api';
 import { preloadCache } from '../utils/preloadCache';
 import { useToast } from './useToast';
-import { escucharCalificadas, anunciarCalificada } from '../utils/reproductor';
+import { escucharCalificadas, anunciarCalificada, escucharAgregadas } from '../utils/reproductor';
 
 /**
  * La lógica de Calificar (la cola de <3333>), sin nada de pantalla.
@@ -51,6 +51,27 @@ export function useCalificar(search = '') {
   // Lo calificado en el reproductor (u otra ventana) se refleja en la lista.
   useEffect(() => escucharCalificadas((id, rating) => {
     setTracks((prev) => prev.map((t) => (t.id === id ? { ...t, rating } : t)));
+  }), []);
+
+  // Lo mandado a <3333> desde el botón de lo que suena entra al final, como
+  // en la playlist. Se agrega aquí en vez de recargar para no mover la carta
+  // que estás viendo. `artist` de now-playing junta a todos; el principal es
+  // el primero (es lo que va a MySQL).
+  useEffect(() => escucharAgregadas((t, nueva) => {
+    if (!nueva || !t?.id) return;
+    const artistas = (t.artist || '').split(', ');
+    setTracks((prev) => (prev.some((x) => x.id === t.id) ? prev : [...prev, {
+      id: t.id,
+      name: t.name,
+      artist: artistas[0] || '',
+      featuring: artistas.slice(1),
+      album: t.album || '',
+      added_at: new Date().toISOString(),
+      rating: t.rating || null,
+      in_db: !!t.rating,
+      image: t.image || null,
+      spotify_url: t.spotify_url || null,
+    }]));
   }), []);
 
   const refresh = useCallback(() => {
