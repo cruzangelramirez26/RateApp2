@@ -43,6 +43,8 @@ cola pasan de 1 a 2. Sin desborde. `npm run build` OK.
 
 **NO VERIFICADO:** contra el Spotify real, en el S24 y dentro de Tauri.
 
+Commit `06d1c2f`.
+
 ---
 
 ## 2026-10-04 (sesion: la ventana de novedades del cuatrimestre baja a 14 dias)
