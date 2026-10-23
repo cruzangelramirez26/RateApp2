@@ -45,6 +45,13 @@ cola pasan de 1 a 2. Sin desborde. `npm run build` OK.
 
 Commit `06d1c2f`.
 
+**En el S24:** al principio Angel no lo veia. Produccion ya tenia el bundle
+nuevo y `/tracks/calificar/{id}` contestaba `en_calificar: false`; era la
+app abierta en segundo plano desde antes del deploy (la WebView no recarga
+sola). Cerrarla y abrirla lo resolvio: *"ya sale el boton de <3333>"*.
+Canvas con capturas de los tres lugares, libre y bloqueado:
+https://claude.ai/artifact/UWvw8JGUcmRyXmmGjsNbBo (privado).
+
 ---
 
 ## 2026-10-04 (sesion: la ventana de novedades del cuatrimestre baja a 14 dias)
