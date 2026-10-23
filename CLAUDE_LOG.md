@@ -52,6 +52,12 @@ sola). Cerrarla y abrirla lo resolvio: *"ya sale el boton de <3333>"*.
 Canvas con capturas de los tres lugares, libre y bloqueado:
 https://claude.ai/artifact/UWvw8JGUcmRyXmmGjsNbBo (privado).
 
+**Verificado con su Spotify real:** Angel mando "cosas malas de mi" (Paloma
+Morphy) desde el celular. En produccion quedo en `<3333>` al final (64 de
+64), una sola vez, sin nota (14 pendientes), y `/tracks/calificar/{id}` ya
+contesta `en_calificar: true`. Sigue sin probarse a mano desde el escritorio
+y el PiP (mismo endpoint).
+
 ---
 
 ## 2026-10-04 (sesion: la ventana de novedades del cuatrimestre baja a 14 dias)
