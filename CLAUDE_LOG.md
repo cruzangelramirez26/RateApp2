@@ -35,7 +35,7 @@ el lunes o con "Rehacer ahora").
 (Sabrina Carpenter) y Blue (Joshua Bassett), que pueden venir de la misma
 fuga. Este cambio no las toca.
 
-Commit `PENDIENTE`.
+Commit `d866777`.
 
 ---
 
