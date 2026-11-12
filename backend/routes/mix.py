@@ -1,10 +1,9 @@
 """El mix entre dos personas (Mejoras.txt seccion 7).
 
 Angel + un invitado (su novia, para empezar). Estilo Blend, decidido por Angel
-el 2026-09-27:
-  1. primero lo que los DOS escuchan este mes;
-  2. luego lo que uno escucha y el otro tiene en Me Gusta;
-  3. y el resto, las favoritas de cada quien, una y una.
+el 2026-09-27, y SIN el paso de "los dos" desde el 2026-11-12:
+  1. lo que uno escucha y el otro tiene en Me Gusta;
+  2. y el resto, las favoritas de cada quien, una y una.
 50 canciones, ventana de un mes, y se rehace sola cada semana
 (.github/workflows/mix-semanal.yml).
 
@@ -46,10 +45,17 @@ LIKES_TOPE = 3000
 # con ella el dia anterior: estaban en los Me Gusta de ella y el paso 2 las
 # subio por encima de sus favoritas de verdad (15 y 12 escuchas). Su top de 30
 # dias eran 200 canciones y 123 tenian 1 o 2 escuchas: ruido, no gusto.
-# Decision de Angel: 3 en general, 2 en "los dos la escuchan" (para que se
-# queden las que ponen juntos).
+# Decision de Angel: 3.
 MIN_PLAYS_A = 3
-MIN_PLAYS_A_COMUN = 2
+
+# SIN "LOS DOS" (Angel, 2026-11-12): "practicamente ya son puras canciones de
+# ella... porque el que reproduce la playlist es mi perfil". El mix suena en la
+# cuenta de Angel, asi que cada vez que lo ponen las de ella le suman escuchas
+# A EL; con 2 ya contaban como "de los dos" y regresaban la semana siguiente.
+# El mix del 2026-11-09: 21 de 50 "de los dos", casi todas Gracie Abrams,
+# Olivia Rodrigo y Lizzy McAlpine. Quitar el paso no bastaba: esas mismas ya
+# tenian 3+ escuchas de Angel y habrian entrado como "tuyas". Por eso lo que
+# esta en el top de ella cuenta SOLO como suyo.
 
 # CLASICOS (Angel, 2026-09-28): "yo se que me gusta mucho duki y si me
 # gustaria que de vez en cuando toque mis canciones favoritas de duki". El mix
@@ -88,7 +94,7 @@ def _dedup(top: list) -> list:
 
 
 def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = TAMANO,
-              min_a: int = MIN_PLAYS_A, min_a_comun: int = MIN_PLAYS_A_COMUN) -> list:
+              min_a: int = MIN_PLAYS_A) -> list:
     """Arma el mix de A (Angel) y B (el invitado).
 
     `a_top` / `b_top`: lo mas escuchado de cada quien, EN ORDEN, como dicts
@@ -98,18 +104,18 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
     reproducciones el 2026-09-04).
     `a_likes` / `b_likes`: los Me Gusta de cada quien, clave -> track_id.
 
-    Cada cancion sale con `de` = "ambos" | "a" | "b" y el `motivo`.
+    Cada cancion sale con `de` = "a" | "b" y el `motivo`. Ya no hay "ambos":
+    lo que esta en el top de B es de B, aunque A tambien lo escuche (ver la
+    nota de arriba: el mix suena en la cuenta de A).
 
-    Las de A traen `plays` (escuchas en la ventana): piden `min_a_comun` para
-    contar como "de los dos" y `min_a` para todo lo demas. Sin `plays` no se
-    filtra (las de B no lo traen: Spotify solo da el orden).
+    Las de A traen `plays` (escuchas en la ventana) y piden `min_a`. Sin
+    `plays` no se filtra (las de B no lo traen: Spotify solo da el orden).
     """
     a_top, b_top = _dedup(a_top), _dedup(b_top)
-    plays = lambda t: t.get("plays", min_a)
-    a_top = [t for t in a_top if plays(t) >= min(min_a, min_a_comun)]
-    rank_a = {t["key"]: i for i, t in enumerate(a_top)}
     rank_b = {t["key"]: i for i, t in enumerate(b_top)}
-    por_b = {t["key"]: t for t in b_top}
+    plays = lambda t: t.get("plays", min_a)
+    a_top = [t for t in a_top if plays(t) >= min_a and t["key"] not in rank_b]
+    rank_a = {t["key"]: i for i, t in enumerate(a_top)}
 
     salida, claves, ids = [], set(), set()
     cuenta = {"a": 0, "b": 0}
@@ -123,14 +129,6 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
             cuenta[de] += 1
         salida.append({"track_id": track_id, "name": t.get("name"), "artist": t.get("artist"),
                        "de": de, "motivo": motivo})
-
-    # 1) Lo que los dos escuchan: primero lo que a los dos les queda mas arriba.
-    comun = sorted((t for t in a_top if t["key"] in rank_b and plays(t) >= min_a_comun),
-                   key=lambda t: rank_a[t["key"]] + rank_b[t["key"]])
-    for t in comun:
-        # El id de B viene fresco de la API; el de A puede ser el de un
-        # export de 2019.
-        meter(t, "ambos", "Los dos la escuchan", por_b[t["key"]]["track_id"])
 
     def alternar(lista_a, lista_b, motivo_a, motivo_b, id_a):
         """Una y una, empezando por quien lleve menos en el mix: asi el
@@ -149,15 +147,12 @@ def armar_mix(a_top: list, b_top: list, a_likes: dict, b_likes: dict, n: int = T
     # si no el de su historial.
     id_a = lambda t: a_likes.get(t["key"]) or t["track_id"]
 
-    # De aqui en adelante lo de A pide el minimo general.
-    a_top = [t for t in a_top if plays(t) >= min_a]
-
-    # 2) Lo que uno escucha y el otro tiene guardado.
+    # 1) Lo que uno escucha y el otro tiene guardado.
     cruce_a = [t for t in a_top if t["key"] not in rank_b and t["key"] in b_likes]
     cruce_b = [t for t in b_top if t["key"] not in rank_a and t["key"] in a_likes]
     alternar(cruce_a, cruce_b, "Tuya, y está en sus Me Gusta", "Suya, y está en tus Me Gusta", id_a)
 
-    # 3) El resto de las favoritas de cada quien.
+    # 2) El resto de las favoritas de cada quien.
     alternar(a_top, b_top, "De tus más escuchadas", "De sus más escuchadas", id_a)
     return salida
 
@@ -336,7 +331,7 @@ def rehacer(pid: str, nombre: str) -> dict:
         yo = (me.get("display_name") or "Yo").split(" ")[0]
         nueva = sp.user_playlist_create(
             me["id"], f"{yo} + {nombre}", public=False, collaborative=True,
-            description="Mix de Rated: lo que los dos escuchan este mes. Se rehace cada semana.")
+            description="Mix de Rated: lo que cada quien escucha este mes. Se rehace cada semana.")
         pl_id = nueva["id"]
         spotify.replace_playlist(sp, pl_id, ids)
         database.set_config(_pl_key(pid), pl_id)
@@ -346,7 +341,6 @@ def rehacer(pid: str, nombre: str) -> dict:
         "playlist_id": pl_id,
         "spotify_url": f"https://open.spotify.com/playlist/{pl_id}",
         "total": len(items),
-        "ambos": sum(1 for t in items if t["de"] == "ambos"),
         "tuyas": sum(1 for t in items if t["de"] == "a"),
         "suyas": sum(1 for t in items if t["de"] == "b"),
         "clasicos": [t.pop("key") for t in items if "key" in t],

@@ -3,9 +3,10 @@
  * escritorio (dentro de su Ventana) y el móvil (dentro de Crece). Solo cambian
  * las clases de los botones; el acomodo vive en `.mix-*` (global.css).
  *
- * Estilo Blend, decidido por Angel el 2026-09-27: primero lo que los dos
- * escuchan, luego lo que uno escucha y el otro tiene en Me Gusta, y el resto
- * una y una. Un mes, 50 canciones, se rehace cada semana.
+ * Estilo Blend, decidido por Angel el 2026-09-27: lo que uno escucha y el otro
+ * tiene en Me Gusta, y el resto una y una. Un mes, 50 canciones, se rehace
+ * cada semana. Sin "los dos" desde el 2026-11-12 (el mix suena en tu cuenta y
+ * las de ella se volvian tuyas).
  */
 
 function fecha(iso) {
@@ -73,7 +74,9 @@ export default function MixPanel({ m, movil = false }) {
 
             {mx && (
               <div className="mix-cifras">
-                <div><b>{mx.ambos}</b><span>de los dos</span></div>
+                {/* "De los dos" se quito el 2026-11-12 (ver routes/mix.py); un
+                    resumen viejo lo trae hasta el siguiente Rehacer. */}
+                {mx.ambos > 0 && <div><b>{mx.ambos}</b><span>de los dos</span></div>}
                 <div><b>{mx.tuyas}</b><span>tuyas</span></div>
                 <div><b>{mx.suyas}</b><span>suyas</span></div>
               </div>

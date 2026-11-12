@@ -2,6 +2,43 @@
 
 ---
 
+## 2026-11-12 (sesion: el mix con Alison ya no tiene "los dos")
+
+**Maquina: laptop del trabajo.** Angel: *"quitale la seccion de los dos
+porque practicamente ya son puras canciones de ella, me imagino porque el que
+reproduce la playlist es mi perfil"*.
+
+**Medido antes de tocar nada** (`/mix/estado`, el mix del 9 de nov): **21 de
+50** eran "de los dos", casi todas Gracie Abrams, Olivia Rodrigo y Lizzy
+McAlpine; de su lado de verdad solo TRANKAITO. Su hipotesis era correcta: el
+mix suena en SU cuenta, cada reproduccion le suma a `listening_events`, y con
+2 escuchas ya contaban como de los dos. Se alimentaba solo.
+
+**Quitar el paso no bastaba**, y se le dijo antes: esas canciones ya tenian
+3+ escuchas suyas y habrian entrado como "tuyas". Decision de Angel:
+- Fuera el paso 1 y `MIN_PLAYS_A_COMUN`.
+- **Lo que esta en el top de ella es solo suyo**, aunque Angel lo escuche.
+- Reparto: 20 tuyas, 20 suyas, los 10 clasicos igual.
+
+`MixPanel` esconde el contador "de los dos" (el resumen viejo lo trae hasta
+el siguiente Rehacer) y la fila de cifras se acomoda sola.
+
+**Verificado:** 10 comprobaciones de `armar_mix` sin red ni MySQL (sin
+"ambos", lo del top de ella sale suyo y una sola vez, lo de Angel con <3
+escuchas fuera, cruce de Me Gusta intacto, 20/20). App importa; `npm run
+build` OK.
+
+**NO VERIFICADO:** con un Rehacer real (escribe en su playlist; entra solo
+el lunes o con "Rehacer ahora").
+
+**Queda abierta:** en "Tuya, y esta en sus Me Gusta" salieron Lie To Girls
+(Sabrina Carpenter) y Blue (Joshua Bassett), que pueden venir de la misma
+fuga. Este cambio no las toca.
+
+Commit `PENDIENTE`.
+
+---
+
 ## 2026-10-22 (sesion: mandar lo que suena a <3333>)
 
 **Maquina: PC `AngelPC`.** Angel: *"necesito un boton en la app (web y
