@@ -43,7 +43,7 @@ jobs:
       - name: Subir imagen y configuracion
         run: |
           scp -q rated.tar.gz deploy/vm/docker-compose.yml deploy/vm/Caddyfile \
-              deploy/vm/cargar-secretos.sh deploy/vm/startup.sh deploy/vm/cron-rated \
+              deploy/vm/cargar-secretos.sh deploy/vm/duckdns.sh deploy/vm/startup.sh deploy/vm/cron-rated \
               deploy@${{ secrets.VM_HOST }}:/tmp/
 
       - name: Cargar y reiniciar
@@ -52,9 +52,9 @@ jobs:
             cd /tmp
             sudo docker load -i rated.tar.gz
             rm rated.tar.gz
-            sed -i "s/\r$//" docker-compose.yml Caddyfile cargar-secretos.sh startup.sh cron-rated
-            sudo mv docker-compose.yml Caddyfile cargar-secretos.sh /opt/rated/
-            sudo chmod +x /opt/rated/cargar-secretos.sh
+            sed -i "s/\r$//" docker-compose.yml Caddyfile cargar-secretos.sh duckdns.sh startup.sh cron-rated
+            sudo mv docker-compose.yml Caddyfile cargar-secretos.sh duckdns.sh /opt/rated/
+            sudo chmod +x /opt/rated/cargar-secretos.sh /opt/rated/duckdns.sh
             sudo install -m 644 -o root -g root cron-rated /etc/cron.d/rated
             rm startup.sh cron-rated
             cd /opt/rated

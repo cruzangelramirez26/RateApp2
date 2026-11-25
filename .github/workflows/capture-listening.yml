@@ -1,8 +1,9 @@
 # RED DE SEGURIDAD de la captura de escuchas. NO es el mecanismo principal.
 #
-# El principal es un job de **Cloud Scheduler** (`capture-listening`, region
-# us-east4, proyecto rateapp-506404) que corre cada 15 min y es puntual de
-# verdad.
+# El principal es el cron de la VM (/etc/cron.d/rated, ver deploy/vm/cron-rated),
+# cada 15 min y puntual. Hasta el 2026-11-25 era un job de Cloud Scheduler; se
+# fue con Cloud Run cuando se acabo la prueba gratis de GCP. Abajo, donde dice
+# "Cloud Scheduler", leer "el cron de la VM".
 #
 # POR QUE SE DEGRADO ESTE WORKFLOW A RESPALDO:
 # nacio pidiendo `*/30 * * * *` y GitHub lo corria cada **2 a 5 horas** — se
@@ -53,4 +54,4 @@ jobs:
                --max-time 90 \
                --retry 3 --retry-delay 15 --retry-all-errors \
                --write-out '\nstatus=%{http_code} tiempo=%{time_total}s\n' \
-               https://rateapp-1043427819721.us-east4.run.app/tracks/listening/capture
+               https://rated.duckdns.org/tracks/listening/capture

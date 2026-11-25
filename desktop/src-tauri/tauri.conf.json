@@ -5,8 +5,8 @@
   "version": "0.1.0",
   "identifier": "com.angelrg.rateapp",
   "build": {
-    "frontendDist": "https://rateapp-1043427819721.us-east4.run.app",
-    "devUrl": "https://rateapp-1043427819721.us-east4.run.app",
+    "frontendDist": "https://rated.duckdns.org",
+    "devUrl": "https://rated.duckdns.org",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""
   },

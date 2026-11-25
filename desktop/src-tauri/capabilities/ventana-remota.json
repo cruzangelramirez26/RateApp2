@@ -4,7 +4,7 @@
   "description": "La UNICA puerta abierta a la pagina remota (Cloud Run): mover, minimizar, maximizar y cerrar su propia ventana, para la barra de titulo propia (frontend/src/utils/ventana.js). Nada de archivos, atajos, shell ni otros comandos. Cerrar no destruye: dispara CloseRequested y lib.rs la oculta a la bandeja.",
   "windows": ["main", "player"],
   "remote": {
-    "urls": ["https://rateapp-1043427819721.us-east4.run.app/*"]
+    "urls": ["https://rated.duckdns.org/*"]
   },
   "permissions": [
     "core:window:allow-start-dragging",

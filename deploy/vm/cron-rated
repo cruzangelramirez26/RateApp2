@@ -8,5 +8,8 @@ POST='import urllib.request,sys; print(urllib.request.urlopen(urllib.request.Req
 # Captura de escuchas: recently-played solo da las ultimas 50, cada 15 min.
 */15 * * * * root cd /opt/rated && docker compose exec -T app python -c "$POST" /tracks/listening/capture >> /var/log/rated-cron.log 2>&1
 
+# DuckDNS: la IP de la VM (solo escribe al log si falla).
+*/5 * * * * root /opt/rated/duckdns.sh >> /var/log/rated-cron.log 2>&1
+
 # Mix semanal: lunes 14:23 UTC = 8:23 am Mexico centro.
 23 14 * * 1 root cd /opt/rated && docker compose exec -T app python -c "$POST" /mix/rehacer >> /var/log/rated-cron.log 2>&1
