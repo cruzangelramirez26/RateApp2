@@ -1,0 +1,73 @@
+# Deploy de Rated a la VM e2-micro (us-east1) en cada push a main.
+#
+# La imagen se compila AQUI y no en la VM: con 1 GB de RAM el build de Vite
+# se queda sin memoria. No hay registro de imagenes (GHCR/Artifact Registry
+# cuestan almacenamiento): docker save -> scp -> docker load.
+#
+# Secretos del repo:
+#   VM_HOST         IP o nombre de la VM
+#   VM_SSH_KEY      llave privada del usuario "deploy" (solo para esto)
+#   VM_KNOWN_HOSTS  linea de known_hosts de la VM (la llave del host fijada,
+#                   para no aceptar a ciegas un servidor que se haga pasar)
+name: deploy-vm
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vm
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compilar la imagen
+        run: |
+          docker build -t rated:actual .
+          docker save rated:actual | gzip -1 > rated.tar.gz
+          ls -lh rated.tar.gz
+
+      - name: Preparar SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.VM_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Subir imagen y configuracion
+        run: |
+          scp -q rated.tar.gz deploy/vm/docker-compose.yml deploy/vm/Caddyfile \
+              deploy/vm/cargar-secretos.sh deploy/vm/startup.sh deploy/vm/cron-rated \
+              deploy@${{ secrets.VM_HOST }}:/tmp/
+
+      - name: Cargar y reiniciar
+        run: |
+          ssh deploy@${{ secrets.VM_HOST }} 'set -e
+            cd /tmp
+            sudo docker load -i rated.tar.gz
+            rm rated.tar.gz
+            sed -i "s/\r$//" docker-compose.yml Caddyfile cargar-secretos.sh startup.sh cron-rated
+            sudo mv docker-compose.yml Caddyfile cargar-secretos.sh /opt/rated/
+            sudo chmod +x /opt/rated/cargar-secretos.sh
+            sudo install -m 644 -o root -g root cron-rated /etc/cron.d/rated
+            rm startup.sh cron-rated
+            cd /opt/rated
+            sudo docker compose up -d
+            sudo docker image prune -f'
+
+      - name: Verificar
+        run: |
+          for i in $(seq 1 12); do
+            # Se pregunta DENTRO del contenedor: con HTTPS, Caddy solo atiende el dominio.
+            if ssh deploy@${{ secrets.VM_HOST }} 'cd /opt/rated && sudo docker compose exec -T app python -c "import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\", timeout=5)"'; then
+              echo "arriba"; exit 0
+            fi
+            sleep 5
+          done
+          echo "la app no contesto /health"; exit 1

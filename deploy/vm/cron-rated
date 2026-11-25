@@ -1,0 +1,12 @@
+# /etc/cron.d/rated (lo instala el deploy). Reemplaza a Cloud Scheduler y a
+# los cron de GitHub Actions: corren dentro de la VM, sin atrasos y sin red.
+# La VM esta en UTC.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+POST='import urllib.request,sys; print(urllib.request.urlopen(urllib.request.Request("http://localhost:8000"+sys.argv[1], data=b"", method="POST"), timeout=120).read()[:300])'
+
+# Captura de escuchas: recently-played solo da las ultimas 50, cada 15 min.
+*/15 * * * * root cd /opt/rated && docker compose exec -T app python -c "$POST" /tracks/listening/capture >> /var/log/rated-cron.log 2>&1
+
+# Mix semanal: lunes 14:23 UTC = 8:23 am Mexico centro.
+23 14 * * 1 root cd /opt/rated && docker compose exec -T app python -c "$POST" /mix/rehacer >> /var/log/rated-cron.log 2>&1

@@ -1,0 +1,34 @@
+# Rated en la VM e2-micro. Vive en /opt/rated.
+# La imagen "rated:actual" la carga el deploy (GitHub Actions hace
+# docker save -> scp -> docker load), no hay registro de imagenes.
+services:
+  app:
+    image: rated:actual
+    restart: unless-stopped
+    env_file:
+      - .env          # variables de siempre (sin la contrasena de MySQL)
+      - .env.secretos # MYSQL_PASSWORD, la escribe cargar-secretos.sh
+    environment:
+      PORT: "8000"
+    expose:
+      - "8000"
+    mem_limit: 700m
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      DOMINIO: ${DOMINIO:-:80}   # del mismo .env; vacio = :80 sin HTTPS
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:

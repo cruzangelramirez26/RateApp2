@@ -1,0 +1,10 @@
+# El bloque vacio va primero a proposito: si el archivo empieza con
+# {$DOMINIO...}, Caddy lo confunde con las opciones globales.
+{
+}
+
+# DOMINIO sale del .env (docker compose pone :80 si esta vacio: sin HTTPS, solo para probar).
+{$DOMINIO} {
+	encode gzip
+	reverse_proxy app:8000
+}
